@@ -4,6 +4,7 @@ import { collection, doc, getDocs, orderBy, query, updateDoc } from 'firebase/fi
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   Alert,
+  Dimensions,
   FlatList,
   RefreshControl,
   ScrollView,
@@ -15,16 +16,31 @@ import {
 } from 'react-native';
 import { auth, db } from '../firebaseConfig';
 
+const { width, height } = Dimensions.get('window');
+const isSmallDevice = width < 375;
+const isLargeDevice = width > 414;
+
+const getResponsiveSize = (size) => {
+  if (isSmallDevice) return size * 0.85;
+  if (isLargeDevice) return size * 1.15;
+  return size;
+};
+
+const getResponsiveFontSize = (size) => {
+  const baseSize = getResponsiveSize(size);
+  return Math.round(baseSize);
+};
+
 const EmployeeItem = React.memo(({ item, onStatusChange }) => {
   const statusInfo = useMemo(() => {
     const statuses = {
-      'working': { label: '💼 Работаю', color: '#4CAF50' },
-      'sick': { label: '🤒 Больничный', color: '#FF9800' },
-      'vacation': { label: '🏖️ Отпуск', color: '#2196F3' },
-      'dayoff': { label: '🏠 Отгул', color: '#9C27B0' },
-      'unpaid': { label: '💰 Без содержания', color: '#F44336' }
+      'working': { label: '💼 Работаю', color: '#34C759', gradient: ['#34C759', '#28A745'] },
+      'sick': { label: '🤒 Больничный', color: '#FFA500', gradient: ['#FFA500', '#FF8C00'] },
+      'vacation': { label: '🏖️ Отпуск', color: '#4A90E2', gradient: ['#4A90E2', '#357ABD'] },
+      'dayoff': { label: '🏠 Отгул', color: '#9B59B6', gradient: ['#9B59B6', '#8E44AD'] },
+      'unpaid': { label: '💰 Без содержания', color: '#FF6B6B', gradient: ['#FF6B6B', '#EE5A52'] }
     };
-    return statuses[item.status] || { label: '❓ Неизвестно', color: '#9E9E9E' };
+    return statuses[item.status] || { label: '❓ Неизвестно', color: '#8E8E93', gradient: ['#8E8E93', '#636366'] };
   }, [item.status]);
 
   const handlePress = useCallback(() => {
@@ -33,64 +49,78 @@ const EmployeeItem = React.memo(({ item, onStatusChange }) => {
 
   return (
     <View style={styles.employeeCard}>
-      <View style={styles.employeeHeader}>
-        <View style={styles.employeeInfo}>
-          <Text style={styles.employeeName}>
-            {item.fullName || 'Без имени'}
-          </Text>
-          {item.position && (
-            <Text style={styles.employeePosition}>
-              {item.position}
+      <LinearGradient
+        colors={['rgba(42, 42, 42, 0.9)', 'rgba(35, 35, 35, 0.8)']}
+        style={styles.employeeGradient}
+      >
+        <View style={styles.employeeHeader}>
+          <View style={styles.employeeInfo}>
+            <Text style={styles.employeeName}>
+              {item.fullName || 'Без имени'}
             </Text>
-          )}
-          <Text style={styles.employeeEmail}>
-            {item.email || 'Нет email'}
-          </Text>
-        </View>
-       
-        <View style={styles.statusSection}>
-          <View style={styles.statusBadge}>
-            <View 
-              style={[
-                styles.statusDot,
-                { backgroundColor: statusInfo.color }
-              ]} 
-            />
-            <Text style={styles.statusText}>
-              {statusInfo.label}
+            {item.position && (
+              <Text style={styles.employeePosition}>
+                {item.position}
+              </Text>
+            )}
+            <Text style={styles.employeeEmail}>
+              {item.email || 'Нет email'}
             </Text>
           </View>
          
-          <TouchableOpacity
-            style={styles.statusBadgeTouchable}
-            onPress={handlePress}
-          >
-            <Ionicons name="pencil-outline" size={16} color="#DAA520" />
-          </TouchableOpacity>
+          <View style={styles.statusSection}>
+            <TouchableOpacity
+              style={styles.statusButton}
+              onPress={handlePress}
+            >
+              <LinearGradient
+                colors={statusInfo.gradient}
+                style={styles.statusBadge}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+              >
+                <View style={styles.statusContent}>
+                  <View 
+                    style={[
+                      styles.statusDot,
+                      { backgroundColor: '#FFFFFF' }
+                    ]} 
+                  />
+                  <Text style={styles.statusText}>
+                    {statusInfo.label}
+                  </Text>
+                  <Ionicons name="chevron-down" size={getResponsiveSize(14)} color="#FFFFFF" />
+                </View>
+              </LinearGradient>
+            </TouchableOpacity>
+          </View>
         </View>
-      </View>
-     
-      {(item.startDate || item.endDate) && (
-        <View style={styles.dateInfo}>
-          <Ionicons name="calendar-outline" size={14} color="#8B8B8B" />
-          <Text style={styles.dateText}>
-            {item.startDate && `с ${new Date(item.startDate).toLocaleDateString('ru-RU')}`}
-            {item.startDate && item.endDate && ' '}
-            {item.endDate && `по ${new Date(item.endDate).toLocaleDateString('ru-RU')}`}
-          </Text>
-        </View>
-      )}
-     
-      {item.lastUpdated && (
-        <Text style={styles.lastUpdated}>
-          Обновлено: {new Date(item.lastUpdated.toDate()).toLocaleString('ru-RU', {
-            day: 'numeric',
-            month: 'short',
-            hour: '2-digit',
-            minute: '2-digit'
-          })}
-        </Text>
-      )}
+       
+        {(item.startDate || item.endDate) && (
+          <View style={styles.dateInfo}>
+            <Ionicons name="calendar-outline" size={getResponsiveSize(14)} color="#FFD700" />
+            <Text style={styles.dateText}>
+              {item.startDate && `с ${new Date(item.startDate).toLocaleDateString('ru-RU')}`}
+              {item.startDate && item.endDate && ' '}
+              {item.endDate && `по ${new Date(item.endDate).toLocaleDateString('ru-RU')}`}
+            </Text>
+          </View>
+        )}
+       
+        {item.lastUpdated && (
+          <View style={styles.lastUpdatedContainer}>
+            <Ionicons name="time-outline" size={getResponsiveSize(12)} color="#888" />
+            <Text style={styles.lastUpdated}>
+              Обновлено: {new Date(item.lastUpdated.toDate()).toLocaleString('ru-RU', {
+                day: 'numeric',
+                month: 'short',
+                hour: '2-digit',
+                minute: '2-digit'
+              })}
+            </Text>
+          </View>
+        )}
+      </LinearGradient>
     </View>
   );
 });
@@ -124,7 +154,6 @@ export default function EmployeesListScreen({ navigation, route }) {
       console.log('✅ Пользователь авторизован:', auth.currentUser.email);
       setLoading(true);
      
-      // Добавляем orderBy для серверной сортировки (ускоряет, если индекс создан)
       const employeesQuery = query(
         collection(db, 'employees'), 
         orderBy('fullName')
@@ -139,8 +168,6 @@ export default function EmployeesListScreen({ navigation, route }) {
         const data = doc.data();
         employeesData.push({ id: doc.id, ...data });
       });
-     
-      // Убираем клиентскую сортировку, т.к. теперь на сервере
      
       console.log(`✅ Загружено ${employeesData.length} сотрудников`);
       setEmployees(employeesData);
@@ -164,11 +191,11 @@ export default function EmployeesListScreen({ navigation, route }) {
  
   const handleStatusChange = useCallback(async (employeeId, currentStatus) => {
     const statuses = [
-      { value: 'working', label: '💼 Работаю', color: '#4CAF50' },
-      { value: 'sick', label: '🤒 Больничный', color: '#FF9800' },
-      { value: 'vacation', label: '🏖️ Отпуск', color: '#2196F3' },
-      { value: 'dayoff', label: '🏠 Отгул', color: '#9C27B0' },
-      { value: 'unpaid', label: '💰 Без содержания', color: '#F44336' }
+      { value: 'working', label: '💼 Работаю', gradient: ['#34C759', '#28A745'] },
+      { value: 'sick', label: '🤒 Больничный', gradient: ['#FFA500', '#FF8C00'] },
+      { value: 'vacation', label: '🏖️ Отпуск', gradient: ['#4A90E2', '#357ABD'] },
+      { value: 'dayoff', label: '🏠 Отгул', gradient: ['#9B59B6', '#8E44AD'] },
+      { value: 'unpaid', label: '💰 Без содержания', gradient: ['#FF6B6B', '#EE5A52'] }
     ];
     Alert.alert(
       'Изменить статус',
@@ -183,7 +210,7 @@ export default function EmployeesListScreen({ navigation, route }) {
                 lastUpdated: new Date()
               });
               Alert.alert('Успех', 'Статус обновлен');
-              loadEmployees(); // Перезагружаем для обновления
+              loadEmployees();
             } catch (error) {
               console.error('Ошибка обновления статуса:', error);
               Alert.alert('Ошибка', 'Не удалось обновить статус');
@@ -195,7 +222,6 @@ export default function EmployeesListScreen({ navigation, route }) {
     );
   }, []);
  
-  // Оптимизированная фильтрация и статистика с useMemo
   const { filteredEmployees, stats } = useMemo(() => {
     const total = employees.length;
     const working = employees.filter(e => e.status === 'working').length;
@@ -232,256 +258,328 @@ export default function EmployeesListScreen({ navigation, route }) {
     };
     return labels[status] || 'Неизвестно';
   }, []);
+
+  const FilterChip = useCallback(({ status, count, isActive, onPress, gradient }) => (
+    <TouchableOpacity onPress={onPress}>
+      <LinearGradient
+        colors={isActive ? gradient : ['#2a2a2a', '#1f1f1f']}
+        style={[
+          styles.filterChip,
+          isActive && styles.filterChipActive
+        ]}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
+      >
+        <Text style={[
+          styles.filterChipText,
+          isActive && styles.filterChipTextActive
+        ]}>
+          {getStatusLabel(status)} ({count})
+        </Text>
+      </LinearGradient>
+    </TouchableOpacity>
+  ), [getStatusLabel]);
  
   return (
-    <LinearGradient
-      colors={['#FFF8E1', '#FFE4B5', '#FFD700']}
-      style={styles.container}
-    >
+    <View style={styles.container}>
       <LinearGradient
-        colors={['rgba(255, 248, 225, 0.95)', 'rgba(255, 228, 181, 0.9)']}
-        style={styles.header}
+        colors={['#0a0a0a', '#1a1a1a', '#2a2a2a']}
+        style={styles.background}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
       >
-        <View style={styles.headerContent}>
-          <TouchableOpacity
-            onPress={() => navigation.goBack()}
-            style={styles.backButton}
-          >
-            <Ionicons name="arrow-back" size={22} color="#3E2723" />
-          </TouchableOpacity>
-          <Text style={styles.headerTitle}>👥 Список артистов</Text>
-          <View style={styles.headerSpacer} />
-        </View>
-      </LinearGradient>
- 
-      <View style={styles.searchContainer}>
-        <Ionicons name="search" size={18} color="#8B8B8B" />
-        <TextInput
-          style={styles.searchInput}
-          value={searchQuery}
-          onChangeText={setSearchQuery}
-          placeholder="Поиск по ФИО, должности или email..."
-          placeholderTextColor="#8B8B8B"
-        />
-      </View>
- 
-      <View style={styles.filtersContainer}>
-        <Text style={styles.filtersTitle}>Фильтр по статусу:</Text>
-        <ScrollView 
-          horizontal 
-          showsHorizontalScrollIndicator={false}
-          style={styles.filtersScroll}
+        {/* Хедер в стиле CalendarScreen */}
+        <LinearGradient
+          colors={['rgba(26, 26, 26, 0.98)', 'rgba(35, 35, 35, 0.95)']}
+          style={styles.header}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
         >
-          <View style={styles.filtersRow}>
+          <View style={styles.headerContent}>
             <TouchableOpacity
-              style={[
-                styles.filterChip,
-                filter === 'all' && styles.filterChipActive
-              ]}
-              onPress={() => setFilter('all')}
+              onPress={() => navigation.goBack()}
+              style={styles.backButton}
             >
-              <Text style={[
-                styles.filterChipText,
-                filter === 'all' && styles.filterChipTextActive
-              ]}>
-                Все ({stats.total})
-              </Text>
+              <Ionicons name="arrow-back" size={getResponsiveSize(24)} color="#FFD700" />
             </TouchableOpacity>
-           
-            <TouchableOpacity
-              style={[
-                styles.filterChip,
-                filter === 'working' && styles.filterChipActive,
-                filter === 'working' && { borderColor: '#4CAF50' }
-              ]}
-              onPress={() => setFilter('working')}
-            >
-              <View style={[styles.filterDot, { backgroundColor: '#4CAF50' }]} />
-              <Text style={[
-                styles.filterChipText,
-                filter === 'working' && styles.filterChipTextActive
-              ]}>
-                {getStatusLabel('working')} ({stats.working})
-              </Text>
-            </TouchableOpacity>
-           
-            <TouchableOpacity
-              style={[
-                styles.filterChip,
-                filter === 'sick' && styles.filterChipActive,
-                filter === 'sick' && { borderColor: '#FF9800' }
-              ]}
-              onPress={() => setFilter('sick')}
-            >
-              <View style={[styles.filterDot, { backgroundColor: '#FF9800' }]} />
-              <Text style={[
-                styles.filterChipText,
-                filter === 'sick' && styles.filterChipTextActive
-              ]}>
-                {getStatusLabel('sick')} ({stats.sick})
-              </Text>
-            </TouchableOpacity>
-           
-            <TouchableOpacity
-              style={[
-                styles.filterChip,
-                filter === 'vacation' && styles.filterChipActive,
-                filter === 'vacation' && { borderColor: '#2196F3' }
-              ]}
-              onPress={() => setFilter('vacation')}
-            >
-              <View style={[styles.filterDot, { backgroundColor: '#2196F3' }]} />
-              <Text style={[
-                styles.filterChipText,
-                filter === 'vacation' && styles.filterChipTextActive
-              ]}>
-                {getStatusLabel('vacation')} ({stats.vacation})
-              </Text>
-            </TouchableOpacity>
-           
-            <TouchableOpacity
-              style={[
-                styles.filterChip,
-                filter === 'dayoff' && styles.filterChipActive,
-                filter === 'dayoff' && { borderColor: '#9C27B0' }
-              ]}
-              onPress={() => setFilter('dayoff')}
-            >
-              <View style={[styles.filterDot, { backgroundColor: '#9C27B0' }]} />
-              <Text style={[
-                styles.filterChipText,
-                filter === 'dayoff' && styles.filterChipTextActive
-              ]}>
-                {getStatusLabel('dayoff')} ({stats.dayoff})
-              </Text>
-            </TouchableOpacity>
-           
-            <TouchableOpacity
-              style={[
-                styles.filterChip,
-                filter === 'unpaid' && styles.filterChipActive,
-                filter === 'unpaid' && { borderColor: '#F44336' }
-              ]}
-              onPress={() => setFilter('unpaid')}
-            >
-              <View style={[styles.filterDot, { backgroundColor: '#F44336' }]} />
-              <Text style={[
-                styles.filterChipText,
-                filter === 'unpaid' && styles.filterChipTextActive
-              ]}>
-                {getStatusLabel('unpaid')} ({stats.unpaid})
-              </Text>
-            </TouchableOpacity>
-          </View>
-        </ScrollView>
-      </View>
- 
-      <View style={styles.statsContainer}>
-        <Text style={styles.statsTitle}>Статистика:</Text>
-        <View style={styles.statsRow}>
-          <View style={styles.statItem}>
-            <View style={[styles.statDot, { backgroundColor: '#4CAF50' }]} />
-            <Text style={styles.statText}>{stats.working}</Text>
-          </View>
-          <View style={styles.statItem}>
-            <View style={[styles.statDot, { backgroundColor: '#FF9800' }]} />
-            <Text style={styles.statText}>{stats.sick}</Text>
-          </View>
-          <View style={styles.statItem}>
-            <View style={[styles.statDot, { backgroundColor: '#2196F3' }]} />
-            <Text style={styles.statText}>{stats.vacation}</Text>
-          </View>
-          <View style={styles.statItem}>
-            <View style={[styles.statDot, { backgroundColor: '#9C27B0' }]} />
-            <Text style={styles.statText}>{stats.dayoff}</Text>
-          </View>
-          <View style={styles.statItem}>
-            <View style={[styles.statDot, { backgroundColor: '#F44336' }]} />
-            <Text style={styles.statText}>{stats.unpaid}</Text>
-          </View>
-        </View>
-      </View>
- 
-      <View style={styles.filterInfo}>
-        <Text style={styles.filterInfoText}>
-          Показано: {filteredEmployees.length} из {employees.length} сотрудников
-          {filter !== 'all' && ` • Фильтр: ${getStatusLabel(filter)}`}
-          {searchQuery && ` • Поиск: "${searchQuery}"`}
-        </Text>
-      </View>
- 
-      <FlatList
-        data={filteredEmployees}
-        renderItem={renderEmployee}
-        keyExtractor={(item) => item.id} // Стабильный ключ
-        style={styles.list}
-        refreshControl={
-          <RefreshControl
-            refreshing={refreshing}
-            onRefresh={onRefresh}
-            colors={['#DAA520']}
-            tintColor="#DAA520"
-          />
-        }
-        // Оптимизации FlatList (2025 best practices)
-        initialNumToRender={10}
-        maxToRenderPerBatch={10}
-        windowSize={10}
-        removeClippedSubviews={true}
-        getItemLayout={(data, index) => ({
-          length: 120, // Примерная высота элемента, подгоните под ваш дизайн
-          offset: 120 * index,
-          index,
-        })}
-        ListEmptyComponent={
-          loading ? (
-            <View style={styles.loadingContainer}>
-              <Ionicons name="people" size={40} color="#DAA520" />
-              <Text style={styles.loadingText}>Загрузка сотрудников...</Text>
+            
+            <View style={styles.titleSection}>
+              <View style={styles.titleIconContainer}>
+                <LinearGradient
+                  colors={['#FFD700', '#FFA500']}
+                  style={styles.titleIconGradient}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 1 }}
+                >
+                  <Ionicons name="people" size={getResponsiveSize(24)} color="#1a1a1a" />
+                </LinearGradient>
+              </View>
+              <View style={styles.titleTextContainer}>
+                <Text style={styles.mainTitle}>Список артистов</Text>
+                <Text style={styles.subtitle}>Управление статусами</Text>
+              </View>
             </View>
-          ) : (
-            <View style={styles.emptyState}>
-              <Ionicons name="people-outline" size={40} color="#DAA520" />
-              <Text style={styles.emptyStateText}>
-                {employees.length === 0 
-                  ? 'Сотрудников нет' 
-                  : 'Нет сотрудников по выбранному фильтру'
-                }
-              </Text>
-              {(searchQuery || filter !== 'all') && (
+
+            <View style={styles.headerSpacer} />
+          </View>
+        </LinearGradient>
+
+        <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
+          {/* Поиск */}
+          <View style={styles.searchContainer}>
+            <LinearGradient
+              colors={['rgba(42, 42, 42, 0.9)', 'rgba(35, 35, 35, 0.8)']}
+              style={styles.searchGradient}
+            >
+              <Ionicons name="search" size={getResponsiveSize(20)} color="#FFD700" />
+              <TextInput
+                style={styles.searchInput}
+                value={searchQuery}
+                onChangeText={setSearchQuery}
+                placeholder="Поиск по ФИО, должности или email..."
+                placeholderTextColor="#888"
+              />
+              {searchQuery.length > 0 && (
+                <TouchableOpacity onPress={() => setSearchQuery('')}>
+                  <Ionicons name="close-circle" size={getResponsiveSize(20)} color="#888" />
+                </TouchableOpacity>
+              )}
+            </LinearGradient>
+          </View>
+
+          {/* Статистика */}
+          <View style={styles.statsContainer}>
+            <LinearGradient
+              colors={['rgba(42, 42, 42, 0.9)', 'rgba(35, 35, 35, 0.8)']}
+              style={styles.statsGradient}
+            >
+              <View style={styles.statsHeader}>
+                <View style={styles.statsTitleContainer}>
+                  <Ionicons name="stats-chart" size={getResponsiveSize(18)} color="#FFD700" />
+                  <Text style={styles.statsTitle}>Статистика команды</Text>
+                </View>
+                <Text style={styles.totalCount}>{stats.total} чел.</Text>
+              </View>
+              
+              <View style={styles.statsGrid}>
+                <View style={styles.statItem}>
+                  <LinearGradient colors={['#34C759', '#28A745']} style={styles.statIcon}>
+                    <Ionicons name="business" size={getResponsiveSize(16)} color="white" />
+                  </LinearGradient>
+                  <Text style={styles.statNumber}>{stats.working}</Text>
+                  <Text style={styles.statLabel}>Работают</Text>
+                </View>
+                
+                <View style={styles.statItem}>
+                  <LinearGradient colors={['#FFA500', '#FF8C00']} style={styles.statIcon}>
+                    <Ionicons name="medical" size={getResponsiveSize(16)} color="white" />
+                  </LinearGradient>
+                  <Text style={styles.statNumber}>{stats.sick}</Text>
+                  <Text style={styles.statLabel}>Больничный</Text>
+                </View>
+                
+                <View style={styles.statItem}>
+                  <LinearGradient colors={['#4A90E2', '#357ABD']} style={styles.statIcon}>
+                    <Ionicons name="airplane" size={getResponsiveSize(16)} color="white" />
+                  </LinearGradient>
+                  <Text style={styles.statNumber}>{stats.vacation}</Text>
+                  <Text style={styles.statLabel}>Отпуск</Text>
+                </View>
+                
+                <View style={styles.statItem}>
+                  <LinearGradient colors={['#9B59B6', '#8E44AD']} style={styles.statIcon}>
+                    <Ionicons name="home" size={getResponsiveSize(16)} color="white" />
+                  </LinearGradient>
+                  <Text style={styles.statNumber}>{stats.dayoff}</Text>
+                  <Text style={styles.statLabel}>Отгул</Text>
+                </View>
+                
+                <View style={styles.statItem}>
+                  <LinearGradient colors={['#FF6B6B', '#EE5A52']} style={styles.statIcon}>
+                    <Ionicons name="card" size={getResponsiveSize(16)} color="white" />
+                  </LinearGradient>
+                  <Text style={styles.statNumber}>{stats.unpaid}</Text>
+                  <Text style={styles.statLabel}>Без содержания</Text>
+                </View>
+              </View>
+            </LinearGradient>
+          </View>
+
+          {/* Фильтры */}
+          <View style={styles.filtersContainer}>
+            <LinearGradient
+              colors={['rgba(42, 42, 42, 0.9)', 'rgba(35, 35, 35, 0.8)']}
+              style={styles.filtersGradient}
+            >
+              <Text style={styles.filtersTitle}>Фильтр по статусу</Text>
+              <ScrollView 
+                horizontal 
+                showsHorizontalScrollIndicator={false}
+                style={styles.filtersScroll}
+              >
+                <View style={styles.filtersRow}>
+                  <FilterChip
+                    status="all"
+                    count={stats.total}
+                    isActive={filter === 'all'}
+                    onPress={() => setFilter('all')}
+                    gradient={['#FFD700', '#FFA500']}
+                  />
+                  <FilterChip
+                    status="working"
+                    count={stats.working}
+                    isActive={filter === 'working'}
+                    onPress={() => setFilter('working')}
+                    gradient={['#34C759', '#28A745']}
+                  />
+                  <FilterChip
+                    status="sick"
+                    count={stats.sick}
+                    isActive={filter === 'sick'}
+                    onPress={() => setFilter('sick')}
+                    gradient={['#FFA500', '#FF8C00']}
+                  />
+                  <FilterChip
+                    status="vacation"
+                    count={stats.vacation}
+                    isActive={filter === 'vacation'}
+                    onPress={() => setFilter('vacation')}
+                    gradient={['#4A90E2', '#357ABD']}
+                  />
+                  <FilterChip
+                    status="dayoff"
+                    count={stats.dayoff}
+                    isActive={filter === 'dayoff'}
+                    onPress={() => setFilter('dayoff')}
+                    gradient={['#9B59B6', '#8E44AD']}
+                  />
+                  <FilterChip
+                    status="unpaid"
+                    count={stats.unpaid}
+                    isActive={filter === 'unpaid'}
+                    onPress={() => setFilter('unpaid')}
+                    gradient={['#FF6B6B', '#EE5A52']}
+                  />
+                </View>
+              </ScrollView>
+            </LinearGradient>
+          </View>
+
+          {/* Информация о фильтрах */}
+          {(filter !== 'all' || searchQuery) && (
+            <View style={styles.filterInfo}>
+              <LinearGradient
+                colors={['rgba(255, 215, 0, 0.2)', 'rgba(255, 165, 0, 0.2)']}
+                style={styles.filterInfoGradient}
+              >
+                <Ionicons name="information-circle" size={getResponsiveSize(16)} color="#FFD700" />
+                <Text style={styles.filterInfoText}>
+                  Показано: {filteredEmployees.length} из {employees.length} сотрудников
+                  {filter !== 'all' && ` • Фильтр: ${getStatusLabel(filter)}`}
+                  {searchQuery && ` • Поиск: "${searchQuery}"`}
+                </Text>
                 <TouchableOpacity 
-                  style={styles.clearFiltersButton}
                   onPress={() => {
                     setSearchQuery('');
                     setFilter('all');
                   }}
                 >
-                  <Text style={styles.clearFiltersText}>Очистить фильтры</Text>
+                  <Ionicons name="close" size={getResponsiveSize(16)} color="#FFD700" />
                 </TouchableOpacity>
-              )}
+              </LinearGradient>
             </View>
-          )
-        }
-      />
-    </LinearGradient>
+          )}
+
+          {/* Список сотрудников */}
+          <View style={styles.listContainer}>
+            <FlatList
+              data={filteredEmployees}
+              renderItem={renderEmployee}
+              keyExtractor={(item) => item.id}
+              style={styles.list}
+              scrollEnabled={false}
+              refreshControl={
+                <RefreshControl
+                  refreshing={refreshing}
+                  onRefresh={onRefresh}
+                  colors={['#FFD700']}
+                  tintColor="#FFD700"
+                  title="Обновление..."
+                  titleColor="#FFD700"
+                />
+              }
+              initialNumToRender={10}
+              maxToRenderPerBatch={10}
+              windowSize={10}
+              removeClippedSubviews={true}
+              ListEmptyComponent={
+                loading ? (
+                  <View style={styles.loadingContainer}>
+                    <Ionicons name="people" size={getResponsiveSize(48)} color="#FFD700" />
+                    <Text style={styles.loadingText}>Загрузка сотрудников...</Text>
+                  </View>
+                ) : (
+                  <View style={styles.emptyState}>
+                    <Ionicons name="people-outline" size={getResponsiveSize(48)} color="#555" />
+                    <Text style={styles.emptyStateText}>
+                      {employees.length === 0 
+                        ? 'Сотрудников нет' 
+                        : 'Нет сотрудников по выбранному фильтру'
+                      }
+                    </Text>
+                    {(searchQuery || filter !== 'all') && (
+                      <TouchableOpacity 
+                        style={styles.clearFiltersButton}
+                        onPress={() => {
+                          setSearchQuery('');
+                          setFilter('all');
+                        }}
+                      >
+                        <LinearGradient
+                          colors={['#FFD700', '#FFA500']}
+                          style={styles.clearFiltersGradient}
+                          start={{ x: 0, y: 0 }}
+                          end={{ x: 1, y: 1 }}
+                        >
+                          <Text style={styles.clearFiltersText}>Очистить фильтры</Text>
+                        </LinearGradient>
+                      </TouchableOpacity>
+                    )}
+                  </View>
+                )
+              }
+            />
+          </View>
+        </ScrollView>
+      </LinearGradient>
+    </View>
   );
 }
- 
+
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+    backgroundColor: '#0a0a0a',
+  },
+  background: {
+    flex: 1,
+  },
+  scrollView: {
+    flex: 1,
   },
   header: {
-    paddingHorizontal: 20,
-    paddingTop: 50,
-    paddingBottom: 12,
-    borderBottomLeftRadius: 25,
-    borderBottomRightRadius: 25,
-    shadowColor: '#8B6B4F',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 5,
+    paddingHorizontal: getResponsiveSize(20),
+    paddingTop: getResponsiveSize(50),
+    paddingBottom: getResponsiveSize(20),
+    borderBottomLeftRadius: getResponsiveSize(25),
+    borderBottomRightRadius: getResponsiveSize(25),
+    shadowColor: '#FFD700',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.3,
+    shadowRadius: 16,
+    elevation: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(255, 215, 0, 0.3)',
   },
   headerContent: {
     flexDirection: 'row',
@@ -489,256 +587,357 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
   },
   backButton: {
-    padding: 4,
+    padding: getResponsiveSize(8),
   },
-  headerTitle: {
-    fontSize: 16,
-    fontWeight: 'bold',
-    color: '#3E2723',
-    textAlign: 'center',
-  },
-  headerSpacer: {
-    width: 22,
-  },
-  searchContainer: {
+  titleSection: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: 'white',
-    margin: 12,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    borderRadius: 10,
+    flex: 1,
+    justifyContent: 'center',
+  },
+  titleIconContainer: {
+    marginRight: getResponsiveSize(12),
+  },
+  titleIconGradient: {
+    width: getResponsiveSize(44),
+    height: getResponsiveSize(44),
+    borderRadius: getResponsiveSize(12),
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: '#FFD700',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.4,
+    shadowRadius: 8,
+    elevation: 5,
+  },
+  titleTextContainer: {
+    alignItems: 'center',
+  },
+  mainTitle: {
+    fontSize: getResponsiveFontSize(18),
+    fontWeight: '800',
+    color: '#E0E0E0',
+    letterSpacing: 0.3,
+  },
+  subtitle: {
+    fontSize: getResponsiveFontSize(12),
+    color: '#999',
+    fontWeight: '500',
+  },
+  headerSpacer: {
+    width: getResponsiveSize(44),
+  },
+  searchContainer: {
+    margin: getResponsiveSize(15),
+  },
+  searchGradient: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(42, 42, 42, 0.9)',
+    paddingHorizontal: getResponsiveSize(15),
+    paddingVertical: getResponsiveSize(12),
+    borderRadius: getResponsiveSize(15),
     borderWidth: 1,
-    borderColor: '#E0E0E0',
+    borderColor: 'rgba(255, 215, 0, 0.2)',
+    shadowColor: '#FFD700',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 8,
+    elevation: 3,
   },
   searchInput: {
     flex: 1,
-    marginLeft: 8,
-    fontSize: 13,
-    color: '#3E2723',
+    marginLeft: getResponsiveSize(10),
+    fontSize: getResponsiveFontSize(14),
+    color: '#E0E0E0',
+  },
+  statsContainer: {
+    marginHorizontal: getResponsiveSize(15),
+    marginBottom: getResponsiveSize(15),
+  },
+  statsGradient: {
+    borderRadius: getResponsiveSize(15),
+    padding: getResponsiveSize(16),
+    borderWidth: 1,
+    borderColor: 'rgba(255, 215, 0, 0.2)',
+    shadowColor: '#FFD700',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 8,
+    elevation: 5,
+  },
+  statsHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: getResponsiveSize(15),
+  },
+  statsTitleContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  statsTitle: {
+    fontSize: getResponsiveFontSize(16),
+    fontWeight: '700',
+    color: '#E0E0E0',
+    marginLeft: getResponsiveSize(8),
+  },
+  totalCount: {
+    fontSize: getResponsiveFontSize(18),
+    fontWeight: '800',
+    color: '#FFD700',
+  },
+  statsGrid: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+  },
+  statItem: {
+    alignItems: 'center',
+    flex: 1,
+  },
+  statIcon: {
+    width: getResponsiveSize(32),
+    height: getResponsiveSize(32),
+    borderRadius: getResponsiveSize(16),
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: getResponsiveSize(6),
+  },
+  statNumber: {
+    fontSize: getResponsiveFontSize(16),
+    fontWeight: '800',
+    color: '#E0E0E0',
+    marginBottom: getResponsiveSize(2),
+  },
+  statLabel: {
+    fontSize: getResponsiveFontSize(10),
+    color: '#999',
+    fontWeight: '600',
+    textAlign: 'center',
   },
   filtersContainer: {
-    backgroundColor: 'rgba(255, 255, 255, 0.8)',
-    marginHorizontal: 12,
-    marginBottom: 8,
-    padding: 12,
-    borderRadius: 10,
+    marginHorizontal: getResponsiveSize(15),
+    marginBottom: getResponsiveSize(15),
+  },
+  filtersGradient: {
+    borderRadius: getResponsiveSize(15),
+    padding: getResponsiveSize(16),
     borderWidth: 1,
-    borderColor: 'rgba(218, 165, 32, 0.3)',
+    borderColor: 'rgba(255, 215, 0, 0.2)',
+    shadowColor: '#FFD700',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 8,
+    elevation: 5,
   },
   filtersTitle: {
-    fontSize: 13,
-    fontWeight: 'bold',
-    color: '#3E2723',
-    marginBottom: 8,
+    fontSize: getResponsiveFontSize(14),
+    fontWeight: '700',
+    color: '#E0E0E0',
+    marginBottom: getResponsiveSize(12),
   },
   filtersScroll: {
-    maxHeight: 50,
+    maxHeight: getResponsiveSize(50),
   },
   filtersRow: {
     flexDirection: 'row',
-    gap: 8,
+    gap: getResponsiveSize(8),
   },
   filterChip: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#F5F5F5',
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 20,
+    paddingHorizontal: getResponsiveSize(16),
+    paddingVertical: getResponsiveSize(8),
+    borderRadius: getResponsiveSize(20),
     borderWidth: 1,
-    borderColor: '#E0E0E0',
-    minHeight: 32,
+    borderColor: 'rgba(255, 215, 0, 0.3)',
+    minHeight: getResponsiveSize(36),
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   filterChipActive: {
-    backgroundColor: '#FFF8E1',
     borderWidth: 2,
-  },
-  filterDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    marginRight: 6,
+    borderColor: 'rgba(255, 255, 255, 0.8)',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+    elevation: 3,
   },
   filterChipText: {
-    fontSize: 11,
-    color: '#666',
-    fontWeight: '500',
-  },
-  filterChipTextActive: {
-    color: '#3E2723',
+    fontSize: getResponsiveFontSize(12),
+    color: '#999',
     fontWeight: '600',
   },
-  statsContainer: {
-    backgroundColor: 'rgba(255, 255, 255, 0.8)',
-    marginHorizontal: 12,
-    marginBottom: 8,
-    padding: 12,
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: 'rgba(218, 165, 32, 0.3)',
-  },
-  statsTitle: {
-    fontSize: 13,
-    fontWeight: 'bold',
-    color: '#3E2723',
-    marginBottom: 8,
-  },
-  statsRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-around',
-  },
-  statItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  statDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    marginRight: 4,
-  },
-  statText: {
-    fontSize: 11,
-    fontWeight: 'bold',
-    color: '#3E2723',
+  filterChipTextActive: {
+    color: '#1a1a1a',
+    fontWeight: '700',
   },
   filterInfo: {
-    backgroundColor: 'rgba(255, 248, 225, 0.9)',
-    marginHorizontal: 12,
-    marginBottom: 8,
-    padding: 8,
-    borderRadius: 8,
-    borderLeftWidth: 3,
-    borderLeftColor: '#DAA520',
+    marginHorizontal: getResponsiveSize(15),
+    marginBottom: getResponsiveSize(15),
+  },
+  filterInfoGradient: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: getResponsiveSize(12),
+    borderRadius: getResponsiveSize(12),
+    borderWidth: 1,
+    borderColor: 'rgba(255, 215, 0, 0.3)',
   },
   filterInfoText: {
-    fontSize: 11,
-    color: '#3E2723',
-    textAlign: 'center',
+    flex: 1,
+    fontSize: getResponsiveFontSize(12),
+    color: '#FFD700',
+    marginLeft: getResponsiveSize(8),
     fontWeight: '500',
+  },
+  listContainer: {
+    marginHorizontal: getResponsiveSize(15),
+    marginBottom: getResponsiveSize(20),
   },
   list: {
     flex: 1,
-    paddingHorizontal: 12,
-  },
-  loadingContainer: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 40,
-  },
-  loadingText: {
-    fontSize: 14,
-    color: '#3E2723',
-    marginTop: 10,
-  },
-  emptyState: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 40,
-  },
-  emptyStateText: {
-    fontSize: 13,
-    color: '#8B8B8B',
-    marginTop: 8,
-    textAlign: 'center',
-  },
-  clearFiltersButton: {
-    marginTop: 12,
-    backgroundColor: '#DAA520',
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 8,
-  },
-  clearFiltersText: {
-    color: 'white',
-    fontSize: 12,
-    fontWeight: '600',
   },
   employeeCard: {
-    backgroundColor: 'white',
-    borderRadius: 10,
-    padding: 12,
-    marginBottom: 8,
-    shadowColor: '#8B6B4F',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
+    marginBottom: getResponsiveSize(12),
+    borderRadius: getResponsiveSize(15),
+    overflow: 'hidden',
+    shadowColor: '#FFD700',
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.2,
+    shadowRadius: 8,
+    elevation: 5,
+  },
+  employeeGradient: {
+    padding: getResponsiveSize(16),
+    borderRadius: getResponsiveSize(15),
     borderWidth: 1,
-    borderColor: '#E0E0E0',
+    borderColor: 'rgba(255, 215, 0, 0.2)',
   },
   employeeHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'flex-start',
-    marginBottom: 8,
+    marginBottom: getResponsiveSize(12),
   },
   employeeInfo: {
     flex: 1,
   },
   employeeName: {
-    fontSize: 14,
-    fontWeight: 'bold',
-    color: '#3E2723',
-    marginBottom: 3,
+    fontSize: getResponsiveFontSize(16),
+    fontWeight: '700',
+    color: '#E0E0E0',
+    marginBottom: getResponsiveSize(4),
   },
   employeePosition: {
-    fontSize: 12,
-    color: '#DAA520',
+    fontSize: getResponsiveFontSize(13),
+    color: '#FFD700',
     fontWeight: '600',
-    marginBottom: 2,
+    marginBottom: getResponsiveSize(2),
   },
   employeeEmail: {
-    fontSize: 11,
-    color: '#8B8B8B',
+    fontSize: getResponsiveFontSize(12),
+    color: '#999',
   },
   statusSection: {
     alignItems: 'flex-end',
   },
+  statusButton: {
+    borderRadius: getResponsiveSize(20),
+    overflow: 'hidden',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+    elevation: 3,
+  },
   statusBadge: {
+    paddingHorizontal: getResponsiveSize(12),
+    paddingVertical: getResponsiveSize(6),
+    borderRadius: getResponsiveSize(20),
+    minWidth: getResponsiveSize(120),
+  },
+  statusContent: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#F5F5F5',
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 12,
-    marginBottom: 6,
+    justifyContent: 'center',
   },
   statusDot: {
-    width: 7,
-    height: 7,
-    borderRadius: 3.5,
-    marginRight: 5,
+    width: getResponsiveSize(8),
+    height: getResponsiveSize(8),
+    borderRadius: getResponsiveSize(4),
+    marginRight: getResponsiveSize(6),
   },
   statusText: {
-    fontSize: 11,
-    fontWeight: '500',
-    color: '#3E2723',
-  },
-  statusBadgeTouchable: {
-    padding: 3,
-    marginTop: -3,
+    fontSize: getResponsiveFontSize(12),
+    fontWeight: '600',
+    color: '#FFFFFF',
+    marginRight: getResponsiveSize(4),
   },
   dateInfo: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 8,
-    padding: 8,
-    backgroundColor: '#FFF8E1',
-    borderRadius: 6,
-    borderLeftWidth: 3,
+    marginBottom: getResponsiveSize(8),
+    padding: getResponsiveSize(8),
+    backgroundColor: 'rgba(255, 215, 0, 0.1)',
+    borderRadius: getResponsiveSize(8),
+    borderLeftWidth: getResponsiveSize(3),
     borderLeftColor: '#FFD700',
   },
   dateText: {
-    fontSize: 11,
-    color: '#3E2723',
-    marginLeft: 6,
+    fontSize: getResponsiveFontSize(12),
+    color: '#E0E0E0',
+    marginLeft: getResponsiveSize(6),
     fontWeight: '500',
   },
+  lastUpdatedContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'flex-end',
+  },
   lastUpdated: {
-    fontSize: 9,
-    color: '#8B8B8B',
-    textAlign: 'right',
+    fontSize: getResponsiveFontSize(10),
+    color: '#888',
+    marginLeft: getResponsiveSize(4),
+  },
+  loadingContainer: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: getResponsiveSize(40),
+  },
+  loadingText: {
+    fontSize: getResponsiveFontSize(14),
+    color: '#E0E0E0',
+    marginTop: getResponsiveSize(10),
+  },
+  emptyState: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: getResponsiveSize(40),
+  },
+  emptyStateText: {
+    fontSize: getResponsiveFontSize(14),
+    color: '#888',
+    marginTop: getResponsiveSize(8),
+    textAlign: 'center',
+  },
+  clearFiltersButton: {
+    marginTop: getResponsiveSize(16),
+    borderRadius: getResponsiveSize(20),
+    overflow: 'hidden',
+    shadowColor: '#FFD700',
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.3,
+    shadowRadius: 6,
+    elevation: 5,
+  },
+  clearFiltersGradient: {
+    paddingHorizontal: getResponsiveSize(20),
+    paddingVertical: getResponsiveSize(10),
+    borderRadius: getResponsiveSize(20),
+  },
+  clearFiltersText: {
+    color: '#1a1a1a',
+    fontSize: getResponsiveFontSize(12),
+    fontWeight: '700',
   },
 });

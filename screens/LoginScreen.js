@@ -14,7 +14,6 @@ import {
   Alert,
   Animated,
   Dimensions,
-  Image,
   KeyboardAvoidingView,
   Platform,
   ScrollView,
@@ -28,9 +27,11 @@ import { auth, db } from '../firebaseConfig';
 
 const { width, height } = Dimensions.get('window');
 const isSmallDevice = width < 375;
+const isLargeDevice = width > 414;
 
 const getResponsiveSize = (size) => {
   if (isSmallDevice) return size * 0.85;
+  if (isLargeDevice) return size * 1.15;
   return size;
 };
 
@@ -40,7 +41,7 @@ const getResponsiveFontSize = (size) => {
 };
 
 // ========================================
-// 🔒 ВАЛИДАЦИЯ
+// 🔒 ВАЛИДАЦИЯ (без изменений)
 // ========================================
 
 const validateEmail = (email) => {
@@ -77,7 +78,7 @@ const validateFullName = (name) => {
 };
 
 // ========================================
-// 🔔 PUSH-УВЕДОМЛЕНИЯ
+// 🔔 PUSH-УВЕДОМЛЕНИЯ (без изменений)
 // ========================================
 
 async function registerForPushNotificationsAsync() {
@@ -153,7 +154,7 @@ async function registerForPushNotificationsAsync() {
 }
 
 // ========================================
-// 🔐 RATE LIMITING (защита от спама)
+// 🔐 RATE LIMITING (без изменений)
 // ========================================
 
 class RateLimiter {
@@ -190,7 +191,7 @@ class RateLimiter {
 const rateLimiter = new RateLimiter();
 
 // ========================================
-// 📱 ФОРМАТИРОВАНИЕ ТЕЛЕФОНА
+// 📱 ФОРМАТИРОВАНИЕ ТЕЛЕФОНА (без изменений)
 // ========================================
 
 const formatPhone = (text) => {
@@ -221,7 +222,7 @@ const formatPhone = (text) => {
 };
 
 // ========================================
-// 🎨 КОМПОНЕНТ LoginScreen
+// 🎨 КОМПОНЕНТ LoginScreen (ОБНОВЛЕННЫЙ ДИЗАЙН)
 // ========================================
 
 export default function LoginScreen({ navigation }) {
@@ -262,7 +263,7 @@ export default function LoginScreen({ navigation }) {
   };
 
   // ========================================
-  // 💾 СОЗДАНИЕ/ОБНОВЛЕНИЕ ДОКУМЕНТА ПОЛЬЗОВАТЕЛЯ
+  // 💾 СОЗДАНИЕ/ОБНОВЛЕНИЕ ДОКУМЕНТА ПОЛЬЗОВАТЕЛЯ (без изменений)
   // ========================================
 
   const createUserDocument = async (user, additionalData = {}) => {
@@ -303,7 +304,7 @@ export default function LoginScreen({ navigation }) {
   };
 
   // ========================================
-  // 🔑 ВХОД В СИСТЕМУ
+  // 🔑 ВХОД В СИСТЕМУ (без изменений)
   // ========================================
 
   const handleLogin = async () => {
@@ -373,7 +374,7 @@ export default function LoginScreen({ navigation }) {
   };
 
   // ========================================
-  // 📝 РЕГИСТРАЦИЯ
+  // 📝 РЕГИСТРАЦИЯ (без изменений)
   // ========================================
 
   const handleRegister = async () => {
@@ -420,7 +421,7 @@ export default function LoginScreen({ navigation }) {
         phone: phone
       });
       
-      Alert.alert('Успех!', 'Аккаунт создан! Добро пожаловать!');
+      
     } catch (error) {
       console.error(error);
       
@@ -450,7 +451,7 @@ export default function LoginScreen({ navigation }) {
   };
 
   // ========================================
-  // 🔄 ВОССТАНОВЛЕНИЕ ПАРОЛЯ
+  // 🔄 ВОССТАНОВЛЕНИЕ ПАРОЛЯ (без изменений)
   // ========================================
 
   const handleForgotPassword = async () => {
@@ -499,7 +500,7 @@ export default function LoginScreen({ navigation }) {
   };
 
   // ========================================
-  // 📱 ОБРАБОТКА ТЕЛЕФОНА
+  // 📱 ОБРАБОТКА ТЕЛЕФОНА (без изменений)
   // ========================================
 
   const handlePhoneChange = (text) => {
@@ -520,7 +521,7 @@ export default function LoginScreen({ navigation }) {
   };
 
   // ========================================
-  // 🎨 RENDER
+  // 🎨 RENDER (ОБНОВЛЕННЫЙ ДИЗАЙН)
   // ========================================
 
   return (
@@ -529,7 +530,7 @@ export default function LoginScreen({ navigation }) {
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
     >
       <LinearGradient
-        colors={['#8c7c49ff', '#FFE4B5', '#FFD700']}
+        colors={['#0a0a0a', '#1a1a1a', '#2a2a2a']}
         style={styles.gradientBackground}
         start={{ x: 0, y: 0 }}
         end={{ x: 1, y: 1 }}
@@ -540,172 +541,217 @@ export default function LoginScreen({ navigation }) {
             showsVerticalScrollIndicator={false}
             keyboardShouldPersistTaps="handled"
           >
+            {/* Декоративные элементы как в CalendarScreen */}
+            <View style={styles.backgroundDecor}>
+              <View style={[styles.decorCircle, styles.decorCircle1]} />
+              <View style={[styles.decorCircle, styles.decorCircle2]} />
+              <View style={[styles.decorCircle, styles.decorCircle3]} />
+            </View>
+
             {/* Логотип */}
             <View style={styles.logoContainer}>
-              <Image
-                source={require('../assets/logo_hor.png')}
-                style={styles.logo}
-                resizeMode="contain"
-              />
+              <LinearGradient
+                colors={['#FFD700', '#FFA500']}
+                style={styles.logoGradient}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+              >
+                <Ionicons name="musical-notes" size={getResponsiveSize(60)} color="#1a1a1a" />
+              </LinearGradient>
+              <Text style={styles.appTitle}>Хоровой Календарь</Text>
+              <Text style={styles.appSubtitle}>Управление концертами и гастролями</Text>
             </View>
 
             {/* Форма */}
             <View style={styles.formContainer}>
               {/* Заголовок */}
-              <View style={styles.titleContainer}>
-                <Text style={styles.title}>Присоединись к хору</Text>
+              <View style={styles.titleSection}>
+                <View style={styles.titleIconContainer}>
+                  <LinearGradient
+                    colors={['#FFD700', '#FFA500']}
+                    style={styles.titleIconGradient}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 1 }}
+                  >
+                    <Ionicons 
+                      name={isRegistering ? "person-add" : "log-in"} 
+                      size={getResponsiveSize(24)} 
+                      color="#1a1a1a" 
+                    />
+                  </LinearGradient>
+                </View>
+                <View style={styles.titleTextContainer}>
+                  <Text style={styles.mainTitle}>
+                    {isRegistering ? 'Создание аккаунта' : 'Вход в систему'}
+                  </Text>
+                  <Text style={styles.subtitle}>
+                    {isRegistering ? 'Присоединитесь к хору' : 'Добро пожаловать обратно'}
+                  </Text>
+                </View>
               </View>
-              
-              <Text style={styles.subtitle}>
-                {isRegistering ? 'Создайте новый аккаунт' : 'Войдите в свой аккаунт'}
-              </Text>
 
               {/* ПОЛЯ РЕГИСТРАЦИИ */}
               {isRegistering && (
                 <>
                   {/* ФИО */}
-                  <LinearGradient
-                    colors={fullNameFocused ? ['#a66464ff', '#FFD700'] : ['#FFF8E1', '#FFE4B5']}
-                    style={[
-                      styles.inputGradientContainer, 
-                      fullNameFocused && styles.inputContainerFocused,
-                      errors.fullName && styles.inputError
-                    ]}
-                    start={{ x: 0, y: 0 }}
-                    end={{ x: 1, y: 1 }}
-                  >
-                    <View style={styles.inputInnerContainer}>
-                      <Ionicons name="person-circle-outline" size={20} color="#8B8B8B" />
-                      <TextInput
-                        style={styles.input}
-                        placeholder="ФИО"
-                        placeholderTextColor="#8B8B8B"
-                        value={fullName}
-                        onChangeText={(text) => {
-                          setFullName(text);
-                          if (errors.fullName) setErrors({ ...errors, fullName: null });
-                        }}
-                        onFocus={() => setFullNameFocused(true)}
-                        onBlur={() => setFullNameFocused(false)}
-                        autoCapitalize="words"
-                        returnKeyType="next"
-                        editable={!isLoading}
-                      />
-                    </View>
-                  </LinearGradient>
-                  {errors.fullName && (
-                    <Text style={styles.errorText}>{errors.fullName}</Text>
-                  )}
+                  <View style={styles.inputSection}>
+                    <Text style={styles.inputLabel}>ФИО *</Text>
+                    <LinearGradient
+                      colors={fullNameFocused ? ['rgba(255, 215, 0, 0.3)', 'rgba(255, 165, 0, 0.2)'] : ['rgba(42, 42, 42, 0.8)', 'rgba(35, 35, 35, 0.9)']}
+                      style={[
+                        styles.inputContainer, 
+                        fullNameFocused && styles.inputContainerFocused,
+                        errors.fullName && styles.inputError
+                      ]}
+                      start={{ x: 0, y: 0 }}
+                      end={{ x: 1, y: 1 }}
+                    >
+                      <View style={styles.inputInnerContainer}>
+                        <Ionicons name="person" size={20} color={fullNameFocused ? "#FFD700" : "#888"} />
+                        <TextInput
+                          style={styles.input}
+                          placeholder="Введите ваше ФИО"
+                          placeholderTextColor="#666"
+                          value={fullName}
+                          onChangeText={(text) => {
+                            setFullName(text);
+                            if (errors.fullName) setErrors({ ...errors, fullName: null });
+                          }}
+                          onFocus={() => setFullNameFocused(true)}
+                          onBlur={() => setFullNameFocused(false)}
+                          autoCapitalize="words"
+                          returnKeyType="next"
+                          editable={!isLoading}
+                        />
+                      </View>
+                    </LinearGradient>
+                    {errors.fullName && (
+                      <Text style={styles.errorText}>{errors.fullName}</Text>
+                    )}
+                  </View>
 
                   {/* Телефон */}
-                  <LinearGradient
-                    colors={phoneFocused ? ['#a66464ff', '#FFD700'] : ['#FFF8E1', '#FFE4B5']}
-                    style={[
-                      styles.inputGradientContainer, 
-                      phoneFocused && styles.inputContainerFocused,
-                      errors.phone && styles.inputError
-                    ]}
-                    start={{ x: 0, y: 0 }}
-                    end={{ x: 1, y: 1 }}
-                  >
-                    <View style={styles.inputInnerContainer}>
-                      <Ionicons name="call-outline" size={20} color="#8B8B8B" />
-                      <TextInput
-                        style={styles.input}
-                        placeholder="+7 (___) ___-__-__"
-                        placeholderTextColor="#8B8B8B"
-                        value={phone}
-                        onChangeText={handlePhoneChange}
-                        onKeyPress={handlePhoneKeyPress}
-                        keyboardType="phone-pad"
-                        onFocus={() => setPhoneFocused(true)}
-                        onBlur={() => setPhoneFocused(false)}
-                        maxLength={18}
-                        returnKeyType="next"
-                        editable={!isLoading}
-                      />
-                    </View>
-                  </LinearGradient>
-                  {errors.phone && (
-                    <Text style={styles.errorText}>{errors.phone}</Text>
-                  )}
+                  <View style={styles.inputSection}>
+                    <Text style={styles.inputLabel}>Телефон *</Text>
+                    <LinearGradient
+                      colors={phoneFocused ? ['rgba(255, 215, 0, 0.3)', 'rgba(255, 165, 0, 0.2)'] : ['rgba(42, 42, 42, 0.8)', 'rgba(35, 35, 35, 0.9)']}
+                      style={[
+                        styles.inputContainer, 
+                        phoneFocused && styles.inputContainerFocused,
+                        errors.phone && styles.inputError
+                      ]}
+                      start={{ x: 0, y: 0 }}
+                      end={{ x: 1, y: 1 }}
+                    >
+                      <View style={styles.inputInnerContainer}>
+                        <Ionicons name="call" size={20} color={phoneFocused ? "#FFD700" : "#888"} />
+                        <TextInput
+                          style={styles.input}
+                          placeholder="+7 (___) ___-__-__"
+                          placeholderTextColor="#666"
+                          value={phone}
+                          onChangeText={handlePhoneChange}
+                          onKeyPress={handlePhoneKeyPress}
+                          keyboardType="phone-pad"
+                          onFocus={() => setPhoneFocused(true)}
+                          onBlur={() => setPhoneFocused(false)}
+                          maxLength={18}
+                          returnKeyType="next"
+                          editable={!isLoading}
+                        />
+                      </View>
+                    </LinearGradient>
+                    {errors.phone && (
+                      <Text style={styles.errorText}>{errors.phone}</Text>
+                    )}
+                  </View>
                 </>
               )}
 
               {/* Email */}
-              <LinearGradient
-                colors={emailFocused ? ['#a66464ff', '#FFD700'] : ['#FFF8E1', '#FFE4B5']}
-                style={[
-                  styles.inputGradientContainer, 
-                  emailFocused && styles.inputContainerFocused,
-                  errors.email && styles.inputError
-                ]}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 1 }}
-              >
-                <View style={styles.inputInnerContainer}>
-                  <Ionicons name="mail-outline" size={20} color="#8B8B8B" />
-                  <TextInput
-                    style={styles.input}
-                    placeholder="Email"
-                    placeholderTextColor="#8B8B8B"
-                    value={email}
-                    onChangeText={(text) => {
-                      setEmail(text);
-                      if (errors.email) setErrors({ ...errors, email: null });
-                    }}
-                    keyboardType="email-address"
-                    autoCapitalize="none"
-                    onFocus={() => setEmailFocused(true)}
-                    onBlur={() => setEmailFocused(false)}
-                    returnKeyType="next"
-                    editable={!isLoading}
-                  />
-                </View>
-              </LinearGradient>
-              {errors.email && (
-                <Text style={styles.errorText}>{errors.email}</Text>
-              )}
+              <View style={styles.inputSection}>
+                <Text style={styles.inputLabel}>Email *</Text>
+                <LinearGradient
+                  colors={emailFocused ? ['rgba(255, 215, 0, 0.3)', 'rgba(255, 165, 0, 0.2)'] : ['rgba(42, 42, 42, 0.8)', 'rgba(35, 35, 35, 0.9)']}
+                  style={[
+                    styles.inputContainer, 
+                    emailFocused && styles.inputContainerFocused,
+                    errors.email && styles.inputError
+                  ]}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 1 }}
+                >
+                  <View style={styles.inputInnerContainer}>
+                    <Ionicons name="mail" size={20} color={emailFocused ? "#FFD700" : "#888"} />
+                    <TextInput
+                      style={styles.input}
+                      placeholder="your@email.com"
+                      placeholderTextColor="#666"
+                      value={email}
+                      onChangeText={(text) => {
+                        setEmail(text);
+                        if (errors.email) setErrors({ ...errors, email: null });
+                      }}
+                      keyboardType="email-address"
+                      autoCapitalize="none"
+                      onFocus={() => setEmailFocused(true)}
+                      onBlur={() => setEmailFocused(false)}
+                      returnKeyType="next"
+                      editable={!isLoading}
+                    />
+                  </View>
+                </LinearGradient>
+                {errors.email && (
+                  <Text style={styles.errorText}>{errors.email}</Text>
+                )}
+              </View>
 
               {/* Пароль */}
-              <LinearGradient
-                colors={passwordFocused ? ['#a66464ff', '#FFD700'] : ['#FFF8E1', '#FFE4B5']}
-                style={[
-                  styles.inputGradientContainer, 
-                  passwordFocused && styles.inputContainerFocused,
-                  errors.password && styles.inputError
-                ]}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 1 }}
-              >
-                <View style={styles.inputInnerContainer}>
-                  <Ionicons name="lock-closed-outline" size={20} color="#8B8B8B" />
-                  <TextInput
-                    style={styles.input}
-                    placeholder="Пароль"
-                    placeholderTextColor="#8B8B8B"
-                    value={password}
-                    onChangeText={(text) => {
-                      setPassword(text);
-                      if (errors.password) setErrors({ ...errors, password: null });
-                    }}
-                    secureTextEntry={!showPassword}
-                    onFocus={() => setPasswordFocused(true)}
-                    onBlur={() => setPasswordFocused(false)}
-                    returnKeyType="done"
-                    editable={!isLoading}
-                  />
-                  <TouchableOpacity 
-                    onPress={() => setShowPassword(!showPassword)}
-                    disabled={isLoading}
-                  >
-                    <Ionicons name={showPassword ? 'eye-off' : 'eye'} size={20} color="#8B8B8B" />
-                  </TouchableOpacity>
-                </View>
-              </LinearGradient>
-              {errors.password && (
-                <Text style={styles.errorText}>{errors.password}</Text>
-              )}
+              <View style={styles.inputSection}>
+                <Text style={styles.inputLabel}>Пароль *</Text>
+                <LinearGradient
+                  colors={passwordFocused ? ['rgba(255, 215, 0, 0.3)', 'rgba(255, 165, 0, 0.2)'] : ['rgba(42, 42, 42, 0.8)', 'rgba(35, 35, 35, 0.9)']}
+                  style={[
+                    styles.inputContainer, 
+                    passwordFocused && styles.inputContainerFocused,
+                    errors.password && styles.inputError
+                  ]}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 1 }}
+                >
+                  <View style={styles.inputInnerContainer}>
+                    <Ionicons name="lock-closed" size={20} color={passwordFocused ? "#FFD700" : "#888"} />
+                    <TextInput
+                      style={styles.input}
+                      placeholder="Введите пароль"
+                      placeholderTextColor="#666"
+                      value={password}
+                      onChangeText={(text) => {
+                        setPassword(text);
+                        if (errors.password) setErrors({ ...errors, password: null });
+                      }}
+                      secureTextEntry={!showPassword}
+                      onFocus={() => setPasswordFocused(true)}
+                      onBlur={() => setPasswordFocused(false)}
+                      returnKeyType="done"
+                      editable={!isLoading}
+                    />
+                    <TouchableOpacity 
+                      onPress={() => setShowPassword(!showPassword)}
+                      disabled={isLoading}
+                    >
+                      <Ionicons 
+                        name={showPassword ? 'eye-off' : 'eye'} 
+                        size={20} 
+                        color={passwordFocused ? "#FFD700" : "#888"} 
+                      />
+                    </TouchableOpacity>
+                  </View>
+                </LinearGradient>
+                {errors.password && (
+                  <Text style={styles.errorText}>{errors.password}</Text>
+                )}
+              </View>
 
               {/* Подсказка для пароля при регистрации */}
               {isRegistering && (
@@ -719,6 +765,7 @@ export default function LoginScreen({ navigation }) {
                 <TouchableOpacity 
                   onPress={handleForgotPassword}
                   disabled={isLoading}
+                  style={styles.forgotButton}
                 >
                   <Text style={styles.forgotText}>Забыли пароль?</Text>
                 </TouchableOpacity>
@@ -731,17 +778,24 @@ export default function LoginScreen({ navigation }) {
                 disabled={isLoading}
               >
                 <LinearGradient
-                  colors={isLoading ? ['#CCCCCC', '#999999'] : ['#8d8b84ff', '#DAA520']}
+                  colors={isLoading ? ['#666', '#444'] : ['#FFD700', '#FFA500']}
                   style={styles.mainButtonGradient}
                   start={{ x: 0, y: 0 }}
                   end={{ x: 1, y: 1 }}
                 >
                   {isLoading ? (
-                    <ActivityIndicator color="#FFFFFF" size="small" />
+                    <ActivityIndicator color="#1a1a1a" size="small" />
                   ) : (
-                    <Text style={styles.buttonText}>
-                      {isRegistering ? 'Создать аккаунт' : 'Войти'}
-                    </Text>
+                    <View style={styles.buttonContent}>
+                      <Ionicons 
+                        name={isRegistering ? "person-add" : "log-in"} 
+                        size={20} 
+                        color="#1a1a1a" 
+                      />
+                      <Text style={styles.buttonText}>
+                        {isRegistering ? 'Создать аккаунт' : 'Войти в систему'}
+                      </Text>
+                    </View>
                   )}
                 </LinearGradient>
               </TouchableOpacity>
@@ -754,19 +808,18 @@ export default function LoginScreen({ navigation }) {
                     style={styles.createButton}
                     disabled={isLoading}
                   >
-                    <Text style={styles.createText}>Создать новый аккаунт</Text>
+                    <Text style={styles.createText}>Нет аккаунта? </Text>
+                    <Text style={styles.createTextBold}>Зарегистрироваться</Text>
                   </TouchableOpacity>
                 ) : (
-                  <View style={styles.switchRow}>
-                    <Text style={styles.switchText}>Уже есть аккаунт?</Text>
-                    <TouchableOpacity 
-                      onPress={toggleMode} 
-                      style={styles.switchButton}
-                      disabled={isLoading}
-                    >
-                      <Text style={styles.switchButtonText}>Войти</Text>
-                    </TouchableOpacity>
-                  </View>
+                  <TouchableOpacity 
+                    onPress={toggleMode} 
+                    style={styles.createButton}
+                    disabled={isLoading}
+                  >
+                    <Text style={styles.createText}>Уже есть аккаунт? </Text>
+                    <Text style={styles.createTextBold}>Войти</Text>
+                  </TouchableOpacity>
                 )}
               </View>
             </View>
@@ -778,15 +831,49 @@ export default function LoginScreen({ navigation }) {
 }
 
 // ========================================
-// 🎨 СТИЛИ
+// 🎨 СТИЛИ (ОБНОВЛЕННЫЕ ПОД ТЕМНУЮ ТЕМУ)
 // ========================================
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+    backgroundColor: '#0a0a0a',
   },
   gradientBackground: {
     flex: 1,
+  },
+  backgroundDecor: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+  },
+  decorCircle: {
+    position: 'absolute',
+    borderRadius: 1000,
+    opacity: 0.05,
+  },
+  decorCircle1: {
+    width: getResponsiveSize(200),
+    height: getResponsiveSize(200),
+    backgroundColor: '#FFD700',
+    top: -getResponsiveSize(80),
+    right: -getResponsiveSize(50),
+  },
+  decorCircle2: {
+    width: getResponsiveSize(150),
+    height: getResponsiveSize(150),
+    backgroundColor: '#FFA500',
+    bottom: -getResponsiveSize(60),
+    left: -getResponsiveSize(40),
+  },
+  decorCircle3: {
+    width: getResponsiveSize(100),
+    height: getResponsiveSize(100),
+    backgroundColor: '#DAA520',
+    top: getResponsiveSize(40),
+    left: getResponsiveSize(30),
   },
   scrollContainer: {
     flexGrow: 1,
@@ -796,100 +883,172 @@ const styles = StyleSheet.create({
   logoContainer: {
     alignItems: 'center',
     paddingTop: getResponsiveSize(40),
-    paddingBottom: getResponsiveSize(20),
+    paddingBottom: getResponsiveSize(30),
   },
-  logo: {
-    width: getResponsiveSize(220),
-    height: getResponsiveSize(220),
-    maxWidth: '80%',
+  logoGradient: {
+    width: getResponsiveSize(80),
+    height: getResponsiveSize(80),
+    borderRadius: getResponsiveSize(20),
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: getResponsiveSize(15),
+    shadowColor: '#FFD700',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.4,
+    shadowRadius: 8,
+    elevation: 5,
+  },
+  appTitle: {
+    fontSize: getResponsiveFontSize(24),
+    fontWeight: '800',
+    color: '#E0E0E0',
+    textAlign: 'center',
+    letterSpacing: 0.5,
+    marginBottom: getResponsiveSize(5),
+  },
+  appSubtitle: {
+    fontSize: getResponsiveFontSize(14),
+    color: '#888',
+    textAlign: 'center',
+    fontWeight: '500',
   },
   formContainer: {
-    backgroundColor: 'rgba(250, 243, 221, 0.95)',
-    borderRadius: getResponsiveSize(24),
-    paddingHorizontal: getResponsiveSize(28),
+    backgroundColor: 'rgba(26, 26, 26, 0.9)',
+    borderRadius: getResponsiveSize(25),
+    paddingHorizontal: getResponsiveSize(25),
     paddingVertical: getResponsiveSize(30),
     marginHorizontal: getResponsiveSize(20),
     marginBottom: getResponsiveSize(30),
-    shadowColor: '#8B6B4F',
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.15,
+    shadowColor: '#FFD700',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.2,
     shadowRadius: 12,
     elevation: 8,
     borderWidth: 1,
-    borderColor: 'rgba(218, 165, 32, 0.2)',
+    borderColor: 'rgba(255, 215, 0, 0.2)',
   },
-  titleContainer: {
-    marginBottom: getResponsiveSize(8),
-  },
-  title: {
-    fontSize: getResponsiveFontSize(24),
-    fontWeight: 'bold',
-    color: '#3E2723',
-    textAlign: 'center',
-  },
-  subtitle: {
-    fontSize: getResponsiveFontSize(14),
-    color: '#8B8B8B',
-    textAlign: 'center',
-    marginBottom: getResponsiveSize(25),
-  },
-  inputGradientContainer: {
-    borderRadius: getResponsiveSize(12),
-    padding: 2,
-    marginBottom: getResponsiveSize(8),
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.06,
-    shadowRadius: 3,
-    elevation: 2,
-    minHeight: getResponsiveSize(56),
-  },
-  inputInnerContainer: {
+  titleSection: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#FFFFFF',
-    borderRadius: 10,
-    paddingHorizontal: getResponsiveSize(15),
-    paddingVertical: getResponsiveSize(16),
+    marginBottom: getResponsiveSize(25),
+    backgroundColor: 'rgba(42, 42, 42, 0.6)',
+    paddingHorizontal: getResponsiveSize(16),
+    paddingVertical: getResponsiveSize(14),
+    borderRadius: getResponsiveSize(16),
+    borderWidth: 1,
+    borderColor: 'rgba(255, 215, 0, 0.2)',
+  },
+  titleIconContainer: {
+    marginRight: getResponsiveSize(14),
+  },
+  titleIconGradient: {
+    width: getResponsiveSize(44),
+    height: getResponsiveSize(44),
+    borderRadius: getResponsiveSize(12),
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: '#FFD700',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.4,
+    shadowRadius: 8,
+    elevation: 5,
+  },
+  titleTextContainer: {
     flex: 1,
   },
+  mainTitle: {
+    fontSize: getResponsiveFontSize(18),
+    fontWeight: '700',
+    color: '#E0E0E0',
+    letterSpacing: 0.3,
+    marginBottom: getResponsiveSize(2),
+  },
+  subtitle: {
+    fontSize: getResponsiveFontSize(12),
+    color: '#999',
+    fontWeight: '500',
+  },
+  inputSection: {
+    marginBottom: getResponsiveSize(20),
+  },
+  inputLabel: {
+    fontSize: getResponsiveFontSize(14),
+    fontWeight: '600',
+    color: '#E0E0E0',
+    marginBottom: getResponsiveSize(8),
+    marginLeft: getResponsiveSize(5),
+  },
+  inputContainer: {
+    borderRadius: getResponsiveSize(12),
+    padding: 1,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 3,
+    elevation: 2,
+  },
   inputContainerFocused: {
-    shadowColor: '#DAA520',
+    shadowColor: '#FFD700',
     shadowOpacity: 0.3,
     shadowRadius: 8,
     elevation: 5,
   },
   inputError: {
-    shadowColor: '#FF0000',
+    shadowColor: '#FF6B6B',
     shadowOpacity: 0.3,
     shadowRadius: 8,
     elevation: 5,
+  },
+  inputInnerContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(35, 35, 35, 0.9)',
+    borderRadius: getResponsiveSize(11),
+    paddingHorizontal: getResponsiveSize(15),
+    paddingVertical: getResponsiveSize(15),
+    borderWidth: 1,
+    borderColor: 'rgba(255, 215, 0, 0.1)',
   },
   input: {
     flex: 1,
     paddingVertical: 0,
     paddingHorizontal: getResponsiveSize(10),
     fontSize: getResponsiveFontSize(15),
-    color: '#3E2723',
+    color: '#E0E0E0',
   },
   errorText: {
-    color: '#FF0000',
+    color: '#FF6B6B',
     fontSize: getResponsiveFontSize(12),
-    marginBottom: getResponsiveSize(8),
+    marginTop: getResponsiveSize(5),
     marginLeft: getResponsiveSize(5),
   },
   passwordHint: {
-    color: '#8B8B8B',
+    color: '#888',
     fontSize: getResponsiveFontSize(11),
-    marginBottom: getResponsiveSize(16),
+    marginBottom: getResponsiveSize(20),
     marginLeft: getResponsiveSize(5),
     fontStyle: 'italic',
+    textAlign: 'center',
+  },
+  forgotButton: {
+    alignSelf: 'center',
+    marginBottom: getResponsiveSize(25),
+  },
+  forgotText: {
+    color: '#FFD700',
+    fontSize: getResponsiveFontSize(13),
+    fontWeight: '600',
+    textDecorationLine: 'underline',
   },
   mainButtonWrapper: {
-    borderRadius: getResponsiveSize(12),
+    borderRadius: getResponsiveSize(15),
     overflow: 'hidden',
-    marginBottom: getResponsiveSize(15),
-    marginTop: getResponsiveSize(5),
+    marginBottom: getResponsiveSize(20),
+    shadowColor: '#FFD700',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 5,
   },
   mainButtonGradient: {
     paddingVertical: getResponsiveSize(16),
@@ -897,60 +1056,36 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     minHeight: getResponsiveSize(50),
   },
-  buttonText: {
-    color: 'white',
-    fontSize: getResponsiveFontSize(16),
-    textAlign: 'center',
-    fontWeight: 'bold',
-    letterSpacing: 0.5,
+  buttonContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-  forgotText: {
-    color: '#8B8B8B',
-    marginBottom: getResponsiveSize(25),
-    fontWeight: '600',
-    textAlign: 'center',
-    fontSize: getResponsiveFontSize(13),
+  buttonText: {
+    color: '#1a1a1a',
+    fontSize: getResponsiveFontSize(16),
+    fontWeight: '700',
+    letterSpacing: 0.5,
+    marginLeft: getResponsiveSize(8),
   },
   switchSection: {
     alignItems: 'center',
-    marginTop: getResponsiveSize(15),
   },
   createButton: {
-    paddingVertical: getResponsiveSize(14),
-    borderRadius: getResponsiveSize(10),
-    width: '100%',
-    backgroundColor: 'transparent',
-    borderWidth: 2,
-    borderColor: '#DAA520',
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: getResponsiveSize(12),
+    paddingHorizontal: getResponsiveSize(20),
   },
   createText: {
-    color: '#DAA520',
+    color: '#888',
     fontSize: getResponsiveFontSize(14),
     textAlign: 'center',
-    fontWeight: '600',
   },
-  switchRow: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginTop: getResponsiveSize(8),
-  },
-  switchText: {
-    color: '#8B8B8B',
+  createTextBold: {
+    color: '#FFD700',
     fontSize: getResponsiveFontSize(14),
-    marginRight: getResponsiveSize(8),
-  },
-  switchButton: {
-    backgroundColor: 'rgba(255, 248, 225, 0.7)',
-    paddingVertical: getResponsiveSize(6),
-    paddingHorizontal: getResponsiveSize(12),
-    borderRadius: getResponsiveSize(6),
-    borderWidth: 1,
-    borderColor: '#DAA520',
-  },
-  switchButtonText: {
-    color: '#DAA520',
-    fontSize: getResponsiveFontSize(14),
-    fontWeight: '600',
+    fontWeight: '700',
+    textAlign: 'center',
   },
 });

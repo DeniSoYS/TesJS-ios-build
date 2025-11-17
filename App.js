@@ -7,9 +7,9 @@ import { doc, getDoc } from 'firebase/firestore';
 import { useEffect, useState } from 'react';
 import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { auth, db } from './firebaseConfig';
-import AddMoveScreen from './screens/AddMoveScreen';
+import MoveDetailScreen from './screens/MoveDetailScreen';
 
-// ИМПОРТЫ ВСЕХ ЭКРАНОВ
+// ИМПОРТЫ РАБОЧИХ ЭКРАНОВ
 import AddEventScreen from './screens/AddEventScreen';
 import AddReminderScreen from './screens/AddReminderScreen';
 import AddSickLeaveScreen from './screens/AddSickLeaveScreen';
@@ -21,9 +21,36 @@ import LoginScreen from './screens/LoginScreen';
 import MyEventsScreen from './screens/MyEventsScreen';
 import RemindersScreen from './screens/RemindersScreen';
 import SickLeaveScreen from './screens/SickLeaveScreen';
-
+import TourDetailScreen from './screens/TourDetailScreen';
+// В разделе импортов добавьте:
+import AddMoveScreen from './screens/AddMoveScreen';
 // ИМПОРТ SPLASH SCREEN
 import SplashScreen from './components/SplashScreen';
+
+// ✅ ВРЕМЕННЫЕ ПРОСТЫЕ КОМПОНЕНТЫ
+const SimpleMoveDetailScreen = () => (
+  <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#FFF8E1' }}>
+    <Text>Move Detail Screen - Работает!</Text>
+  </View>
+);
+
+const SimpleAddTourScreen = () => (
+  <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#FFF8E1' }}>
+    <Text>Add Tour Screen - Работает!</Text>
+  </View>
+);
+
+const SimpleAddMoveScreen = () => (
+  <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#FFF8E1' }}>
+    <Text>Add Move Screen - Работает!</Text>
+  </View>
+);
+
+const SimpleTourDetailScreen = () => (
+  <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#FFF8E1' }}>
+    <Text>Tour Detail Screen - Работает!</Text>
+  </View>
+);
 
 // ✅ НАСТРОЙКА ОБРАБОТЧИКА УВЕДОМЛЕНИЙ
 Notifications.setNotificationHandler({
@@ -42,14 +69,9 @@ export default function App() {
   const [loading, setLoading] = useState(true);
   const [showSplash, setShowSplash] = useState(true);
 
-  // ✅ ОБРАБОТЧИК НАЖАТИЙ НА УВЕДОМЛЕНИЯ
   useEffect(() => {
     const subscription = Notifications.addNotificationResponseReceivedListener(response => {
       console.log('🔔 Пользователь нажал на уведомление:', response);
-      const data = response.notification.request.content.data;
-      if (data.type === 'scheduled_reminder' && data.reminderId) {
-        console.log('📍 Напоминание ID:', data.reminderId);
-      }
     });
     return () => subscription.remove();
   }, []);
@@ -62,10 +84,8 @@ export default function App() {
           if (userDoc.exists()) {
             const role = userDoc.data().role || 'user';
             setUserRole(role);
-            console.log('✅ Роль пользователя:', role);
           } else {
             setUserRole('user');
-            console.log('⚠️ Документ пользователя не найден, роль: user');
           }
         } catch (error) {
           console.error('❌ Ошибка получения роли:', error);
@@ -107,32 +127,32 @@ export default function App() {
               initialParams={{ email: user.email, role: userRole }}
             />
             <Stack.Screen name="AddEvent" component={AddEventScreen} />
-            <Stack.Screen name="AddTour" component={AddTourScreen} />
             <Stack.Screen name="ConcertDetail" component={ConcertDetailScreen} />
             <Stack.Screen name="MyEvents" component={MyEventsScreen} />
             <Stack.Screen name="SickLeave" component={SickLeaveScreen} />
             <Stack.Screen name="AddSickLeave" component={AddSickLeaveScreen} />
             <Stack.Screen name="EmployeesList" component={EmployeesListScreen} />
-            <Stack.Screen name="AddMove" component={AddMoveScreen} />
+            
+            {/* ✅ ИСПОЛЬЗУЕМ ПРОСТЫЕ КОМПОНЕНТЫ */}
+            <Stack.Screen name="AddTour" component={AddTourScreen} />
+           <Stack.Screen name="AddMove" component={AddMoveScreen} />
+           <Stack.Screen name="TourDetail" component={TourDetailScreen} />
+           <Stack.Screen name="MoveDetail" component={MoveDetailScreen} />
+            
             <Stack.Screen 
               name="Reminders" 
               component={RemindersScreen}
-              initialParams={{ userRole: userRole }}
               options={({ navigation }) => ({
                 headerShown: true,
                 title: 'Напоминания',
-                headerStyle: {
-                  backgroundColor: '#FFD700',
-                },
+                headerStyle: { backgroundColor: '#FFD700' },
                 headerTintColor: '#3E2723',
-                headerTitleStyle: {
-                  fontWeight: 'bold',
-                },
+                headerTitleStyle: { fontWeight: 'bold' },
                 headerRight: () => 
                   userRole === 'admin' ? (
                     <TouchableOpacity 
                       style={styles.addButton}
-                      onPress={() => navigation.navigate('AddReminder', { userRole })}
+                      onPress={() => navigation.navigate('AddReminder')}
                     >
                       <Ionicons name="add" size={28} color="#3E2723" />
                     </TouchableOpacity>
@@ -142,16 +162,13 @@ export default function App() {
             <Stack.Screen 
               name="AddReminder" 
               component={AddReminderScreen}
+              initialParams={{ userRole: userRole }} // ✅ ДОБАВЬТЕ ЭТУ СТРОКУ
               options={{
                 headerShown: true,
                 title: 'Новое напоминание',
-                headerStyle: {
-                  backgroundColor: '#FFD700',
-                },
+                headerStyle: { backgroundColor: '#FFD700' },
                 headerTintColor: '#3E2723',
-                headerTitleStyle: {
-                  fontWeight: 'bold',
-                },
+                headerTitleStyle: { fontWeight: 'bold' },
               }}
             />
           </>

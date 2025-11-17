@@ -1,19 +1,38 @@
-import React, { useState, useEffect } from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  TouchableOpacity,
-  ScrollView,
-  Alert,
-  Modal,
-  Linking,
-  Platform
-} from 'react-native';
-import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
-import { doc, deleteDoc } from 'firebase/firestore';
+import { BlurView } from 'expo-blur';
+import { LinearGradient } from 'expo-linear-gradient';
+import { deleteDoc, doc } from 'firebase/firestore';
+import React, { useEffect, useState } from 'react';
+import {
+  Alert,
+  Animated,
+  Dimensions,
+  Linking,
+  Modal,
+  Platform,
+  ScrollView,
+  StatusBar,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View
+} from 'react-native';
 import { db } from '../firebaseConfig';
+
+const { width, height } = Dimensions.get('window');
+const isSmallDevice = width < 375;
+const isLargeDevice = width > 414;
+
+const getResponsiveSize = (size) => {
+  if (isSmallDevice) return size * 0.85;
+  if (isLargeDevice) return size * 1.15;
+  return size;
+};
+
+const getResponsiveFontSize = (size) => {
+  const baseSize = getResponsiveSize(size);
+  return Math.round(baseSize);
+};
 
 // ✅ ФУНКЦИЯ КОНВЕРТАЦИИ ТИПОВ
 const toRussianType = (englishType) => {
@@ -38,8 +57,28 @@ export default function ConcertDetailScreen({ navigation, route }) {
   const safeSongs = Array.isArray(safeProgram.songs) ? safeProgram.songs : [];
 
   const [modalVisible, setModalVisible] = useState(false);
-  const [selectedModal, setSelectedModal] = useState(''); // 'participants' or 'program'
+  const [selectedModal, setSelectedModal] = useState('');
   const [actionModalVisible, setActionModalVisible] = useState(false);
+  const [scaleAnim] = useState(new Animated.Value(0));
+  const fadeAnim = React.useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    Animated.timing(fadeAnim, {
+      toValue: 1,
+      duration: 600,
+      useNativeDriver: true,
+    }).start();
+
+    if (modalVisible || actionModalVisible) {
+      Animated.spring(scaleAnim, {
+        toValue: 1,
+        useNativeDriver: true,
+        friction: 8,
+      }).start();
+    } else {
+      scaleAnim.setValue(0);
+    }
+  }, [modalVisible, actionModalVisible]);
 
   // ✅ ФУНКЦИЯ ДЛЯ ОТКРЫТИЯ КАРТ ПО АДРЕСУ
   const openMaps = (address) => {
@@ -65,9 +104,8 @@ export default function ConcertDetailScreen({ navigation, route }) {
   // ✅ ФУНКЦИЯ РЕДАКТИРОВАНИЯ КОНЦЕРТА
   const handleEditConcert = () => {
     setActionModalVisible(false);
-    // 🆕 Переходим на экран редактирования (пока используем AddEventScreen)
     navigation.navigate('AddEvent', { 
-      concert: safeConcert, // Передаем концерт для редактирования
+      concert: safeConcert,
       userRole: userRole,
       isEditing: true
     });
@@ -100,10 +138,30 @@ export default function ConcertDetailScreen({ navigation, route }) {
     );
   };
 
+  const closeModal = () => {
+    Animated.timing(scaleAnim, {
+      toValue: 0,
+      duration: 200,
+      useNativeDriver: true,
+    }).start(() => setModalVisible(false));
+  };
+
+  const closeActionModal = () => {
+    Animated.timing(scaleAnim, {
+      toValue: 0,
+      duration: 200,
+      useNativeDriver: true,
+    }).start(() => setActionModalVisible(false));
+  };
+
+  const openActionModal = () => {
+    setActionModalVisible(true);
+  };
+
   // ✅ ЕСЛИ КОНЦЕРТ НЕ ПЕРЕДАН - ПОКАЗЫВАЕМ ОШИБКУ
   if (!concert) {
     return (
-      <LinearGradient colors={['#FFF8E1', '#FFE4B5', '#FFD700']} style={styles.container}>
+      <LinearGradient colors={['#0a0a0a', '#1a1a1a', '#2a2a2a']} style={styles.container}>
         <View style={styles.errorContainer}>
           <Ionicons name="warning-outline" size={50} color="#FF6B6B" />
           <Text style={styles.errorText}>Концерт не найден</Text>
@@ -111,7 +169,12 @@ export default function ConcertDetailScreen({ navigation, route }) {
             style={styles.backButton}
             onPress={() => navigation.goBack()}
           >
-            <Text style={styles.backButtonText}>Вернуться назад</Text>
+            <LinearGradient
+              colors={['#FFD700', '#FFA500']}
+              style={styles.backButtonGradient}
+            >
+              <Text style={styles.backButtonText}>Вернуться назад</Text>
+            </LinearGradient>
           </TouchableOpacity>
         </View>
       </LinearGradient>
@@ -139,274 +202,381 @@ export default function ConcertDetailScreen({ navigation, route }) {
   };
 
   const renderParticipantsModal = () => (
-    <View style={styles.modalContent}>
-      <Text style={styles.modalTitle}>Участники концерта</Text>
-      
-      {safeParticipants.length === 0 ? (
-        <Text style={styles.noDataText}>Участники не указаны</Text>
-      ) : (
-        <ScrollView style={styles.modalList}>
-          {safeParticipants.map((participant, index) => (
-            <View key={index} style={styles.listItem}>
-              <Ionicons name="person" size={16} color="#DAA520" />
-              <Text style={styles.listText}>{participant}</Text>
-            </View>
-          ))}
-        </ScrollView>
-      )}
-      
-      <TouchableOpacity 
-        style={styles.modalCloseButton}
-        onPress={() => setModalVisible(false)}
+    <Animated.View 
+      style={[
+        styles.modalContent,
+        { transform: [{ scale: scaleAnim }] }
+      ]}
+    >
+      <LinearGradient
+        colors={['rgba(26, 26, 26, 0.98)', 'rgba(35, 35, 35, 0.95)']}
+        style={styles.modalGradient}
       >
-        <Text style={styles.modalCloseText}>Закрыть</Text>
-      </TouchableOpacity>
-    </View>
+        <View style={styles.modalHeader}>
+          <Text style={styles.modalTitle}>🎭 Участники концерта</Text>
+          <TouchableOpacity onPress={closeModal} style={styles.modalCloseIcon}>
+            <Ionicons name="close-circle" size={getResponsiveSize(30)} color="#FFD700" />
+          </TouchableOpacity>
+        </View>
+        
+        {safeParticipants.length === 0 ? (
+          <View style={styles.noData}>
+            <Ionicons name="people" size={getResponsiveSize(48)} color="#555" />
+            <Text style={styles.noDataText}>Участники не указаны</Text>
+          </View>
+        ) : (
+          <ScrollView style={styles.modalList}>
+            {safeParticipants.map((participant, index) => (
+              <View key={index} style={styles.listItem}>
+                <LinearGradient
+                  colors={['rgba(255, 215, 0, 0.2)', 'rgba(255, 165, 0, 0.2)']}
+                  style={styles.listItemGradient}
+                >
+                  <Ionicons name="person" size={getResponsiveSize(18)} color="#FFD700" />
+                  <Text style={styles.listText}>{participant}</Text>
+                </LinearGradient>
+              </View>
+            ))}
+          </ScrollView>
+        )}
+      </LinearGradient>
+    </Animated.View>
   );
 
   const renderProgramModal = () => (
-    <View style={styles.modalContent}>
-      <Text style={styles.modalTitle}>
-        {safeProgram.title || 'Концертная программа'}
-      </Text>
-      
-      {safeSongs.length === 0 ? (
-        <Text style={styles.noDataText}>Программа не указана</Text>
-      ) : (
-        <ScrollView style={styles.modalList}>
-          {safeSongs.map((song, index) => (
-            <View key={index} style={styles.programItem}>
-              <Text style={styles.songNumber}>{index + 1}.</Text>
-              <View style={styles.songDetails}>
-                <Text style={styles.songTitle}>{song.title || 'Без названия'}</Text>
-                {song.soloists && (
-                  <Text style={styles.songSoloists}>Солисты: {song.soloists}</Text>
-                )}
-              </View>
-            </View>
-          ))}
-        </ScrollView>
-      )}
-      
-      <TouchableOpacity 
-        style={styles.modalCloseButton}
-        onPress={() => setModalVisible(false)}
+    <Animated.View 
+      style={[
+        styles.modalContent,
+        { transform: [{ scale: scaleAnim }] }
+      ]}
+    >
+      <LinearGradient
+        colors={['rgba(26, 26, 26, 0.98)', 'rgba(35, 35, 35, 0.95)']}
+        style={styles.modalGradient}
       >
-        <Text style={styles.modalCloseText}>Закрыть</Text>
-      </TouchableOpacity>
-    </View>
+        <View style={styles.modalHeader}>
+          <Text style={styles.modalTitle}>🎵 {safeProgram.title || 'Концертная программа'}</Text>
+          <TouchableOpacity onPress={closeModal} style={styles.modalCloseIcon}>
+            <Ionicons name="close-circle" size={getResponsiveSize(30)} color="#FFD700" />
+          </TouchableOpacity>
+        </View>
+        
+        {safeSongs.length === 0 ? (
+          <View style={styles.noData}>
+            <Ionicons name="musical-notes" size={getResponsiveSize(48)} color="#555" />
+            <Text style={styles.noDataText}>Программа не указана</Text>
+          </View>
+        ) : (
+          <ScrollView style={styles.modalList}>
+            {safeSongs.map((song, index) => (
+              <View key={index} style={styles.programItem}>
+                <LinearGradient
+                  colors={['rgba(155, 89, 182, 0.2)', 'rgba(139, 69, 182, 0.2)']}
+                  style={styles.programItemGradient}
+                >
+                  <Text style={styles.songNumber}>{index + 1}.</Text>
+                  <View style={styles.songDetails}>
+                    <Text style={styles.songTitle}>{song.title || 'Без названия'}</Text>
+                    {song.soloists && (
+                      <Text style={styles.songSoloists}>🎤 {song.soloists}</Text>
+                    )}
+                  </View>
+                </LinearGradient>
+              </View>
+            ))}
+          </ScrollView>
+        )}
+      </LinearGradient>
+    </Animated.View>
   );
 
-  // 🆕 МОДАЛЬНОЕ ОКНО ДЕЙСТВИЙ (РЕДАКТИРОВАНИЕ/УДАЛЕНИЕ)
+  // 🆕 МОДАЛЬНОЕ ОКНО ДЕЙСТВИЙ - ИСПРАВЛЕННАЯ ВЕРСИЯ
   const renderActionModal = () => (
-    <View style={styles.actionModalContent}>
-      <Text style={styles.actionModalTitle}>Действия с концертом</Text>
-      
-      <TouchableOpacity 
-        style={styles.actionButton}
-        onPress={handleEditConcert}
+    <Animated.View 
+      style={[
+        styles.actionModalContent,
+        { transform: [{ scale: scaleAnim }] }
+      ]}
+    >
+      <LinearGradient
+        colors={['rgba(26, 26, 26, 0.98)', 'rgba(35, 35, 35, 0.95)']}
+        style={styles.actionModalGradient}
       >
-        <Ionicons name="create-outline" size={20} color="#007AFF" />
-        <Text style={[styles.actionButtonText, { color: '#007AFF' }]}>
-          Редактировать концерт
-        </Text>
-      </TouchableOpacity>
-      
-      <TouchableOpacity 
-        style={styles.actionButton}
-        onPress={handleDeleteConcert}
-      >
-        <Ionicons name="trash-outline" size={20} color="#FF3B30" />
-        <Text style={[styles.actionButtonText, { color: '#FF3B30' }]}>
-          Удалить концерт
-        </Text>
-      </TouchableOpacity>
-      
-      <TouchableOpacity 
-        style={styles.cancelActionButton}
-        onPress={() => setActionModalVisible(false)}
-      >
-        <Text style={styles.cancelActionText}>Отмена</Text>
-      </TouchableOpacity>
-    </View>
+        <View style={styles.actionModalHeader}>
+          <Text style={styles.actionModalTitle}>⚡ Действия с концертом</Text>
+          <TouchableOpacity onPress={closeActionModal} style={styles.modalCloseIcon}>
+            <Ionicons name="close-circle" size={getResponsiveSize(30)} color="#FFD700" />
+          </TouchableOpacity>
+        </View>
+        
+        <View style={styles.actionButtonsContainer}>
+          <TouchableOpacity 
+            style={styles.actionButton}
+            onPress={handleEditConcert}
+          >
+            <LinearGradient
+              colors={['#4A90E2', '#357ABD']}
+              style={styles.actionButtonGradient}
+            >
+              <Ionicons name="create" size={getResponsiveSize(20)} color="white" />
+              <Text style={styles.actionButtonText}>Редактировать концерт</Text>
+            </LinearGradient>
+          </TouchableOpacity>
+          
+          <TouchableOpacity 
+            style={styles.actionButton}
+            onPress={handleDeleteConcert}
+          >
+            <LinearGradient
+              colors={['#FF6B6B', '#EE5A52']}
+              style={styles.actionButtonGradient}
+            >
+              <Ionicons name="trash" size={getResponsiveSize(20)} color="white" />
+              <Text style={styles.actionButtonText}>Удалить концерт</Text>
+            </LinearGradient>
+          </TouchableOpacity>
+        </View>
+      </LinearGradient>
+    </Animated.View>
   );
 
   return (
-    <LinearGradient
-      colors={['#FFF8E1', '#FFE4B5', '#FFD700']}
-      style={styles.container}
-    >
-      {/* Шапка */}
+    <View style={styles.container}>
+      <StatusBar barStyle="light-content" backgroundColor="#0a0a0a" />
+      
       <LinearGradient
-        colors={['rgba(255, 248, 225, 0.95)', 'rgba(255, 228, 181, 0.9)']}
-        style={styles.header}
+        colors={['#0a0a0a', '#1a1a1a', '#2a2a2a']}
+        style={styles.background}
       >
-        <TouchableOpacity 
-          onPress={() => navigation.goBack()}
-          style={styles.backButton}
-        >
-          <Ionicons name="arrow-back" size={24} color="#3E2723" />
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>Детали концерта</Text>
-        
-        {/* 🆕 КНОПКА ДЕЙСТВИЙ ДЛЯ АДМИНА */}
-        {userRole === 'admin' && (
-          <TouchableOpacity 
-            onPress={() => setActionModalVisible(true)}
-            style={styles.actionButtonHeader}
-          >
-            <Ionicons name="ellipsis-vertical" size={24} color="#3E2723" />
-          </TouchableOpacity>
-        )}
-      </LinearGradient>
-
-      <ScrollView style={styles.content}>
-        {/* Основная информация */}
-        <View style={styles.section}>
-          <View style={styles.concertTypeBadge}>
-            <Text style={styles.concertTypeText}>{concertTypeRussian}</Text>
-          </View>
-          
-          <Text style={styles.concertDescription}>
-            {safeConcert.description || 'Описание не указано'}
-          </Text>
-          
-          <View style={styles.infoRow}>
-            <Ionicons name="calendar" size={18} color="#DAA520" />
-            <Text style={styles.infoText}>
-              {formatDate(safeConcert.date)}
-            </Text>
-          </View>
-          
-          {/* КЛИКАБЕЛЬНЫЙ АДРЕС ДЛЯ КАРТ */}
-          <TouchableOpacity 
-            style={styles.infoRow}
-            onPress={() => openMaps(safeConcert.address)}
-            activeOpacity={0.7}
-          >
-            <Ionicons name="location" size={18} color="#DAA520" />
-            <Text style={[styles.infoText, styles.clickableAddress]} numberOfLines={2}>
-              {safeConcert.address || 'Адрес не указан'}
-            </Text>
-            <Ionicons name="open-outline" size={16} color="#DAA520" style={styles.mapIcon} />
-          </TouchableOpacity>
-          
-          <View style={styles.timeContainer}>
-            <View style={styles.timeItem}>
-              <Ionicons name="car" size={16} color="#DAA520" />
-              <Text style={styles.timeLabel}>Выезд:</Text>
-              <Text style={styles.timeValue}>
-                {safeConcert.departureTime || '--:--'}
-              </Text>
-            </View>
-            
-            <View style={styles.timeItem}>
-              <Ionicons name="musical-notes" size={16} color="#DAA520" />
-              <Text style={styles.timeLabel}>Начало:</Text>
-              <Text style={styles.timeValue}>
-                {safeConcert.startTime || '--:--'}
-              </Text>
-            </View>
-          </View>
-        </View>
-
-        {/* Участники */}
-        <TouchableOpacity 
-          style={styles.actionCard}
-          onPress={showParticipants}
-        >
+        {/* 🌙 ХЕДЕР В СТИЛЕ CALENDARSCREEN */}
+        <Animated.View style={{ opacity: fadeAnim }}>
           <LinearGradient
-            colors={['#FFF8E1', '#FFE4B5']}
-            style={styles.actionGradient}
+            colors={['rgba(26, 26, 26, 0.98)', 'rgba(35, 35, 35, 0.95)']}
+            style={styles.header}
           >
-            <View style={styles.actionHeader}>
-              <Ionicons name="people" size={24} color="#DAA520" />
-              <Text style={styles.actionTitle}>Участники</Text>
-              <Text style={styles.actionCount}>
-                {safeParticipants.length} чел.
-              </Text>
-            </View>
-            <Text style={styles.actionSubtitle}>
-              Нажмите для просмотра списка участников
-            </Text>
-          </LinearGradient>
-        </TouchableOpacity>
+            <View style={styles.headerContent}>
+              <TouchableOpacity 
+                onPress={() => navigation.goBack()}
+                style={styles.backButton}
+              >
+                <LinearGradient
+                  colors={['#FFD700', '#FFA500']}
+                  style={styles.backButtonGradient}
+                >
+                  <Ionicons name="arrow-back" size={getResponsiveSize(20)} color="#1a1a1a" />
+                </LinearGradient>
+              </TouchableOpacity>
+              
+              <View style={styles.titleSection}>
+                <View style={styles.titleIconContainer}>
+                  <LinearGradient
+                    colors={['#FFD700', '#FFA500']}
+                    style={styles.titleIconGradient}
+                  >
+                    <Ionicons name="musical-notes" size={getResponsiveSize(22)} color="#1a1a1a" />
+                  </LinearGradient>
+                </View>
+                <View style={styles.titleTextContainer}>
+                  <Text style={styles.headerTitle}>Детали концерта</Text>
+                  <Text style={styles.headerSubtitle}>{concertTypeRussian}</Text>
+                </View>
+              </View>
 
-        {/* Программа */}
-        <TouchableOpacity 
-          style={styles.actionCard}
-          onPress={showProgram}
-        >
-          <LinearGradient
-            colors={['#FFF8E1', '#FFE4B5']}
-            style={styles.actionGradient}
-          >
-            <View style={styles.actionHeader}>
-              <Ionicons name="musical-notes" size={24} color="#DAA520" />
-              <Text style={styles.actionTitle}>
-                {safeProgram.title || 'Концертная программа'}
-              </Text>
-              <Text style={styles.actionCount}>
-                {safeSongs.length} шт.
-              </Text>
+              {/* 🆕 КНОПКА ДЕЙСТВИЙ ДЛЯ АДМИНА - ИСПРАВЛЕННАЯ */}
+              {userRole === 'admin' && (
+                <TouchableOpacity 
+                  onPress={openActionModal}
+                  style={styles.actionButtonHeader}
+                  activeOpacity={0.7}
+                >
+                  <LinearGradient
+                    colors={['#FFD700', '#FFA500']}
+                    style={styles.actionButtonHeaderGradient}
+                  >
+                    <Ionicons name="ellipsis-vertical" size={getResponsiveSize(18)} color="#1a1a1a" />
+                  </LinearGradient>
+                </TouchableOpacity>
+              )}
             </View>
-            <Text style={styles.actionSubtitle}>
-              Нажмите для просмотра программы
-            </Text>
           </LinearGradient>
-        </TouchableOpacity>
+        </Animated.View>
 
-        {/* 🆕 КНОПКА РЕДАКТИРОВАНИЯ ДЛЯ АДМИНА */}
-        {userRole === 'admin' && (
-          <TouchableOpacity 
-            style={styles.editButton}
-            onPress={() => setActionModalVisible(true)}
-          >
+        <ScrollView style={styles.content}>
+          {/* 🌙 ОСНОВНАЯ ИНФОРМАЦИЯ */}
+          <View style={styles.section}>
             <LinearGradient
-              colors={['#FFD700', '#DAA520']}
-              style={styles.editButtonGradient}
+              colors={['rgba(26, 26, 26, 0.9)', 'rgba(35, 35, 35, 0.8)']}
+              style={styles.infoCard}
             >
-              <Ionicons name="create-outline" size={20} color="white" />
-              <Text style={styles.editButtonText}>Управление концертом</Text>
+              <Text style={styles.concertDescription}>
+                {safeConcert.description || 'Описание не указано'}
+              </Text>
+              
+              <View style={styles.infoGrid}>
+                <View style={styles.infoItem}>
+                  <Ionicons name="calendar" size={getResponsiveSize(18)} color="#FFD700" />
+                  <Text style={styles.infoLabel}>Дата:</Text>
+                  <Text style={styles.infoValue}>
+                    {formatDate(safeConcert.date)}
+                  </Text>
+                </View>
+                
+                {/* КЛИКАБЕЛЬНЫЙ АДРЕС ДЛЯ КАРТ */}
+                <TouchableOpacity 
+                  style={styles.infoItem}
+                  onPress={() => openMaps(safeConcert.address)}
+                  activeOpacity={0.7}
+                >
+                  <Ionicons name="location" size={getResponsiveSize(18)} color="#FFD700" />
+                  <Text style={styles.infoLabel}>Адрес:</Text>
+                  <Text style={[styles.infoValue, styles.clickableAddress]} numberOfLines={1}>
+                    {safeConcert.address || 'Адрес не указан'}
+                  </Text>
+                  <Ionicons name="open-outline" size={getResponsiveSize(14)} color="#FFD700" />
+                </TouchableOpacity>
+                
+                <View style={styles.timeContainer}>
+                  <View style={styles.timeItem}>
+                    <Ionicons name="car" size={getResponsiveSize(16)} color="#FFD700" />
+                    <Text style={styles.timeLabel}>Выезд:</Text>
+                    <Text style={styles.timeValue}>
+                      {safeConcert.departureTime || '--:--'}
+                    </Text>
+                  </View>
+                  
+                  <View style={styles.timeItem}>
+                    <Ionicons name="time" size={getResponsiveSize(16)} color="#FFD700" />
+                    <Text style={styles.timeLabel}>Начало:</Text>
+                    <Text style={styles.timeValue}>
+                      {safeConcert.startTime || '--:--'}
+                    </Text>
+                  </View>
+                </View>
+              </View>
             </LinearGradient>
-          </TouchableOpacity>
-        )}
-      </ScrollView>
+          </View>
 
-      {/* Модальное окно участников/программы */}
-      <Modal
-        visible={modalVisible}
-        transparent={true}
-        animationType="slide"
-        onRequestClose={() => setModalVisible(false)}
-      >
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContainer}>
+          {/* 🌙 КАРТОЧКИ ДЕЙСТВИЙ */}
+          <View style={styles.actionsGrid}>
+            {/* Участники */}
+            <TouchableOpacity 
+              style={styles.actionCard}
+              onPress={showParticipants}
+              activeOpacity={0.7}
+            >
+              <LinearGradient
+                colors={['rgba(255, 215, 0, 0.2)', 'rgba(255, 165, 0, 0.2)']}
+                style={styles.actionCardGradient}
+              >
+                <View style={styles.actionIconContainer}>
+                  <Ionicons name="people" size={getResponsiveSize(28)} color="#FFD700" />
+                </View>
+                <Text style={styles.actionCardTitle}>Участники</Text>
+                <Text style={styles.actionCardCount}>
+                  {safeParticipants.length} чел.
+                </Text>
+                <Text style={styles.actionCardSubtitle}>Нажмите для просмотра</Text>
+              </LinearGradient>
+            </TouchableOpacity>
+
+            {/* Программа */}
+            <TouchableOpacity 
+              style={styles.actionCard}
+              onPress={showProgram}
+              activeOpacity={0.7}
+            >
+              <LinearGradient
+                colors={['rgba(155, 89, 182, 0.2)', 'rgba(139, 69, 182, 0.2)']}
+                style={styles.actionCardGradient}
+              >
+                <View style={styles.actionIconContainer}>
+                  <Ionicons name="musical-notes" size={getResponsiveSize(28)} color="#9B59B6" />
+                </View>
+                <Text style={styles.actionCardTitle}>
+                  {safeProgram.title || 'Программа'}
+                </Text>
+                <Text style={styles.actionCardCount}>
+                  {safeSongs.length} шт.
+                </Text>
+                <Text style={styles.actionCardSubtitle}>Нажмите для просмотра</Text>
+              </LinearGradient>
+            </TouchableOpacity>
+          </View>
+
+          {/* 🌙 СТАТИСТИКА */}
+          <View style={styles.statsContainer}>
+            <View style={styles.statCard}>
+              <View style={styles.statIconWrapper}>
+                <Ionicons name="people" size={getResponsiveSize(20)} color="#FFD700" />
+              </View>
+              <View style={styles.statTextContainer}>
+                <Text style={styles.statValue}>{safeParticipants.length}</Text>
+                <Text style={styles.statLabel}>Участников</Text>
+              </View>
+            </View>
+
+            <View style={styles.statDivider} />
+
+            <View style={styles.statCard}>
+              <View style={styles.statIconWrapper}>
+                <Ionicons name="musical-notes" size={getResponsiveSize(20)} color="#9B59B6" />
+              </View>
+              <View style={styles.statTextContainer}>
+                <Text style={styles.statValue}>{safeSongs.length}</Text>
+                <Text style={styles.statLabel}>Произведений</Text>
+              </View>
+            </View>
+
+            <View style={styles.statDivider} />
+
+            <View style={styles.statCard}>
+              <View style={styles.statIconWrapper}>
+                <Ionicons name="time" size={getResponsiveSize(20)} color="#4A90E2" />
+              </View>
+              <View style={styles.statTextContainer}>
+                <Text style={styles.statValue}>
+                  {safeConcert.duration || 'N/A'}
+                </Text>
+                <Text style={styles.statLabel}>Продолжительность</Text>
+              </View>
+            </View>
+          </View>
+        </ScrollView>
+
+        {/* 🌙 МОДАЛЬНЫЕ ОКНА */}
+        <Modal
+          visible={modalVisible}
+          transparent={true}
+          animationType="fade"
+          onRequestClose={closeModal}
+        >
+          <BlurView intensity={80} style={styles.modalOverlay} tint="dark">
             {selectedModal === 'participants' && renderParticipantsModal()}
             {selectedModal === 'program' && renderProgramModal()}
-          </View>
-        </View>
-      </Modal>
+          </BlurView>
+        </Modal>
 
-      {/* 🆕 МОДАЛЬНОЕ ОКНО ДЕЙСТВИЙ */}
-      <Modal
-        visible={actionModalVisible}
-        transparent={true}
-        animationType="fade"
-        onRequestClose={() => setActionModalVisible(false)}
-      >
-        <View style={styles.actionModalOverlay}>
-          <View style={styles.actionModalContainer}>
+        <Modal
+          visible={actionModalVisible}
+          transparent={true}
+          animationType="fade"
+          onRequestClose={closeActionModal}
+        >
+          <BlurView intensity={80} style={styles.modalOverlay} tint="dark">
             {renderActionModal()}
-          </View>
-        </View>
-      </Modal>
-    </LinearGradient>
+          </BlurView>
+        </Modal>
+      </LinearGradient>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
+    flex: 1,
+    backgroundColor: '#0a0a0a',
+  },
+  background: {
     flex: 1,
   },
   errorContainer: {
@@ -416,320 +586,433 @@ const styles = StyleSheet.create({
     padding: 20,
   },
   errorText: {
-    fontSize: 18,
+    fontSize: getResponsiveFontSize(18),
     fontWeight: 'bold',
-    color: '#3E2723',
+    color: '#E0E0E0',
     marginTop: 10,
     textAlign: 'center',
   },
-  backButton: {
-    marginTop: 20,
-    backgroundColor: '#DAA520',
-    paddingHorizontal: 20,
-    paddingVertical: 12,
-    borderRadius: 10,
+  backButtonGradient: {
+    width: getResponsiveSize(44),
+    height: getResponsiveSize(44),
+    borderRadius: getResponsiveSize(22),
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   backButtonText: {
-    color: 'white',
-    fontSize: 14,
+    color: '#1a1a1a',
+    fontSize: getResponsiveFontSize(14),
     fontWeight: '600',
   },
+  // 🌙 ХЕДЕР
   header: {
+    paddingHorizontal: getResponsiveSize(20),
+    paddingTop: Platform.OS === 'ios' ? getResponsiveSize(50) : getResponsiveSize(30),
+    paddingBottom: getResponsiveSize(20),
+    borderBottomLeftRadius: getResponsiveSize(30),
+    borderBottomRightRadius: getResponsiveSize(30),
+    shadowColor: '#FFD700',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.3,
+    shadowRadius: 16,
+    elevation: 12,
+  },
+  headerContent: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: 20,
-    paddingTop: 50,
-    paddingBottom: 15,
-    borderBottomLeftRadius: 25,
-    borderBottomRightRadius: 25,
-    shadowColor: '#8B6B4F',
+  },
+  backButton: {
+    borderRadius: getResponsiveSize(22),
+    overflow: 'hidden',
+    shadowColor: '#FFD700',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  titleSection: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+    justifyContent: 'center',
+  },
+  titleIconContainer: {
+    marginRight: getResponsiveSize(12),
+  },
+  titleIconGradient: {
+    width: getResponsiveSize(44),
+    height: getResponsiveSize(44),
+    borderRadius: getResponsiveSize(14),
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: '#FFD700',
     shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.1,
+    shadowOpacity: 0.4,
     shadowRadius: 8,
     elevation: 5,
   },
-  backButton: {
-    padding: 5,
+  titleTextContainer: {
+    alignItems: 'center',
   },
   headerTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: '#3E2723',
-    textAlign: 'center',
+    fontSize: getResponsiveFontSize(18),
+    fontWeight: '800',
+    color: '#E0E0E0',
+    letterSpacing: 0.3,
   },
-  // 🆕 КНОПКА ДЕЙСТВИЙ В ШАПКЕ
+  headerSubtitle: {
+    fontSize: getResponsiveFontSize(12),
+    color: '#FFD700',
+    fontWeight: '600',
+    marginTop: getResponsiveSize(2),
+  },
   actionButtonHeader: {
-    padding: 5,
+    borderRadius: getResponsiveSize(22),
+    overflow: 'hidden',
+    shadowColor: '#FFD700',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  actionButtonHeaderGradient: {
+    width: getResponsiveSize(44),
+    height: getResponsiveSize(44),
+    borderRadius: getResponsiveSize(22),
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   content: {
     flex: 1,
-    padding: 20,
+    padding: getResponsiveSize(15),
   },
+  // 🌙 ОСНОВНАЯ ИНФОРМАЦИЯ
   section: {
-    backgroundColor: 'rgba(255, 255, 255, 0.8)',
-    borderRadius: 15,
-    padding: 20,
-    marginBottom: 15,
+    marginBottom: getResponsiveSize(20),
+  },
+  infoCard: {
+    borderRadius: getResponsiveSize(20),
+    padding: getResponsiveSize(20),
+    shadowColor: '#FFD700',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 8,
+    elevation: 5,
     borderWidth: 1,
-    borderColor: 'rgba(218, 165, 32, 0.3)',
-  },
-  concertTypeBadge: {
-    backgroundColor: '#DAA520',
-    paddingHorizontal: 15,
-    paddingVertical: 8,
-    borderRadius: 20,
-    alignSelf: 'flex-start',
-    marginBottom: 15,
-  },
-  concertTypeText: {
-    color: 'white',
-    fontSize: 14,
-    fontWeight: 'bold',
+    borderColor: 'rgba(255, 215, 0, 0.2)',
   },
   concertDescription: {
-    fontSize: 16,
+    fontSize: getResponsiveFontSize(16),
     fontWeight: '600',
-    color: '#3E2723',
-    marginBottom: 15,
-    lineHeight: 22,
+    color: '#E0E0E0',
+    marginBottom: getResponsiveSize(15),
+    lineHeight: getResponsiveFontSize(22),
+    textAlign: 'center',
   },
-  infoRow: {
+  infoGrid: {
+    gap: getResponsiveSize(12),
+  },
+  infoItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 10,
-    padding: 8,
-    borderRadius: 8,
+    padding: getResponsiveSize(12),
+    borderRadius: getResponsiveSize(12),
+    backgroundColor: 'rgba(42, 42, 42, 0.6)',
   },
-  infoText: {
-    fontSize: 14,
-    color: '#3E2723',
-    marginLeft: 10,
+  infoLabel: {
+    fontSize: getResponsiveFontSize(14),
+    fontWeight: '600',
+    color: '#999',
+    marginLeft: getResponsiveSize(10),
+    marginRight: getResponsiveSize(8),
+    width: getResponsiveSize(60),
+  },
+  infoValue: {
+    fontSize: getResponsiveFontSize(14),
+    color: '#E0E0E0',
     flex: 1,
-  },
-  clickableAddress: {
-    textDecorationLine: 'underline',
-    color: '#DAA520',
     fontWeight: '500',
   },
-  mapIcon: {
-    marginLeft: 8,
+  clickableAddress: {
+    color: '#FFD700',
+    fontWeight: '500',
   },
   timeContainer: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    marginTop: 10,
+    padding: getResponsiveSize(12),
+    borderRadius: getResponsiveSize(12),
+    backgroundColor: 'rgba(42, 42, 42, 0.6)',
   },
   timeItem: {
     flexDirection: 'row',
     alignItems: 'center',
   },
   timeLabel: {
-    fontSize: 12,
-    color: '#8B8B8B',
-    marginLeft: 5,
-    marginRight: 3,
+    fontSize: getResponsiveFontSize(12),
+    color: '#999',
+    marginLeft: getResponsiveSize(5),
+    marginRight: getResponsiveSize(3),
   },
   timeValue: {
-    fontSize: 14,
+    fontSize: getResponsiveFontSize(14),
     fontWeight: '600',
-    color: '#3E2723',
+    color: '#E0E0E0',
+  },
+  // 🌙 КАРТОЧКИ ДЕЙСТВИЙ
+  actionsGrid: {
+    flexDirection: 'row',
+    gap: getResponsiveSize(10),
+    marginBottom: getResponsiveSize(20),
   },
   actionCard: {
-    borderRadius: 15,
+    flex: 1,
+    borderRadius: getResponsiveSize(16),
     overflow: 'hidden',
-    marginBottom: 15,
-    shadowColor: '#8B6B4F',
+    shadowColor: '#FFD700',
     shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.1,
-    shadowRadius: 6,
-    elevation: 4,
+    shadowOpacity: 0.2,
+    shadowRadius: 8,
+    elevation: 6,
   },
-  actionGradient: {
-    padding: 20,
-    borderRadius: 15,
-  },
-  actionHeader: {
-    flexDirection: 'row',
+  actionCardGradient: {
+    padding: getResponsiveSize(16),
     alignItems: 'center',
-    marginBottom: 8,
+    borderRadius: getResponsiveSize(16),
+    borderWidth: 1,
+    borderColor: 'rgba(255, 215, 0, 0.2)',
   },
-  actionTitle: {
-    fontSize: 16,
-    fontWeight: 'bold',
-    color: '#3E2723',
-    marginLeft: 10,
-    flex: 1,
-  },
-  actionCount: {
-    fontSize: 14,
-    color: '#DAA520',
-    fontWeight: '600',
-  },
-  actionSubtitle: {
-    fontSize: 12,
-    color: '#8B8B8B',
-  },
-  // 🆕 СТИЛИ ДЛЯ КНОПКИ РЕДАКТИРОВАНИЯ
-  editButton: {
-    borderRadius: 15,
-    overflow: 'hidden',
-    marginTop: 10,
-    marginBottom: 20,
-    shadowColor: '#DAA520',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 6,
-    elevation: 5,
-  },
-  editButtonGradient: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 15,
-    paddingHorizontal: 20,
-  },
-  editButtonText: {
-    color: 'white',
-    fontSize: 14,
-    fontWeight: '600',
-    marginLeft: 8,
-  },
-  // Модальные окна
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+  actionIconContainer: {
+    width: getResponsiveSize(50),
+    height: getResponsiveSize(50),
+    borderRadius: getResponsiveSize(25),
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
     justifyContent: 'center',
     alignItems: 'center',
-    padding: 20,
+    marginBottom: getResponsiveSize(8),
   },
-  modalContainer: {
-    backgroundColor: 'white',
-    borderRadius: 20,
-    padding: 0,
-    width: '90%',
-    maxHeight: '70%',
+  actionCardTitle: {
+    fontSize: getResponsiveFontSize(14),
+    fontWeight: '700',
+    color: '#E0E0E0',
+    textAlign: 'center',
+    marginBottom: getResponsiveSize(4),
   },
-  modalContent: {
-    padding: 20,
-  },
-  modalTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: '#3E2723',
-    marginBottom: 15,
+  actionCardCount: {
+    fontSize: getResponsiveFontSize(18),
+    fontWeight: '800',
+    color: '#FFD700',
     textAlign: 'center',
   },
-  modalList: {
-    maxHeight: 300,
+  actionCardSubtitle: {
+    fontSize: getResponsiveFontSize(10),
+    color: '#999',
+    textAlign: 'center',
+    marginTop: getResponsiveSize(4),
   },
-  listItem: {
+  // 🌙 СТАТИСТИКА
+  statsContainer: {
+    flexDirection: 'row',
+    backgroundColor: 'rgba(26, 26, 26, 0.8)',
+    borderRadius: getResponsiveSize(16),
+    padding: getResponsiveSize(16),
+    borderWidth: 1,
+    borderColor: 'rgba(255, 215, 0, 0.2)',
+    shadowColor: '#FFD700',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 6,
+    elevation: 3,
+  },
+  statCard: {
+    flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: 8,
-    borderBottomWidth: 1,
-    borderBottomColor: '#F0F0F0',
+    gap: getResponsiveSize(10),
+  },
+  statIconWrapper: {
+    width: getResponsiveSize(36),
+    height: getResponsiveSize(36),
+    borderRadius: getResponsiveSize(10),
+    backgroundColor: 'rgba(255, 215, 0, 0.15)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  statTextContainer: {
+    flex: 1,
+  },
+  statValue: {
+    fontSize: getResponsiveFontSize(16),
+    fontWeight: '800',
+    color: '#E0E0E0',
+    letterSpacing: 0.3,
+  },
+  statLabel: {
+    fontSize: getResponsiveFontSize(10),
+    color: '#999',
+    fontWeight: '600',
+    marginTop: getResponsiveSize(2),
+  },
+  statDivider: {
+    width: 1,
+    height: '100%',
+    backgroundColor: 'rgba(255, 215, 0, 0.2)',
+    marginHorizontal: getResponsiveSize(8),
+  },
+  // 🌙 МОДАЛЬНЫЕ ОКНА
+  modalOverlay: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: 'rgba(0, 0, 0, 0.7)',
+  },
+  modalContent: {
+    width: '90%',
+    maxWidth: getResponsiveSize(450),
+    maxHeight: '80%',
+  },
+  modalGradient: {
+    borderRadius: getResponsiveSize(30),
+    padding: getResponsiveSize(25),
+    shadowColor: '#FFD700',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.3,
+    shadowRadius: 12,
+    elevation: 8,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 215, 0, 0.3)',
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: getResponsiveSize(15),
+  },
+  modalTitle: {
+    fontSize: getResponsiveFontSize(20),
+    fontWeight: '900',
+    color: '#E0E0E0',
+    letterSpacing: 0.3,
+    flex: 1,
+  },
+  modalCloseIcon: {
+    padding: getResponsiveSize(6),
+  },
+  modalList: {
+    maxHeight: getResponsiveSize(400),
+  },
+  listItem: {
+    marginBottom: getResponsiveSize(8),
+  },
+  listItemGradient: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: getResponsiveSize(12),
+    borderRadius: getResponsiveSize(12),
+    borderWidth: 1,
+    borderColor: 'rgba(255, 215, 0, 0.2)',
   },
   listText: {
-    fontSize: 14,
-    color: '#3E2723',
-    marginLeft: 10,
+    fontSize: getResponsiveFontSize(14),
+    color: '#E0E0E0',
+    marginLeft: getResponsiveSize(10),
+    fontWeight: '500',
   },
   programItem: {
+    marginBottom: getResponsiveSize(8),
+  },
+  programItemGradient: {
     flexDirection: 'row',
-    paddingVertical: 10,
-    borderBottomWidth: 1,
-    borderBottomColor: '#F0F0F0',
+    padding: getResponsiveSize(12),
+    borderRadius: getResponsiveSize(12),
+    borderWidth: 1,
+    borderColor: 'rgba(155, 89, 182, 0.2)',
   },
   songNumber: {
-    fontSize: 14,
-    color: '#DAA520',
+    fontSize: getResponsiveFontSize(14),
+    color: '#9B59B6',
     fontWeight: 'bold',
-    marginRight: 10,
-    width: 25,
+    marginRight: getResponsiveSize(10),
+    width: getResponsiveSize(25),
   },
   songDetails: {
     flex: 1,
   },
   songTitle: {
-    fontSize: 14,
-    color: '#3E2723',
+    fontSize: getResponsiveFontSize(14),
+    color: '#E0E0E0',
     fontWeight: '600',
-    marginBottom: 4,
+    marginBottom: getResponsiveSize(4),
   },
   songSoloists: {
-    fontSize: 12,
-    color: '#8B8B8B',
+    fontSize: getResponsiveFontSize(12),
+    color: '#999',
     fontStyle: 'italic',
+  },
+  noData: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: getResponsiveSize(30),
   },
   noDataText: {
-    fontSize: 14,
-    color: '#8B8B8B',
+    fontSize: getResponsiveFontSize(16),
+    color: '#888',
+    marginTop: getResponsiveSize(12),
     textAlign: 'center',
-    fontStyle: 'italic',
-    paddingVertical: 20,
   },
-  modalCloseButton: {
-    backgroundColor: '#DAA520',
-    paddingVertical: 12,
-    borderRadius: 10,
-    alignItems: 'center',
-    marginTop: 15,
-  },
-  modalCloseText: {
-    color: 'white',
-    fontSize: 14,
-    fontWeight: '600',
-  },
-  // 🆕 СТИЛИ ДЛЯ МОДАЛЬНОГО ОКНА ДЕЙСТВИЙ
-  actionModalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 20,
-  },
-  actionModalContainer: {
-    backgroundColor: 'white',
-    borderRadius: 20,
-    padding: 0,
-    width: '80%',
-  },
+  // 🌙 МОДАЛЬНОЕ ОКНО ДЕЙСТВИЙ - ИСПРАВЛЕННЫЕ СТИЛИ
   actionModalContent: {
-    padding: 20,
+    width: '80%',
+    maxWidth: getResponsiveSize(350),
+  },
+  actionModalGradient: {
+    borderRadius: getResponsiveSize(25),
+    padding: getResponsiveSize(20),
+    shadowColor: '#FFD700',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.3,
+    shadowRadius: 12,
+    elevation: 8,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 215, 0, 0.3)',
+  },
+  actionModalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: getResponsiveSize(20),
   },
   actionModalTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: '#3E2723',
-    marginBottom: 20,
-    textAlign: 'center',
+    fontSize: getResponsiveFontSize(18),
+    fontWeight: '900',
+    color: '#E0E0E0',
+    letterSpacing: 0.3,
+    flex: 1,
+  },
+  actionButtonsContainer: {
+    gap: getResponsiveSize(12),
   },
   actionButton: {
+    borderRadius: getResponsiveSize(15),
+    overflow: 'hidden',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 6,
+    elevation: 5,
+  },
+  actionButtonGradient: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: 15,
-    paddingHorizontal: 10,
-    borderRadius: 10,
-    marginBottom: 10,
+    justifyContent: 'center',
+    paddingVertical: getResponsiveSize(15),
+    paddingHorizontal: getResponsiveSize(20),
   },
   actionButtonText: {
-    fontSize: 16,
+    color: 'white',
+    fontSize: getResponsiveFontSize(14),
     fontWeight: '600',
-    marginLeft: 10,
-  },
-  cancelActionButton: {
-    backgroundColor: '#F5F5F5',
-    paddingVertical: 15,
-    borderRadius: 10,
-    alignItems: 'center',
-    marginTop: 10,
-    borderWidth: 1,
-    borderColor: '#E0E0E0',
-  },
-  cancelActionText: {
-    fontSize: 16,
-    color: '#666',
-    fontWeight: '600',
+    marginLeft: getResponsiveSize(8),
   },
 });

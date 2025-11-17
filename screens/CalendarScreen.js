@@ -6,9 +6,12 @@ import { collection, deleteDoc, doc, getDocs, query } from 'firebase/firestore';
 import { useEffect, useRef, useState } from 'react';
 import {
   Alert,
-  Animated, Dimensions,
+  Animated,
+  Dimensions,
   Modal,
+  Platform,
   ScrollView,
+  StatusBar,
   StyleSheet,
   Text,
   TouchableOpacity,
@@ -32,7 +35,7 @@ const toRussianType = (englishType) => {
 
 // ✅ АДАПТИВНЫЕ РАЗМЕРЫ
 const { width, height } = Dimensions.get('window');
-const isSmallDevice = width < 675;
+const isSmallDevice = width < 375;
 const isLargeDevice = width > 414;
 
 const getResponsiveSize = (size) => {
@@ -118,6 +121,10 @@ export default function CalendarScreen({ navigation, route }) {
     loadMoves();
   }, []);
 
+  useEffect(() => {
+    updateMarkedDates(concerts, tours, moves);
+  }, [concerts, tours, moves]);
+
   const loadConcerts = async () => {
     try {
       console.log('📅 CalendarScreen: Загрузка концертов...');
@@ -138,7 +145,6 @@ export default function CalendarScreen({ navigation, route }) {
       
       console.log(`✅ CalendarScreen: Загружено ${concertsData.length} концертов`);
       setConcerts(concertsData);
-      updateMarkedDates(concertsData, tours, moves);
     } catch (error) {
       console.error('❌ CalendarScreen: Ошибка загрузки концертов:', error);
       Alert.alert('Ошибка', 'Не удалось загрузить концерты');
@@ -164,7 +170,6 @@ export default function CalendarScreen({ navigation, route }) {
       
       console.log(`✅ CalendarScreen: Загружено ${toursData.length} гастролей`);
       setTours(toursData);
-      updateMarkedDates(concerts, toursData, moves);
     } catch (error) {
       console.error('❌ CalendarScreen: Ошибка загрузки гастролей:', error);
       Alert.alert('Ошибка', 'Не удалось загрузить гастроли');
@@ -190,7 +195,6 @@ export default function CalendarScreen({ navigation, route }) {
       
       console.log(`✅ CalendarScreen: Загружено ${movesData.length} переездов`);
       setMoves(movesData);
-      updateMarkedDates(concerts, tours, movesData);
     } catch (error) {
       console.error('❌ CalendarScreen: Ошибка загрузки переездов:', error);
       Alert.alert('Ошибка', 'Не удалось загрузить переезды');
@@ -216,13 +220,13 @@ export default function CalendarScreen({ navigation, route }) {
     const newMarkedDates = {
       [today]: {
         selected: true,
-        selectedColor: '#007bff',
+        selectedColor: '#FFD700',
         customStyles: {
           container: {
             borderRadius: 20,
           },
           text: {
-            color: 'white',
+            color: '#1a1a1a',
             fontWeight: 'bold',
           }
         }
@@ -237,7 +241,7 @@ export default function CalendarScreen({ navigation, route }) {
           dots: [{
             key: 'concert',
             color: '#FFD700',
-            selectedDotColor: '#FFFFFF'
+            selectedDotColor: '#1a1a1a'
           }]
         };
       } else {
@@ -246,14 +250,14 @@ export default function CalendarScreen({ navigation, route }) {
           dots: [{
             key: 'concert',
             color: '#FFD700',
-            selectedDotColor: '#FFFFFF'
+            selectedDotColor: '#1a1a1a'
           }],
           customStyles: {
             container: {
               backgroundColor: 'transparent',
             },
             text: {
-              color: '#3E2723',
+              color: '#E0E0E0',
               fontWeight: '600',
             }
           }
@@ -274,7 +278,7 @@ export default function CalendarScreen({ navigation, route }) {
                 backgroundColor: 'transparent',
               },
               text: {
-                color: '#3E2723',
+                color: '#E0E0E0',
                 fontWeight: '600',
               }
             }
@@ -294,7 +298,7 @@ export default function CalendarScreen({ navigation, route }) {
               backgroundColor: 'transparent',
             },
             text: {
-              color: '#3E2723',
+              color: '#E0E0E0',
               fontWeight: '600',
             }
           }
@@ -384,6 +388,28 @@ export default function CalendarScreen({ navigation, route }) {
     setTimeout(() => {
       navigation.navigate('ConcertDetail', { 
         concert: concert,
+        userRole: userRole 
+      });
+    }, 300);
+  };
+
+  // ✅ НОВАЯ ФУНКЦИЯ: Просмотр деталей гастролей
+  const handleViewTour = (tour) => {
+    closeModal();
+    setTimeout(() => {
+      navigation.navigate('TourDetail', { 
+        tour: tour,
+        userRole: userRole 
+      });
+    }, 300);
+  };
+
+  // ✅ НОВАЯ ФУНКЦИЯ: Просмотр деталей переезда
+  const handleViewMove = (move) => {
+    closeModal();
+    setTimeout(() => {
+      navigation.navigate('MoveDetail', { 
+        move: move,
         userRole: userRole 
       });
     }, 300);
@@ -502,17 +528,16 @@ export default function CalendarScreen({ navigation, route }) {
       { 
         icon: 'list', 
         label: 'Мои концерты', 
-        gradient: ['#FFD700', '#DAA520'],
+        gradient: ['#FF6B57', '#FF8C42'],
         onPress: () => navigation.navigate('MyEvents', { 
           userRole: userRole,
           userEmail: userEmail 
         })
-        
       },
       { 
         icon: 'medical', 
         label: 'Мой статус', 
-        gradient: ['#FFD700', '#DAA520'],
+        gradient: ['#FFD700', '#FFA500'],
         onPress: () => navigation.navigate('SickLeave', { 
           userRole: userRole,
           userEmail: userEmail 
@@ -525,13 +550,13 @@ export default function CalendarScreen({ navigation, route }) {
         {
           icon: 'people', 
           label: 'Список артистов', 
-          gradient: ['#FFD700', '#DAA520'],
+          gradient: ['#4A90E2', '#357ABD'],
           onPress: () => navigation.navigate('EmployeesList', { userRole })
         },
         {
           icon: 'notifications', 
           label: 'Напоминания', 
-          gradient: ['#FFD700', '#DAA520'],
+          gradient: ['#9B59B6', '#8E44AD'],
           onPress: () => navigation.navigate('Reminders', { userRole })
         }
       );
@@ -541,7 +566,7 @@ export default function CalendarScreen({ navigation, route }) {
       actions.push({
         icon: 'notifications', 
         label: 'Напоминания', 
-        gradient: ['#FFD700', '#DAA520'],
+        gradient: ['#9B59B6', '#8E44AD'],
         onPress: () => navigation.navigate('Reminders', { userRole })
       });
     }
@@ -550,13 +575,13 @@ export default function CalendarScreen({ navigation, route }) {
       { 
         icon: 'checkmark-done', 
         label: 'Задачи', 
-        gradient: ['#FFD700', '#DAA520'],
+        gradient: ['#34C759', '#28A745'],
         onPress: () => Alert.alert('Задачи', 'Функция в разработке')
       },
       { 
         icon: 'settings', 
         label: 'Настройки', 
-        gradient: ['#FFD700', '#DAA520'],
+        gradient: ['#8E8E93', '#636366'],
         onPress: () => Alert.alert('Настройки', 'Функция в разработке')
       }
     );
@@ -567,496 +592,362 @@ export default function CalendarScreen({ navigation, route }) {
   const quickActions = getQuickActions();
 
   return (
-    <LinearGradient
-      colors={['#8c7c49ff', '#FFE4B5', '#FFD700']}
-      style={styles.container}
-      start={{ x: 0, y: 0 }}
-      end={{ x: 1, y: 1 }}
-    >
-      <Animated.View style={{ opacity: fadeAnim }}>
-        <LinearGradient
-          colors={['rgba(255, 248, 225, 0.98)', 'rgba(255, 228, 181, 0.95)']}
-          style={styles.header}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 1 }}
-        >
-          <View style={styles.headerBackground}>
-            <View style={[styles.decorCircle, styles.decorCircle1]} />
-            <View style={[styles.decorCircle, styles.decorCircle2]} />
-            <View style={[styles.decorCircle, styles.decorCircle3]} />
-          </View>
-
-          <View style={styles.headerContent}>
-            <View style={styles.topRow}>
-              <View style={styles.greetingSection}>
-                <Text style={styles.greetingText}>Добро пожаловать,</Text>
-                <Text style={styles.userName} numberOfLines={1}>
-                  {userEmail.split('@')[0]}
-                </Text>
-              </View>
-
-              <View style={styles.actionButtons}>
-                <TouchableOpacity 
-                  style={styles.roleButton}
-                  activeOpacity={0.8}
-                  onPress={() => Alert.alert('Роль', `Вы вошли как ${userRole === 'admin' ? 'Администратор' : 'Артист'}`)}
-                >
-                  <LinearGradient
-                    colors={userRole === 'admin' ? 
-                      ['#FFD700', '#FFA500'] : 
-                      ['#DAA520', '#B8860B']}
-                    style={styles.roleButtonGradient}
-                    start={{ x: 0, y: 0 }}
-                    end={{ x: 1, y: 1 }}
-                  >
-                    <Ionicons 
-                      name={userRole === 'admin' ? 'shield-checkmark' : 'musical-note'} 
-                      size={getResponsiveSize(16)} 
-                      color="white" 
-                    />
-                    <Text style={styles.roleButtonText}>
-                      {userRole === 'admin' ? 'Админ' : 'Артист'}
-                    </Text>
-                  </LinearGradient>
-                </TouchableOpacity>
-
-                <TouchableOpacity 
-                  onPress={handleLogout} 
-                  style={styles.logoutButton}
-                  activeOpacity={0.8}
-                >
-                  <LinearGradient
-                    colors={['#FF6B6B', '#EE5A52']}
-                    style={styles.logoutButtonGradient}
-                    start={{ x: 0, y: 0 }}
-                    end={{ x: 1, y: 1 }}
-                  >
-                    <Ionicons name="log-out-outline" size={getResponsiveSize(20)} color="white" />
-                  </LinearGradient>
-                </TouchableOpacity>
-              </View>
-            </View>
-
-            <View style={styles.titleSection}>
-              <View style={styles.titleIconContainer}>
-                <LinearGradient
-                  colors={['#FFD700', '#FFA500']}
-                  style={styles.titleIconGradient}
-                  start={{ x: 0, y: 0 }}
-                  end={{ x: 1, y: 1 }}
-                >
-                  <Ionicons name="calendar" size={getResponsiveSize(28)} color="white" />
-                </LinearGradient>
-              </View>
-              <View style={styles.titleTextContainer}>
-                <Text style={styles.mainTitle}>Концертный календарь</Text>
-                <Text style={styles.subtitle}>Управление мероприятиями</Text>
-              </View>
-            </View>
-
-            <View style={styles.statsContainer}>
-              <View style={styles.statCard}>
-                <View style={styles.statIconWrapper}>
-                  <Ionicons name="musical-notes" size={getResponsiveSize(20)} color="#FFD700" />
-                </View>
-                <View style={styles.statTextContainer}>
-                  <Text style={styles.statValue}>{concerts.length}</Text>
-                  <Text style={styles.statLabel}>Концертов</Text>
-                </View>
-              </View>
-
-              <View style={styles.statDivider} />
-
-              <View style={styles.statCard}>
-                <View style={styles.statIconWrapper}>
-                  <Ionicons name="airplane" size={getResponsiveSize(20)} color="#FFA500" />
-                </View>
-                <View style={styles.statTextContainer}>
-                  <Text style={styles.statValue}>{tours.length}</Text>
-                  <Text style={styles.statLabel}>Гастролей</Text>
-                </View>
-              </View>
-
-              <View style={styles.statDivider} />
-
-              <View style={styles.statCard}>
-                <View style={styles.statIconWrapper}>
-                  <Ionicons name="bus" size={getResponsiveSize(20)} color="#34C759" />
-                </View>
-                <View style={styles.statTextContainer}>
-                  <Text style={styles.statValue}>{moves.length}</Text>
-                  <Text style={styles.statLabel}>Переездов</Text>
-                </View>
-              </View>
-            </View>
-          </View>
-        </LinearGradient>
-      </Animated.View>
-
-      <ScrollView showsVerticalScrollIndicator={false} style={styles.scrollView}>
-        <View style={styles.calendarWrapper}>
+    <View style={styles.container}>
+      <StatusBar
+        barStyle="light-content"
+        backgroundColor="#0a0a0a"
+        translucent={false}
+      />
+      
+      <LinearGradient
+        colors={['#0a0a0a', '#1a1a1a', '#2a2a2a']}
+        style={styles.background}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
+      >
+        {/* 🌙 ХЕДЕР С ПРАВИЛЬНЫМИ ОТСТУПАМИ */}
+        <Animated.View style={{ opacity: fadeAnim }}>
           <LinearGradient
-            colors={['rgba(255, 248, 225, 0.9)', 'rgba(255, 228, 181, 0.8)']}
-            style={styles.calendarContainer}
+            colors={['rgba(26, 26, 26, 0.98)', 'rgba(35, 35, 35, 0.95)']}
+            style={styles.header}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
           >
-            <Calendar
-              onDayPress={handleDateSelect}
-              markedDates={markedDates}
-              dayComponent={({ date, state, marking }) => {
-                const isToday = date.dateString === today;
-                const hasConcert = concerts.some(concert => concert.date === date.dateString);
-                const hasTour = marking?.hasTour || false;
-                const hasMove = marking?.hasMove || false;
-                
-                // 🎨 Определяем цвета градиента
-                let gradientColors = ['#F5F7FA', '#E9ECEF']; // По умолчанию - обычный день
-                let textStyle = styles.normalText;
-                let dayStyle = styles.normalDay;
-                let showTourLine = false;
-                let showMoveLine = false;
-                
-                // 🔥 УПРОЩЕННАЯ ЛОГИКА ВЫБОРА ГРАДИЕНТА
-                if (isToday) {
-                  // СЕГОДНЯ - всегда золотой + другие цвета
-                  gradientColors = ['#FFD700', '#FFA500'];
-                  textStyle = styles.todayText;
-                  dayStyle = styles.todayDay;
-                  
-                  if (hasConcert) gradientColors.push('#9B59B6');
-                  if (hasTour) {
-                    gradientColors.push('#87CEEB');
-                    showTourLine = true;
-                  }
-                  if (hasMove) {
-                    gradientColors.push('#4CAF50');
-                    showMoveLine = true;
-                  }
-                } else {
-                  // НЕ СЕГОДНЯ
-                  if (hasConcert || hasTour || hasMove) {
-                    // Есть хотя бы одно событие
-                    gradientColors = [];
-                    
-                    if (hasConcert) {
-                      gradientColors.push('#E0C3FC', '#9B59B6');
-                      dayStyle = styles.concertDay;
-                    }
-                    if (hasTour) {
-                      if (!hasConcert) gradientColors.push('#87CEEB', '#4682B4');
-                      else gradientColors.push('#87CEEB');
-                      showTourLine = true;
-                      if (!hasConcert) dayStyle = styles.tourDay;
-                    }
-                    if (hasMove) {
-                      if (!hasConcert && !hasTour) gradientColors.push('#C8E6C9', '#4CAF50');
-                      else gradientColors.push('#4CAF50');
-                      showMoveLine = true;
-                      if (!hasConcert && !hasTour) dayStyle = styles.moveDay;
-                    }
-                    
-                    textStyle = styles.eventText; // Белый текст для всех событий
-                  }
-                }
-                
-                return (
-                  <TouchableOpacity 
-                    style={styles.dayContainer}
-                    onPress={() => handleDateSelect(date)}
-                  >
-                    <Animated.View 
-                      style={isToday ? { transform: [{ scale: pulseAnim }] } : {}}
-                    >
-                      <LinearGradient
-                        colors={gradientColors}
-                        start={{ x: 0, y: 0 }}
-                        end={{ x: 1, y: 1 }}
-                        style={[
-                          styles.dayBase,
-                          dayStyle,
-                          marking?.selected && styles.selectedDay
-                        ]}
-                      >
-                        <Text style={[
-                          styles.dayText,
-                          textStyle,
-                          marking?.selected && styles.selectedText,
-                          state === 'disabled' && styles.disabledText
-                        ]}>
-                          {date.day}
-                        </Text>
-                        
-                        {showTourLine && <View style={styles.tourUnderline} />}
-                        {showMoveLine && <View style={styles.moveLine} />}
-                      </LinearGradient>
-                    </Animated.View>
-                  </TouchableOpacity>
-                );
-              }}
-              theme={{
-                backgroundColor: 'transparent',
-                calendarBackground: 'transparent',
-                textSectionTitleColor: '#a0aec0',
-                selectedDayBackgroundColor: '#DAA520',
-                selectedDayTextColor: '#ffffff',
-                todayTextColor: '#FFD700',
-                dayTextColor: '#4a5568',
-                textDisabledColor: '#cbd5e0',
-                dotColor: '#FFD700',
-                selectedDotColor: '#FFFFFF',
-                arrowColor: '#a0aec0',
-                monthTextColor: '#4a5568',
-                textDayFontFamily: 'System',
-                textMonthFontFamily: 'System',
-                textDayHeaderFontFamily: 'System',
-                textDayFontWeight: '600',
-                textMonthFontWeight: '400',
-                textDayHeaderFontWeight: '500',
-                textDayFontSize: getResponsiveFontSize(14),
-                textMonthFontSize: getResponsiveFontSize(20),
-                textDayHeaderFontSize: getResponsiveFontSize(11),
-              }}
-              style={styles.calendar}
-            />
-          </LinearGradient>
-        </View>
-
-        <View style={styles.quickActionsContainer}>
-          <View style={styles.quickActionsHeader}>
-            <View style={styles.quickActionsTitleWrapper}>
-              <LinearGradient
-                colors={['#FFD700', '#FFA500']}
-                style={styles.quickActionsTitleIcon}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 1 }}
-              >
-                <Ionicons name="flash" size={getResponsiveSize(18)} color="white" />
-              </LinearGradient>
-              <Text style={styles.quickActionsTitle}>Быстрые действия</Text>
+            <View style={styles.headerBackground}>
+              <View style={[styles.decorCircle, styles.decorCircle1]} />
+              <View style={[styles.decorCircle, styles.decorCircle2]} />
+              <View style={[styles.decorCircle, styles.decorCircle3]} />
             </View>
-            <TouchableOpacity style={styles.quickActionsMore}>
-              <Ionicons name="ellipsis-horizontal" size={getResponsiveSize(20)} color="#8B7355" />
-            </TouchableOpacity>
-          </View>
-          
-          <View style={styles.quickActionsGrid}>
-            {quickActions.map((action, index) => (
-              <TouchableOpacity
-                key={index}
-                style={styles.quickActionCard}
-                onPress={action.onPress}
-                activeOpacity={0.7}
-              >
-                <LinearGradient
-                  colors={['rgba(255, 255, 255, 0.95)', 'rgba(255, 248, 225, 0.9)']}
-                  style={styles.quickActionCardGradient}
-                  start={{ x: 0, y: 0 }}
-                  end={{ x: 1, y: 1 }}
-                >
-                  <LinearGradient
-                    colors={action.gradient}
-                    style={styles.cardTopAccent}
-                    start={{ x: 0, y: 0 }}
-                    end={{ x: 1, y: 0 }}
-                  />
-                  
-                  <View style={styles.quickActionContent}>
+
+            <View style={styles.headerContent}>
+              <View style={styles.topRow}>
+                <View style={styles.greetingSection}>
+                  <Text style={styles.greetingText}>Добро пожаловать,</Text>
+                  <Text style={styles.userName} numberOfLines={1}>
+                    {userEmail.split('@')[0]}
+                  </Text>
+                </View>
+
+                <View style={styles.actionButtons}>
+                  <TouchableOpacity 
+                    style={styles.roleButton}
+                    activeOpacity={0.8}
+                    onPress={() => Alert.alert('Роль', `Вы вошли как ${userRole === 'admin' ? 'Администратор' : 'Артист'}`)}
+                  >
                     <LinearGradient
-                      colors={action.gradient}
-                      style={styles.quickActionIconContainer}
+                      colors={userRole === 'admin' ? 
+                        ['#FFD700', '#FFA500'] : 
+                        ['#DAA520', '#B8860B']}
+                      style={styles.roleButtonGradient}
                       start={{ x: 0, y: 0 }}
                       end={{ x: 1, y: 1 }}
                     >
-                      <View style={styles.iconInnerCircle}>
-                        <Ionicons name={action.icon} size={getResponsiveSize(24)} color="white" />
-                      </View>
-                    </LinearGradient>
-                    
-                    <View style={styles.quickActionTextWrapper}>
-                      <Text style={styles.quickActionText} numberOfLines={2}>
-                        {action.label}
+                      <Ionicons 
+                        name={userRole === 'admin' ? 'shield-checkmark' : 'musical-note'} 
+                        size={getResponsiveSize(16)} 
+                        color="#1a1a1a" 
+                      />
+                      <Text style={styles.roleButtonText}>
+                        {userRole === 'admin' ? 'Админ' : 'Артист'}
                       </Text>
-                      <View style={styles.quickActionArrowContainer}>
-                        <Ionicons name="arrow-forward" size={getResponsiveSize(14)} color="#DAA520" />
-                      </View>
-                    </View>
-                  </View>
-                  
-                  <View style={styles.cardPattern}>
-                    <View style={styles.patternDot} />
-                    <View style={styles.patternDot} />
-                    <View style={styles.patternDot} />
-                  </View>
-                </LinearGradient>
-              </TouchableOpacity>
-            ))}
-          </View>
-        </View>
-      </ScrollView>
+                    </LinearGradient>
+                  </TouchableOpacity>
 
-      {/* МОДАЛЬНОЕ ОКНО СОБЫТИЙ */}
-      <Modal
-        animationType="fade"
-        transparent={true}
-        visible={modalVisible}
-        onRequestClose={closeModal}
-      >
-        <BlurView intensity={80} style={styles.modalOverlay} tint="light">
-          <Animated.View 
-            style={[
-              styles.modalContainer,
-              {
-                transform: [{ scale: scaleAnim }],
-              }
-            ]}
-          >
+                  <TouchableOpacity 
+                    onPress={handleLogout} 
+                    style={styles.logoutButton}
+                    activeOpacity={0.8}
+                  >
+                    <LinearGradient
+                      colors={['#FF6B6B', '#EE5A52']}
+                      style={styles.logoutButtonGradient}
+                      start={{ x: 0, y: 0 }}
+                      end={{ x: 1, y: 1 }}
+                    >
+                      <Ionicons name="log-out-outline" size={getResponsiveSize(20)} color="white" />
+                    </LinearGradient>
+                  </TouchableOpacity>
+                </View>
+              </View>
+
+              <View style={styles.titleSection}>
+                <View style={styles.titleIconContainer}>
+                  <LinearGradient
+                    colors={['#FFD700', '#FFA500']}
+                    style={styles.titleIconGradient}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 1 }}
+                  >
+                    <Ionicons name="calendar" size={getResponsiveSize(28)} color="#1a1a1a" />
+                  </LinearGradient>
+                </View>
+                <View style={styles.titleTextContainer}>
+                  <Text style={styles.mainTitle}>Концертный календарь</Text>
+                  <Text style={styles.subtitle}>Управление мероприятиями</Text>
+                </View>
+              </View>
+
+              <View style={styles.statsContainer}>
+                <View style={styles.statCard}>
+                  <View style={styles.statIconWrapper}>
+                    <Ionicons name="musical-notes" size={getResponsiveSize(20)} color="#FFD700" />
+                  </View>
+                  <View style={styles.statTextContainer}>
+                    <Text style={styles.statValue}>{concerts.length}</Text>
+                    <Text style={styles.statLabel}>Концертов</Text>
+                  </View>
+                </View>
+
+                <View style={styles.statDivider} />
+
+                <View style={styles.statCard}>
+                  <View style={styles.statIconWrapper}>
+                    <Ionicons name="airplane" size={getResponsiveSize(20)} color="#FFA500" />
+                  </View>
+                  <View style={styles.statTextContainer}>
+                    <Text style={styles.statValue}>{tours.length}</Text>
+                    <Text style={styles.statLabel}>Гастролей</Text>
+                  </View>
+                </View>
+
+                <View style={styles.statDivider} />
+
+                <View style={styles.statCard}>
+                  <View style={styles.statIconWrapper}>
+                    <Ionicons name="bus" size={getResponsiveSize(20)} color="#34C759" />
+                  </View>
+                  <View style={styles.statTextContainer}>
+                    <Text style={styles.statValue}>{moves.length}</Text>
+                    <Text style={styles.statLabel}>Переездов</Text>
+                  </View>
+                </View>
+              </View>
+            </View>
+          </LinearGradient>
+        </Animated.View>
+
+        <ScrollView showsVerticalScrollIndicator={false} style={styles.scrollView}>
+          <View style={styles.calendarWrapper}>
             <LinearGradient
-              colors={['rgba(255, 248, 225, 0.95)', 'rgba(255, 228, 181, 0.9)']}
-              style={styles.modalGradient}
+              colors={['rgba(26, 26, 26, 0.9)', 'rgba(35, 35, 35, 0.8)']}
+              style={styles.calendarContainer}
             >
-              <View style={styles.modalHeader}>
-                <Text style={styles.modalTitle}>🎵 События</Text>
-                <TouchableOpacity onPress={closeModal} style={styles.modalCloseIcon}>
-                  <Ionicons name="close-circle" size={getResponsiveSize(30)} color="#DAA520" />
-                </TouchableOpacity>
-              </View>
-              
-              <View style={styles.modalDateContainer}>
-                <Ionicons name="calendar" size={getResponsiveSize(22)} color="#FFD700" />
-                <Text style={styles.modalDate}>{formatDate(selectedDate)}</Text>
-              </View>
-
-              <ScrollView style={styles.concertsList}>
-                {selectedDateMoves.length > 0 && (
-                  <View style={styles.sectionContainer}>
-                    <Text style={styles.sectionTitle}>🚌 Переезды</Text>
-                    {selectedDateMoves.map((move) => (
-                      <TouchableOpacity
-                        key={move.id}
-                        style={styles.moveItem}
-                      >
-                        <LinearGradient
-                          colors={['#E8F5E8', '#C8E6C9']}
-                          style={styles.moveGradient}
-                        >
-                          <View style={styles.moveHeader}>
-                            <Text style={styles.moveTitle}>
-                              {move.fromCity} → {move.toCity}
-                            </Text>
-                            {userRole === 'admin' && (
-                              <TouchableOpacity 
-                                onPress={(e) => {
-                                  e.stopPropagation();
-                                  handleDeleteMove(move.id);
-                                }}
-                                style={styles.deleteButton}
-                              >
-                                <Ionicons name="trash" size={getResponsiveSize(20)} color="#FF6B6B" />
-                              </TouchableOpacity>
-                            )}
-                          </View>
-                          
-                          {move.hotel && (
-                            <Text style={styles.moveHotel}>🏨 {move.hotel}</Text>
-                          )}
-                          
-                          <View style={styles.moveDetails}>
-                            {move.passportRequired && (
-                              <View style={styles.detailItem}>
-                                <Ionicons name="document" size={getResponsiveSize(14)} color="#4CAF50" />
-                                <Text style={styles.detailText}>Нужен паспорт</Text>
-                              </View>
-                            )}
-                            
-                            {move.meals && (
-                              <View style={styles.detailItem}>
-                                <Ionicons name="restaurant" size={getResponsiveSize(14)} color="#4CAF50" />
-                                <Text style={styles.detailText}>
-                                  Питание: {[
-                                    move.meals.breakfast && 'завтрак',
-                                    move.meals.lunch && 'обед', 
-                                    move.meals.dinner && 'ужин',
-                                    move.meals.noFood && 'не кормят'
-                                  ].filter(Boolean).join(', ')}
-                                </Text>
-                              </View>
-                            )}
-                          </View>
-                          
-                          {move.whatToTake && (
-                            <Text style={styles.moveNote}>📦 Взять: {move.whatToTake}</Text>
-                          )}
-                          
-                          {move.arrivalInfo && (
-                            <Text style={styles.moveNote}>ℹ️ {move.arrivalInfo}</Text>
-                          )}
-                        </LinearGradient>
-                      </TouchableOpacity>
-                    ))}
-                  </View>
-                )}
-
-                {selectedDateTours.length > 0 && (
-                  <View style={styles.sectionContainer}>
-                    <Text style={styles.sectionTitle}>✈️ Гастроли</Text>
-                    {selectedDateTours.map((tour) => (
-                      <TouchableOpacity
-                        key={tour.id}
-                        style={styles.tourItem}
-                      >
-                        <LinearGradient
-                          colors={['#E0F7FA', '#B2EBF2']}
-                          style={styles.tourGradient}
-                        >
-                          <View style={styles.tourHeader}>
-                            <Text style={styles.tourTitle}>{tour.title}</Text>
-                            {userRole === 'admin' && (
-                              <TouchableOpacity 
-                                onPress={(e) => {
-                                  e.stopPropagation();
-                                  handleDeleteTour(tour.id);
-                                }}
-                                style={styles.deleteButton}
-                              >
-                                <Ionicons name="trash" size={getResponsiveSize(20)} color="#FF6B6B" />
-                              </TouchableOpacity>
-                            )}
-                          </View>
-                          <Text style={styles.tourDescription}>{tour.description}</Text>
-                          <View style={styles.tourDates}>
-                            <Ionicons name="calendar" size={getResponsiveSize(14)} color="#0097A7" />
-                            <Text style={styles.tourDatesText}>
-                              {formatDate(tour.startDate)} - {formatDate(tour.endDate)}
-                            </Text>
-                          </View>
-                        </LinearGradient>
-                      </TouchableOpacity>
-                    ))}
-                  </View>
-                )}
-
-                {selectedDateConcerts.length > 0 && (
-                  <View style={styles.sectionContainer}>
-                    <Text style={styles.sectionTitle}>🎵 Концерты</Text>
-                    {selectedDateConcerts.map((concert) => {
-                      const concertTypeRussian = toRussianType(concert.concertType);
+              <Calendar
+                onDayPress={handleDateSelect}
+                markedDates={markedDates}
+                dayComponent={({ date, state, marking }) => {
+                  const isToday = date.dateString === today;
+                  const hasConcert = concerts.some(concert => concert.date === date.dateString);
+                  const hasTour = marking?.hasTour || false;
+                  const hasMove = marking?.hasMove || false;
+                  
+                  let gradientColors = ['#2a2a2a', '#1f1f1f'];
+                  let textStyle = styles.normalText;
+                  let dayStyle = styles.normalDay;
+                  let showTourLine = false;
+                  let showMoveLine = false;
+                  
+                  if (isToday) {
+                    gradientColors = ['#FFD700', '#FFA500'];
+                    textStyle = styles.todayText;
+                    dayStyle = styles.todayDay;
+                    
+                    if (hasConcert) gradientColors.push('#9B59B6');
+                    if (hasTour) {
+                      gradientColors.push('#4A90E2');
+                      showTourLine = true;
+                    }
+                    if (hasMove) {
+                      gradientColors.push('#34C759');
+                      showMoveLine = true;
+                    }
+                  } else {
+                    if (hasConcert || hasTour || hasMove) {
+                      gradientColors = [];
                       
-                      return (
+                      if (hasConcert) {
+                        gradientColors.push('#9B59B6', '#7B3FA0');
+                        dayStyle = styles.concertDay;
+                      }
+                      if (hasTour) {
+                        if (!hasConcert) gradientColors.push('#4A90E2', '#357ABD');
+                        else gradientColors.push('#4A90E2');
+                        showTourLine = true;
+                        if (!hasConcert) dayStyle = styles.tourDay;
+                      }
+                      if (hasMove) {
+                        if (!hasConcert && !hasTour) gradientColors.push('#34C759', '#28A745');
+                        else gradientColors.push('#34C759');
+                        showMoveLine = true;
+                        if (!hasConcert && !hasTour) dayStyle = styles.moveDay;
+                      }
+                      
+                      textStyle = styles.eventText;
+                    }
+                  }
+                  
+                  return (
+                    <TouchableOpacity 
+                      style={styles.dayContainer}
+                      onPress={() => handleDateSelect(date)}
+                    >
+                      <Animated.View 
+                        style={isToday ? { transform: [{ scale: pulseAnim }] } : {}}
+                      >
+                        <LinearGradient
+                          colors={gradientColors}
+                          start={{ x: 0, y: 0 }}
+                          end={{ x: 1, y: 1 }}
+                          style={[
+                            styles.dayBase,
+                            dayStyle,
+                            marking?.selected && styles.selectedDay
+                          ]}
+                        >
+                          <Text style={[
+                            styles.dayText,
+                            textStyle,
+                            marking?.selected && styles.selectedText,
+                            state === 'disabled' && styles.disabledText
+                          ]}>
+                            {date.day}
+                          </Text>
+                          
+                          {showTourLine && <View style={styles.tourUnderline} />}
+                          {showMoveLine && <View style={styles.moveLine} />}
+                        </LinearGradient>
+                      </Animated.View>
+                    </TouchableOpacity>
+                  );
+                }}
+                theme={{
+                  backgroundColor: 'transparent',
+                  calendarBackground: 'transparent',
+                  textSectionTitleColor: '#888',
+                  selectedDayBackgroundColor: '#FFD700',
+                  selectedDayTextColor: '#1a1a1a',
+                  todayTextColor: '#FFD700',
+                  dayTextColor: '#E0E0E0',
+                  textDisabledColor: '#555',
+                  dotColor: '#FFD700',
+                  selectedDotColor: '#1a1a1a',
+                  arrowColor: '#FFD700',
+                  monthTextColor: '#E0E0E0',
+                  textDayFontFamily: 'System',
+                  textMonthFontFamily: 'System',
+                  textDayHeaderFontFamily: 'System',
+                  textDayFontWeight: '600',
+                  textMonthFontWeight: '400',
+                  textDayHeaderFontWeight: '500',
+                  textDayFontSize: getResponsiveFontSize(14),
+                  textMonthFontSize: getResponsiveFontSize(20),
+                  textDayHeaderFontSize: getResponsiveFontSize(11),
+                }}
+                style={styles.calendar}
+              />
+            </LinearGradient>
+          </View>
+
+          {/* 🌙 БЫСТРЫЕ ДЕЙСТВИЯ */}
+          <View style={styles.quickActionsContainer}>
+            <View style={styles.quickActionsHeader}>
+              <View style={styles.quickActionsTitleWrapper}>
+                <LinearGradient
+                  colors={['#FFD700', '#FFA500']}
+                  style={styles.quickActionsTitleIcon}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 1 }}
+                >
+                  <Ionicons name="flash" size={getResponsiveSize(18)} color="#1a1a1a" />
+                </LinearGradient>
+                <Text style={styles.quickActionsTitle}>Быстрые действия</Text>
+              </View>
+              <TouchableOpacity style={styles.quickActionsMore}>
+                <Ionicons name="ellipsis-horizontal" size={getResponsiveSize(20)} color="#888" />
+              </TouchableOpacity>
+            </View>
+            
+            <View style={styles.quickActionsGrid}>
+              {quickActions.map((action, index) => (
+                <TouchableOpacity
+                  key={index}
+                  style={styles.quickActionCard}
+                  onPress={action.onPress}
+                  activeOpacity={0.7}
+                >
+                  <LinearGradient
+                    colors={action.gradient}
+                    style={styles.quickActionIconContainer}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 1 }}
+                  >
+                    <Ionicons name={action.icon} size={getResponsiveSize(28)} color="white" />
+                  </LinearGradient>
+                  
+                  <Text style={styles.quickActionText} numberOfLines={2}>
+                    {action.label}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+          </View>
+        </ScrollView>
+
+        {/* 🌙 МОДАЛЬНОЕ ОКНО СОБЫТИЙ С ОБНОВЛЕННЫМИ НАЖАТИЯМИ */}
+        <Modal
+          animationType="fade"
+          transparent={true}
+          visible={modalVisible}
+          onRequestClose={closeModal}
+        >
+          <BlurView intensity={80} style={styles.modalOverlay} tint="dark">
+            <Animated.View 
+              style={[
+                styles.modalContainer,
+                {
+                  transform: [{ scale: scaleAnim }],
+                }
+              ]}
+            >
+              <LinearGradient
+                colors={['rgba(26, 26, 26, 0.98)', 'rgba(35, 35, 35, 0.95)']}
+                style={styles.modalGradient}
+              >
+                <View style={styles.modalHeader}>
+                  <Text style={styles.modalTitle}>🎵 События</Text>
+                  <TouchableOpacity onPress={closeModal} style={styles.modalCloseIcon}>
+                    <Ionicons name="close-circle" size={getResponsiveSize(30)} color="#FFD700" />
+                  </TouchableOpacity>
+                </View>
+                
+                <View style={styles.modalDateContainer}>
+                  <Ionicons name="calendar" size={getResponsiveSize(22)} color="#FFD700" />
+                  <Text style={styles.modalDate}>{formatDate(selectedDate)}</Text>
+                </View>
+
+                <ScrollView style={styles.concertsList}>
+                  {selectedDateMoves.length > 0 && (
+                    <View style={styles.sectionContainer}>
+                      <Text style={styles.sectionTitle}>🚌 Переезды</Text>
+                      {selectedDateMoves.map((move) => (
                         <TouchableOpacity
-                          key={concert.id}
-                          style={styles.concertItem}
-                          onPress={() => handleViewConcert(concert)}
+                          key={move.id}
+                          style={styles.moveItem}
+                          onPress={() => handleViewMove(move)} // ✅ ОБНОВЛЕНО: нажатие на переезд
                         >
                           <LinearGradient
-                            colors={['#FFF8E1', '#FFE4B5']}
-                            style={styles.concertGradient}
+                            colors={['rgba(52, 199, 89, 0.2)', 'rgba(40, 167, 69, 0.2)']}
+                            style={styles.moveGradient}
                           >
-                            <View style={styles.concertHeader}>
-                              <Text style={styles.concertType}>{concertTypeRussian}</Text>
+                            <View style={styles.moveHeader}>
+                              <Text style={styles.moveTitle}>
+                                {move.fromCity} → {move.toCity}
+                              </Text>
                               {userRole === 'admin' && (
                                 <TouchableOpacity 
                                   onPress={(e) => {
                                     e.stopPropagation();
-                                    handleDeleteConcert(concert.id);
+                                    handleDeleteMove(move.id);
                                   }}
                                   style={styles.deleteButton}
                                 >
@@ -1064,190 +955,308 @@ export default function CalendarScreen({ navigation, route }) {
                                 </TouchableOpacity>
                               )}
                             </View>
-                            <Text style={styles.concertDescription}>{concert.description}</Text>
-                            <Text style={styles.concertAddress}>{concert.address}</Text>
                             
-                            {(concert.program || concert.participants) && (
-                              <View style={styles.concertInfo}>
-                                {concert.program && concert.program.songs && concert.program.songs.length > 0 && (
-                                  <View style={styles.infoItem}>
-                                    <Ionicons name="musical-notes" size={getResponsiveSize(14)} color="#DAA520" />
-                                    <Text style={styles.infoText}>
-                                      Программа: {concert.program.songs.length} произведений
-                                    </Text>
-                                  </View>
-                                )}
-                                
-                                {concert.participants && concert.participants.length > 0 && (
-                                  <View style={styles.infoItem}>
-                                    <Ionicons name="people" size={getResponsiveSize(14)} color="#DAA520" />
-                                    <Text style={styles.infoText}>
-                                      Участники: {concert.participants.length} человек
-                                    </Text>
-                                  </View>
-                                )}
-                              </View>
+                            {move.hotel && (
+                              <Text style={styles.moveHotel}>🏨 {move.hotel}</Text>
                             )}
                             
-                            <View style={styles.concertTime}>
-                              <Ionicons name="time" size={getResponsiveSize(16)} color="#DAA520" />
-                              <Text style={styles.concertTimeText}>
-                                Выезд: {concert.departureTime} • Начало: {concert.startTime}
+                            <View style={styles.moveDetails}>
+                              {move.passportRequired && (
+                                <View style={styles.detailItem}>
+                                  <Ionicons name="document" size={getResponsiveSize(14)} color="#34C759" />
+                                  <Text style={styles.detailText}>Нужен паспорт</Text>
+                                </View>
+                              )}
+                              
+                              {move.meals && (
+                                <View style={styles.detailItem}>
+                                  <Ionicons name="restaurant" size={getResponsiveSize(14)} color="#34C759" />
+                                  <Text style={styles.detailText}>
+                                    Питание: {[
+                                      move.meals.breakfast && 'завтрак',
+                                      move.meals.lunch && 'обед', 
+                                      move.meals.dinner && 'ужин',
+                                      move.meals.noFood && 'не кормят'
+                                    ].filter(Boolean).join(', ')}
+                                  </Text>
+                                </View>
+                              )}
+                            </View>
+                            
+                            {move.whatToTake && (
+                              <Text style={styles.moveNote}>📦 Взять: {move.whatToTake}</Text>
+                            )}
+                            
+                            {move.arrivalInfo && (
+                              <Text style={styles.moveNote}>ℹ️ {move.arrivalInfo}</Text>
+                            )}
+                          </LinearGradient>
+                        </TouchableOpacity>
+                      ))}
+                    </View>
+                  )}
+
+                  {selectedDateTours.length > 0 && (
+                    <View style={styles.sectionContainer}>
+                      <Text style={styles.sectionTitle}>✈️ Гастроли</Text>
+                      {selectedDateTours.map((tour) => (
+                        <TouchableOpacity
+                          key={tour.id}
+                          style={styles.tourItem}
+                          onPress={() => handleViewTour(tour)} // ✅ ОБНОВЛЕНО: нажатие на гастроли
+                        >
+                          <LinearGradient
+                            colors={['rgba(74, 144, 226, 0.2)', 'rgba(53, 122, 189, 0.2)']}
+                            style={styles.tourGradient}
+                          >
+                            <View style={styles.tourHeader}>
+                              <Text style={styles.tourTitle}>{tour.title}</Text>
+                              {userRole === 'admin' && (
+                                <TouchableOpacity 
+                                  onPress={(e) => {
+                                    e.stopPropagation();
+                                    handleDeleteTour(tour.id);
+                                  }}
+                                  style={styles.deleteButton}
+                                >
+                                  <Ionicons name="trash" size={getResponsiveSize(20)} color="#FF6B6B" />
+                                </TouchableOpacity>
+                              )}
+                            </View>
+                            <Text style={styles.tourDescription}>{tour.description}</Text>
+                            <View style={styles.tourDates}>
+                              <Ionicons name="calendar" size={getResponsiveSize(14)} color="#4A90E2" />
+                              <Text style={styles.tourDatesText}>
+                                {formatDate(tour.startDate)} - {formatDate(tour.endDate)}
                               </Text>
                             </View>
                           </LinearGradient>
                         </TouchableOpacity>
-                      );
-                    })}
-                  </View>
-                )}
+                      ))}
+                    </View>
+                  )}
 
-                {selectedDateConcerts.length === 0 && selectedDateTours.length === 0 && selectedDateMoves.length === 0 && (
-                  <View style={styles.noConcerts}>
-                    <Ionicons name="musical-notes" size={getResponsiveSize(48)} color="#DAA520" />
-                    <Text style={styles.noConcertsText}>На эту дату нет событий</Text>
-                  </View>
-                )}
-              </ScrollView>
+                  {selectedDateConcerts.length > 0 && (
+                    <View style={styles.sectionContainer}>
+                      <Text style={styles.sectionTitle}>🎵 Концерты</Text>
+                      {selectedDateConcerts.map((concert) => {
+                        const concertTypeRussian = toRussianType(concert.concertType);
+                        
+                        return (
+                          <TouchableOpacity
+                            key={concert.id}
+                            style={styles.concertItem}
+                            onPress={() => handleViewConcert(concert)}
+                          >
+                            <LinearGradient
+                              colors={['rgba(255, 215, 0, 0.2)', 'rgba(255, 165, 0, 0.2)']}
+                              style={styles.concertGradient}
+                            >
+                              <View style={styles.concertHeader}>
+                                <Text style={styles.concertType}>{concertTypeRussian}</Text>
+                                {userRole === 'admin' && (
+                                  <TouchableOpacity 
+                                    onPress={(e) => {
+                                      e.stopPropagation();
+                                      handleDeleteConcert(concert.id);
+                                    }}
+                                    style={styles.deleteButton}
+                                  >
+                                    <Ionicons name="trash" size={getResponsiveSize(20)} color="#FF6B6B" />
+                                  </TouchableOpacity>
+                                )}
+                              </View>
+                              <Text style={styles.concertDescription}>{concert.description}</Text>
+                              <Text style={styles.concertAddress}>{concert.address}</Text>
+                              
+                              {(concert.program || concert.participants) && (
+                                <View style={styles.concertInfo}>
+                                  {concert.program && concert.program.songs && concert.program.songs.length > 0 && (
+                                    <View style={styles.infoItem}>
+                                      <Ionicons name="musical-notes" size={getResponsiveSize(14)} color="#FFD700" />
+                                      <Text style={styles.infoText}>
+                                        Программа: {concert.program.songs.length} произведений
+                                      </Text>
+                                    </View>
+                                  )}
+                                  
+                                  {concert.participants && concert.participants.length > 0 && (
+                                    <View style={styles.infoItem}>
+                                      <Ionicons name="people" size={getResponsiveSize(14)} color="#FFD700" />
+                                      <Text style={styles.infoText}>
+                                        Участники: {concert.participants.length} человек
+                                      </Text>
+                                    </View>
+                                  )}
+                                </View>
+                              )}
+                              
+                              <View style={styles.concertTime}>
+                                <Ionicons name="time" size={getResponsiveSize(16)} color="#FFD700" />
+                                <Text style={styles.concertTimeText}>
+                                  Выезд: {concert.departureTime} • Начало: {concert.startTime}
+                                </Text>
+                              </View>
+                            </LinearGradient>
+                          </TouchableOpacity>
+                        );
+                      })}
+                    </View>
+                  )}
 
-              {userRole === 'admin' && (
-                <TouchableOpacity 
-                  style={styles.addButtonWrapper}
-                  onPress={handleAddEvent}
-                  activeOpacity={0.9}
-                >
-                  <LinearGradient
-                    colors={['#FFD700', '#DAA520']}
-                    style={styles.addButton}
-                    start={{ x: 0, y: 0 }}
-                    end={{ x: 1, y: 0 }}
+                  {selectedDateConcerts.length === 0 && selectedDateTours.length === 0 && selectedDateMoves.length === 0 && (
+                    <View style={styles.noConcerts}>
+                      <Ionicons name="musical-notes" size={getResponsiveSize(48)} color="#555" />
+                      <Text style={styles.noConcertsText}>На эту дату нет событий</Text>
+                    </View>
+                  )}
+                </ScrollView>
+
+                {userRole === 'admin' && (
+                  <TouchableOpacity 
+                    style={styles.addButtonWrapper}
+                    onPress={handleAddEvent}
+                    activeOpacity={0.9}
                   >
-                    <Ionicons name="add" size={getResponsiveSize(22)} color="white" />
-                    <Text style={styles.addButtonText}>Добавить событие</Text>
-                  </LinearGradient>
-                </TouchableOpacity>
-              )}
-            </LinearGradient>
-          </Animated.View>
-        </BlurView>
-      </Modal>
+                    <LinearGradient
+                      colors={['#FFD700', '#FFA500']}
+                      style={styles.addButton}
+                      start={{ x: 0, y: 0 }}
+                      end={{ x: 1, y: 0 }}
+                    >
+                      <Ionicons name="add" size={getResponsiveSize(22)} color="#1a1a1a" />
+                      <Text style={styles.addButtonText}>Добавить событие</Text>
+                    </LinearGradient>
+                  </TouchableOpacity>
+                )}
+              </LinearGradient>
+            </Animated.View>
+          </BlurView>
+        </Modal>
 
-      {/* МОДАЛЬНОЕ ОКНО ВЫБОРА ТИПА СОБЫТИЯ */}
-      <Modal
-        animationType="fade"
-        transparent={true}
-        visible={eventTypeModalVisible}
-        onRequestClose={closeEventTypeModal}
-      >
-        <BlurView intensity={80} style={styles.modalOverlay} tint="light">
-          <Animated.View 
-            style={[
-              styles.eventTypeModalContainer,
-              {
-                transform: [{ scale: eventTypeScaleAnim }],
-              }
-            ]}
-          >
-            <LinearGradient
-              colors={['rgba(255, 248, 225, 0.98)', 'rgba(255, 228, 181, 0.95)']}
-              style={styles.eventTypeModalGradient}
+        {/* 🌙 МОДАЛЬНОЕ ОКНО ВЫБОРА ТИПА СОБЫТИЯ */}
+        <Modal
+          animationType="fade"
+          transparent={true}
+          visible={eventTypeModalVisible}
+          onRequestClose={closeEventTypeModal}
+        >
+          <BlurView intensity={80} style={styles.modalOverlay} tint="dark">
+            <Animated.View 
+              style={[
+                styles.eventTypeModalContainer,
+                {
+                  transform: [{ scale: eventTypeScaleAnim }],
+                }
+              ]}
             >
-              <View style={styles.eventTypeHeader}>
-                <Text style={styles.eventTypeTitle}>Выберите тип события</Text>
-                <TouchableOpacity onPress={closeEventTypeModal} style={styles.modalCloseIcon}>
-                  <Ionicons name="close-circle" size={getResponsiveSize(30)} color="#DAA520" />
-                </TouchableOpacity>
-              </View>
+              <LinearGradient
+                colors={['rgba(26, 26, 26, 0.98)', 'rgba(35, 35, 35, 0.95)']}
+                style={styles.eventTypeModalGradient}
+              >
+                <View style={styles.eventTypeHeader}>
+                  <Text style={styles.eventTypeTitle}>Выберите тип события</Text>
+                  <TouchableOpacity onPress={closeEventTypeModal} style={styles.modalCloseIcon}>
+                    <Ionicons name="close-circle" size={getResponsiveSize(30)} color="#FFD700" />
+                  </TouchableOpacity>
+                </View>
 
-              <View style={styles.eventTypeOptions}>
-                <TouchableOpacity 
-                  style={styles.eventTypeOption}
-                  onPress={() => handleEventTypeSelect('concert')}
-                  activeOpacity={0.8}
-                >
-                  <LinearGradient
-                    colors={['#9B59B6', '#8E44AD']}
-                    style={styles.eventTypeOptionGradient}
-                    start={{ x: 0, y: 0 }}
-                    end={{ x: 1, y: 1 }}
+                <View style={styles.eventTypeOptions}>
+                  <TouchableOpacity 
+                    style={styles.eventTypeOption}
+                    onPress={() => handleEventTypeSelect('concert')}
+                    activeOpacity={0.8}
                   >
-                    <Ionicons name="musical-notes" size={getResponsiveSize(48)} color="white" />
-                    <Text style={styles.eventTypeOptionText}>Добавить концерт</Text>
-                    <Text style={styles.eventTypeOptionDescription}>
-                      Создать новое концертное мероприятие
-                    </Text>
-                  </LinearGradient>
-                </TouchableOpacity>
+                    <LinearGradient
+                      colors={['#9B59B6', '#8E44AD']}
+                      style={styles.eventTypeOptionGradient}
+                      start={{ x: 0, y: 0 }}
+                      end={{ x: 1, y: 1 }}
+                    >
+                      <Ionicons name="musical-notes" size={getResponsiveSize(48)} color="white" />
+                      <Text style={styles.eventTypeOptionText}>Добавить концерт</Text>
+                      <Text style={styles.eventTypeOptionDescription}>
+                        Создать новое концертное мероприятие
+                      </Text>
+                    </LinearGradient>
+                  </TouchableOpacity>
 
-                <TouchableOpacity 
-                  style={styles.eventTypeOption}
-                  onPress={() => handleEventTypeSelect('tour')}
-                  activeOpacity={0.8}
-                >
-                  <LinearGradient
-                    colors={['#4682B4', '#4169E1']}
-                    style={styles.eventTypeOptionGradient}
-                    start={{ x: 0, y: 0 }}
-                    end={{ x: 1, y: 1 }}
+                  <TouchableOpacity 
+                    style={styles.eventTypeOption}
+                    onPress={() => handleEventTypeSelect('tour')}
+                    activeOpacity={0.8}
                   >
-                    <Ionicons name="airplane" size={getResponsiveSize(48)} color="white" />
-                    <Text style={styles.eventTypeOptionText}>Добавить гастроли</Text>
-                    <Text style={styles.eventTypeOptionDescription}>
-                      Запланировать гастрольный тур
-                    </Text>
-                  </LinearGradient>
-                </TouchableOpacity>
+                    <LinearGradient
+                      colors={['#4682B4', '#4169E1']}
+                      style={styles.eventTypeOptionGradient}
+                      start={{ x: 0, y: 0 }}
+                      end={{ x: 1, y: 1 }}
+                    >
+                      <Ionicons name="airplane" size={getResponsiveSize(48)} color="white" />
+                      <Text style={styles.eventTypeOptionText}>Добавить гастроли</Text>
+                      <Text style={styles.eventTypeOptionDescription}>
+                        Запланировать гастрольный тур
+                      </Text>
+                    </LinearGradient>
+                  </TouchableOpacity>
 
-                <TouchableOpacity 
-                  style={styles.eventTypeOption}
-                  onPress={() => handleEventTypeSelect('move')}
-                  activeOpacity={0.8}
-                >
-                  <LinearGradient
-                    colors={['#34C759', '#28A745']}
-                    style={styles.eventTypeOptionGradient}
-                    start={{ x: 0, y: 0 }}
-                    end={{ x: 1, y: 1 }}
+                  <TouchableOpacity 
+                    style={styles.eventTypeOption}
+                    onPress={() => handleEventTypeSelect('move')}
+                    activeOpacity={0.8}
                   >
-                    <Ionicons name="bus" size={getResponsiveSize(48)} color="white" />
-                    <Text style={styles.eventTypeOptionText}>Добавить переезд</Text>
-                    <Text style={styles.eventTypeOptionDescription}>
-                      Запланировать переезд между городами
-                    </Text>
-                  </LinearGradient>
-                </TouchableOpacity>
-              </View>
-            </LinearGradient>
-          </Animated.View>
-        </BlurView>
-      </Modal>
-    </LinearGradient>
+                    <LinearGradient
+                      colors={['#34C759', '#28A745']}
+                      style={styles.eventTypeOptionGradient}
+                      start={{ x: 0, y: 0 }}
+                      end={{ x: 1, y: 1 }}
+                    >
+                      <Ionicons name="bus" size={getResponsiveSize(48)} color="white" />
+                      <Text style={styles.eventTypeOptionText}>Добавить переезд</Text>
+                      <Text style={styles.eventTypeOptionDescription}>
+                        Запланировать переезд между городами
+                      </Text>
+                    </LinearGradient>
+                  </TouchableOpacity>
+                </View>
+              </LinearGradient>
+            </Animated.View>
+          </BlurView>
+        </Modal>
+      </LinearGradient>
+    </View>
   );
 }
 
+// Стили остаются БЕЗ ИЗМЕНЕНИЙ (такие же как в предыдущем коде)
 const styles = StyleSheet.create({
   container: {
+    flex: 1,
+    backgroundColor: '#0a0a0a',
+  },
+  background: {
     flex: 1,
   },
   scrollView: {
     flex: 1,
   },
   
+  // 🌙 ХЕДЕР С ПРАВИЛЬНЫМИ ОТСТУПАМИ
   header: {
     paddingHorizontal: getResponsiveSize(20),
-    paddingTop: getResponsiveSize(50),
+    paddingTop: Platform.OS === 'ios' ? getResponsiveSize(50) : getResponsiveSize(30),
     paddingBottom: getResponsiveSize(24),
     borderBottomLeftRadius: getResponsiveSize(30),
     borderBottomRightRadius: getResponsiveSize(30),
-    shadowColor: '#DAA520',
+    shadowColor: '#FFD700',
     shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.25,
+    shadowOpacity: 0.3,
     shadowRadius: 16,
     elevation: 12,
     position: 'relative',
     overflow: 'hidden',
     borderBottomWidth: 1,
-    borderBottomColor: 'rgba(218, 165, 32, 0.2)',
+    borderBottomColor: 'rgba(255, 215, 0, 0.3)',
   },
   
   headerBackground: {
@@ -1260,7 +1269,7 @@ const styles = StyleSheet.create({
   decorCircle: {
     position: 'absolute',
     borderRadius: 1000,
-    opacity: 0.08,
+    opacity: 0.05,
   },
   decorCircle1: {
     width: getResponsiveSize(200),
@@ -1301,13 +1310,13 @@ const styles = StyleSheet.create({
   },
   greetingText: {
     fontSize: getResponsiveFontSize(13),
-    color: '#8B7355',
+    color: '#999',
     fontWeight: '500',
     marginBottom: getResponsiveSize(2),
   },
   userName: {
     fontSize: getResponsiveFontSize(18),
-    color: '#3E2723',
+    color: '#E0E0E0',
     fontWeight: '700',
     letterSpacing: 0.3,
   },
@@ -1321,9 +1330,9 @@ const styles = StyleSheet.create({
   roleButton: {
     borderRadius: getResponsiveSize(20),
     overflow: 'hidden',
-    shadowColor: '#DAA520',
+    shadowColor: '#FFD700',
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.2,
+    shadowOpacity: 0.3,
     shadowRadius: 4,
     elevation: 3,
   },
@@ -1336,7 +1345,7 @@ const styles = StyleSheet.create({
   },
   roleButtonText: {
     fontSize: getResponsiveFontSize(12),
-    color: 'white',
+    color: '#1a1a1a',
     fontWeight: '700',
   },
   
@@ -1345,7 +1354,7 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
     shadowColor: '#FF6B6B',
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.2,
+    shadowOpacity: 0.3,
     shadowRadius: 4,
     elevation: 3,
   },
@@ -1360,12 +1369,12 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     marginBottom: getResponsiveSize(20),
-    backgroundColor: 'rgba(255, 255, 255, 0.5)',
+    backgroundColor: 'rgba(42, 42, 42, 0.6)',
     paddingHorizontal: getResponsiveSize(16),
     paddingVertical: getResponsiveSize(14),
     borderRadius: getResponsiveSize(16),
     borderWidth: 1,
-    borderColor: 'rgba(218, 165, 32, 0.2)',
+    borderColor: 'rgba(255, 215, 0, 0.2)',
   },
   
   titleIconContainer: {
@@ -1379,7 +1388,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     shadowColor: '#FFD700',
     shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
+    shadowOpacity: 0.4,
     shadowRadius: 8,
     elevation: 5,
   },
@@ -1390,26 +1399,26 @@ const styles = StyleSheet.create({
   mainTitle: {
     fontSize: getResponsiveFontSize(20),
     fontWeight: '800',
-    color: '#3E2723',
+    color: '#E0E0E0',
     letterSpacing: 0.3,
     marginBottom: getResponsiveSize(2),
   },
   subtitle: {
     fontSize: getResponsiveFontSize(13),
-    color: '#8B7355',
+    color: '#999',
     fontWeight: '500',
   },
   
   statsContainer: {
     flexDirection: 'row',
-    backgroundColor: 'rgba(255, 255, 255, 0.7)',
+    backgroundColor: 'rgba(42, 42, 42, 0.6)',
     borderRadius: getResponsiveSize(16),
     padding: getResponsiveSize(16),
     borderWidth: 1,
-    borderColor: 'rgba(218, 165, 32, 0.2)',
-    shadowColor: '#DAA520',
+    borderColor: 'rgba(255, 215, 0, 0.2)',
+    shadowColor: '#FFD700',
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
+    shadowOpacity: 0.2,
     shadowRadius: 6,
     elevation: 3,
   },
@@ -1437,13 +1446,13 @@ const styles = StyleSheet.create({
   statValue: {
     fontSize: getResponsiveFontSize(20),
     fontWeight: '800',
-    color: '#3E2723',
+    color: '#E0E0E0',
     letterSpacing: 0.3,
   },
   
   statLabel: {
     fontSize: getResponsiveFontSize(10),
-    color: '#8B7355',
+    color: '#999',
     fontWeight: '600',
     marginTop: getResponsiveSize(2),
   },
@@ -1451,23 +1460,24 @@ const styles = StyleSheet.create({
   statDivider: {
     width: 1,
     height: '100%',
-    backgroundColor: 'rgba(218, 165, 32, 0.2)',
+    backgroundColor: 'rgba(255, 215, 0, 0.2)',
     marginHorizontal: getResponsiveSize(8),
   },
   
+  // 🌙 КАЛЕНДАРЬ
   calendarWrapper: {
     margin: getResponsiveSize(15),
   },
   calendarContainer: {
     borderRadius: getResponsiveSize(20),
     padding: getResponsiveSize(12),
-    shadowColor: '#8B6B4F',
+    shadowColor: '#FFD700',
     shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.15,
+    shadowOpacity: 0.2,
     shadowRadius: 8,
     elevation: 5,
     borderWidth: 1,
-    borderColor: 'rgba(218, 165, 32, 0.3)',
+    borderColor: 'rgba(255, 215, 0, 0.2)',
   },
   calendar: {
     borderRadius: getResponsiveSize(15),
@@ -1492,19 +1502,19 @@ const styles = StyleSheet.create({
   dayText: {
     fontSize: getResponsiveFontSize(14),
     fontWeight: '600',
-    color: '#4a5568',
+    color: '#E0E0E0',
   },
   todayDay: {
     borderWidth: 3,
-    borderColor: 'rgba(255, 215, 0, 0.5)',
+    borderColor: 'rgba(255, 215, 0, 0.6)',
     shadowColor: '#FFD700',
     shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.6,
+    shadowOpacity: 0.8,
     shadowRadius: 15,
     elevation: 8,
   },
   todayText: {
-    color: '#1a202c',
+    color: '#1a1a1a',
     fontWeight: '900',
     textShadowColor: 'rgba(255, 255, 255, 0.3)',
     textShadowOffset: { width: 0, height: 1 },
@@ -1512,35 +1522,35 @@ const styles = StyleSheet.create({
   },
   concertDay: {
     borderWidth: 2,
-    borderColor: 'rgba(155, 89, 182, 0.4)',
+    borderColor: 'rgba(155, 89, 182, 0.5)',
     shadowColor: '#9B59B6',
     shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.4,
+    shadowOpacity: 0.5,
     shadowRadius: 12,
     elevation: 6,
   },
   tourDay: {
     borderWidth: 2,
-    borderColor: 'rgba(70, 130, 180, 0.4)',
-    shadowColor: '#4682B4',
+    borderColor: 'rgba(74, 144, 226, 0.5)',
+    shadowColor: '#4A90E2',
     shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.4,
+    shadowOpacity: 0.5,
     shadowRadius: 12,
     elevation: 6,
   },
   moveDay: {
     borderWidth: 2,
-    borderColor: 'rgba(76, 175, 80, 0.4)',
-    shadowColor: '#4CAF50',
+    borderColor: 'rgba(52, 199, 89, 0.5)',
+    shadowColor: '#34C759',
     shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.4,
+    shadowOpacity: 0.5,
     shadowRadius: 12,
     elevation: 6,
   },
   eventText: {
     color: '#FFFFFF',
     fontWeight: '600',
-    textShadowColor: 'rgba(0, 0, 0, 0.2)',
+    textShadowColor: 'rgba(0, 0, 0, 0.3)',
     textShadowOffset: { width: 0, height: 1 },
     textShadowRadius: 2,
   },
@@ -1561,38 +1571,47 @@ const styles = StyleSheet.create({
     borderRadius: 1,
   },
   selectedDay: {
-    backgroundColor: '#DAA520',
+    backgroundColor: '#FFD700',
   },
   selectedText: {
-    color: 'white',
+    color: '#1a1a1a',
     fontWeight: 'bold',
   },
   disabledText: {
-    color: '#cbd5e0',
+    color: '#555',
     opacity: 0.5,
   },
   normalDay: {
     borderWidth: 2,
-    borderColor: '#e2e8f0',
-    shadowColor: '#cbd5e0',
+    borderColor: '#2a2a2a',
+    shadowColor: '#000',
     shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
+    shadowOpacity: 0.2,
     shadowRadius: 3,
     elevation: 2,
   },
   normalText: {
-    color: '#4a5568',
+    color: '#E0E0E0',
   },
 
+  // 🌙 БЫСТРЫЕ ДЕЙСТВИЯ
   quickActionsContainer: {
     marginHorizontal: getResponsiveSize(15),
     marginBottom: getResponsiveSize(20),
+    backgroundColor: 'rgba(26, 26, 26, 0.8)',
+    borderRadius: getResponsiveSize(20),
+    padding: getResponsiveSize(20),
+    borderWidth: 1,
+    borderColor: 'rgba(255, 215, 0, 0.2)',
   },
   quickActionsHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: getResponsiveSize(16),
+    marginBottom: getResponsiveSize(20),
+    paddingBottom: getResponsiveSize(15),
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(255, 215, 0, 0.15)',
   },
   quickActionsTitleWrapper: {
     flexDirection: 'row',
@@ -1607,124 +1626,59 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     shadowColor: '#FFD700',
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.3,
+    shadowOpacity: 0.4,
     shadowRadius: 4,
     elevation: 3,
   },
   quickActionsMore: {
     width: getResponsiveSize(36),
     height: getResponsiveSize(36),
-    borderRadius: getResponsiveSize(10),
-    backgroundColor: 'rgba(255, 255, 255, 0.6)',
+    borderRadius: getResponsiveSize(18),
+    backgroundColor: 'rgba(42, 42, 42, 0.8)',
     justifyContent: 'center',
     alignItems: 'center',
     borderWidth: 1,
-    borderColor: 'rgba(218, 165, 32, 0.2)',
+    borderColor: 'rgba(255, 215, 0, 0.2)',
   },
   quickActionsTitle: {
-    fontSize: getResponsiveFontSize(20),
-    fontWeight: '800',
-    color: '#3E2723',
+    fontSize: getResponsiveFontSize(18),
+    fontWeight: '700',
+    color: '#E0E0E0',
     letterSpacing: 0.3,
   },
   quickActionsGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    justifyContent: 'space-between',
-    gap: getResponsiveSize(12),
+    justifyContent: 'flex-start',
+    gap: getResponsiveSize(8),
   },
   quickActionCard: {
-    width: '48%',
-    borderRadius: getResponsiveSize(20),
-    overflow: 'hidden',
-    shadowColor: '#DAA520',
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.18,
-    shadowRadius: 12,
-    elevation: 6,
-  },
-  quickActionCardGradient: {
-    padding: getResponsiveSize(18),
-    borderWidth: 1,
-    borderColor: 'rgba(218, 165, 32, 0.15)',
-    borderRadius: getResponsiveSize(20),
-    minHeight: getResponsiveSize(130),
-    position: 'relative',
-  },
-  cardTopAccent: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    height: getResponsiveSize(4),
-    borderTopLeftRadius: getResponsiveSize(20),
-    borderTopRightRadius: getResponsiveSize(20),
-  },
-  quickActionContent: {
-    flex: 1,
-    justifyContent: 'space-between',
-    zIndex: 2,
+    width: '22%',
+    alignItems: 'center',
+    marginBottom: getResponsiveSize(15),
   },
   quickActionIconContainer: {
-    width: getResponsiveSize(60),
-    height: getResponsiveSize(60),
-    borderRadius: getResponsiveSize(18),
+    width: getResponsiveSize(64),
+    height: getResponsiveSize(64),
+    borderRadius: getResponsiveSize(32),
     justifyContent: 'center',
     alignItems: 'center',
-    marginBottom: getResponsiveSize(12),
+    marginBottom: getResponsiveSize(8),
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.2,
-    shadowRadius: 8,
-    elevation: 5,
-  },
-  iconInnerCircle: {
-    width: getResponsiveSize(48),
-    height: getResponsiveSize(48),
-    borderRadius: getResponsiveSize(14),
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  quickActionTextWrapper: {
-    flex: 1,
-    justifyContent: 'space-between',
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.3,
+    shadowRadius: 6,
+    elevation: 4,
   },
   quickActionText: {
-    fontSize: getResponsiveFontSize(14),
-    fontWeight: '700',
-    color: '#3E2723',
-    letterSpacing: 0.2,
-    lineHeight: getResponsiveFontSize(18),
-    marginBottom: getResponsiveSize(8),
-  },
-  quickActionArrowContainer: {
-    alignSelf: 'flex-start',
-    width: getResponsiveSize(32),
-    height: getResponsiveSize(32),
-    borderRadius: getResponsiveSize(10),
-    backgroundColor: 'rgba(218, 165, 32, 0.12)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: 'rgba(218, 165, 32, 0.2)',
-  },
-  cardPattern: {
-    position: 'absolute',
-    bottom: getResponsiveSize(12),
-    right: getResponsiveSize(12),
-    flexDirection: 'row',
-    gap: getResponsiveSize(4),
-    opacity: 0.3,
-    zIndex: 1,
-  },
-  patternDot: {
-    width: getResponsiveSize(4),
-    height: getResponsiveSize(4),
-    borderRadius: getResponsiveSize(2),
-    backgroundColor: '#DAA520',
+    fontSize: getResponsiveFontSize(11),
+    fontWeight: '500',
+    color: '#E0E0E0',
+    textAlign: 'center',
+    lineHeight: getResponsiveFontSize(14),
   },
 
+  // 🌙 МОДАЛЬНЫЕ ОКНА
   modalOverlay: {
     flex: 1,
     justifyContent: 'center',
@@ -1738,13 +1692,13 @@ const styles = StyleSheet.create({
   modalGradient: {
     borderRadius: getResponsiveSize(30),
     padding: getResponsiveSize(25),
-    shadowColor: '#8B6B4F',
+    shadowColor: '#FFD700',
     shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.15,
+    shadowOpacity: 0.3,
     shadowRadius: 12,
     elevation: 8,
     borderWidth: 1,
-    borderColor: 'rgba(218, 165, 32, 0.3)',
+    borderColor: 'rgba(255, 215, 0, 0.3)',
   },
   modalHeader: {
     flexDirection: 'row',
@@ -1755,7 +1709,7 @@ const styles = StyleSheet.create({
   modalTitle: {
     fontSize: getResponsiveFontSize(24),
     fontWeight: '900',
-    color: '#3E2723',
+    color: '#E0E0E0',
     letterSpacing: 0.3,
   },
   modalCloseIcon: {
@@ -1775,7 +1729,7 @@ const styles = StyleSheet.create({
   },
   modalDate: {
     fontSize: getResponsiveFontSize(18),
-    color: '#3E2723',
+    color: '#E0E0E0',
     fontWeight: '700',
     marginLeft: getResponsiveSize(10),
   },
@@ -1790,7 +1744,7 @@ const styles = StyleSheet.create({
   },
   noConcertsText: {
     fontSize: getResponsiveFontSize(16),
-    color: '#8B8B8B',
+    color: '#888',
     marginTop: getResponsiveSize(12),
     textAlign: 'center',
   },
@@ -1801,7 +1755,7 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontSize: getResponsiveFontSize(18),
     fontWeight: '800',
-    color: '#3E2723',
+    color: '#E0E0E0',
     marginBottom: getResponsiveSize(12),
   },
 
@@ -1809,15 +1763,17 @@ const styles = StyleSheet.create({
     marginBottom: getResponsiveSize(15),
     borderRadius: getResponsiveSize(16),
     overflow: 'hidden',
-    shadowColor: '#8B6B4F',
+    shadowColor: '#FFD700',
     shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.15,
+    shadowOpacity: 0.2,
     shadowRadius: 8,
     elevation: 6,
   },
   concertGradient: {
     padding: getResponsiveSize(18),
     borderRadius: getResponsiveSize(16),
+    borderWidth: 1,
+    borderColor: 'rgba(255, 215, 0, 0.2)',
   },
   concertHeader: {
     flexDirection: 'row',
@@ -1828,7 +1784,7 @@ const styles = StyleSheet.create({
   concertType: {
     fontSize: getResponsiveFontSize(16),
     fontWeight: 'bold',
-    color: '#DAA520',
+    color: '#FFD700',
     flex: 1,
   },
   deleteButton: {
@@ -1837,19 +1793,19 @@ const styles = StyleSheet.create({
   concertDescription: {
     fontSize: getResponsiveFontSize(14),
     fontWeight: '600',
-    color: '#3E2723',
+    color: '#E0E0E0',
     marginBottom: getResponsiveSize(8),
     lineHeight: getResponsiveFontSize(18),
   },
   concertAddress: {
     fontSize: getResponsiveFontSize(13),
-    color: '#8B8B8B',
+    color: '#999',
     marginBottom: getResponsiveSize(10),
     lineHeight: getResponsiveFontSize(16),
   },
   concertInfo: {
     borderTopWidth: 1,
-    borderTopColor: 'rgba(218, 165, 32, 0.3)',
+    borderTopColor: 'rgba(255, 215, 0, 0.2)',
     paddingTop: getResponsiveSize(10),
     marginBottom: getResponsiveSize(10),
   },
@@ -1860,7 +1816,7 @@ const styles = StyleSheet.create({
   },
   infoText: {
     fontSize: getResponsiveFontSize(12),
-    color: '#8B8B8B',
+    color: '#999',
     marginLeft: getResponsiveSize(8),
   },
   concertTime: {
@@ -1869,7 +1825,7 @@ const styles = StyleSheet.create({
   },
   concertTimeText: {
     fontSize: getResponsiveFontSize(13),
-    color: '#DAA520',
+    color: '#FFD700',
     marginLeft: getResponsiveSize(6),
     fontWeight: '600',
   },
@@ -1878,15 +1834,17 @@ const styles = StyleSheet.create({
     marginBottom: getResponsiveSize(15),
     borderRadius: getResponsiveSize(16),
     overflow: 'hidden',
-    shadowColor: '#4682B4',
+    shadowColor: '#4A90E2',
     shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.15,
+    shadowOpacity: 0.2,
     shadowRadius: 8,
     elevation: 6,
   },
   tourGradient: {
     padding: getResponsiveSize(18),
     borderRadius: getResponsiveSize(16),
+    borderWidth: 1,
+    borderColor: 'rgba(74, 144, 226, 0.2)',
   },
   tourHeader: {
     flexDirection: 'row',
@@ -1897,13 +1855,13 @@ const styles = StyleSheet.create({
   tourTitle: {
     fontSize: getResponsiveFontSize(16),
     fontWeight: 'bold',
-    color: '#0097A7',
+    color: '#4A90E2',
     flex: 1,
   },
   tourDescription: {
     fontSize: getResponsiveFontSize(14),
     fontWeight: '600',
-    color: '#3E2723',
+    color: '#E0E0E0',
     marginBottom: getResponsiveSize(10),
     lineHeight: getResponsiveFontSize(18),
   },
@@ -1913,7 +1871,7 @@ const styles = StyleSheet.create({
   },
   tourDatesText: {
     fontSize: getResponsiveFontSize(13),
-    color: '#0097A7',
+    color: '#4A90E2',
     marginLeft: getResponsiveSize(6),
     fontWeight: '600',
   },
@@ -1922,15 +1880,17 @@ const styles = StyleSheet.create({
     marginBottom: getResponsiveSize(15),
     borderRadius: getResponsiveSize(16),
     overflow: 'hidden',
-    shadowColor: '#4CAF50',
+    shadowColor: '#34C759',
     shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.15,
+    shadowOpacity: 0.2,
     shadowRadius: 8,
     elevation: 6,
   },
   moveGradient: {
     padding: getResponsiveSize(18),
     borderRadius: getResponsiveSize(16),
+    borderWidth: 1,
+    borderColor: 'rgba(52, 199, 89, 0.2)',
   },
   moveHeader: {
     flexDirection: 'row',
@@ -1941,12 +1901,12 @@ const styles = StyleSheet.create({
   moveTitle: {
     fontSize: getResponsiveFontSize(16),
     fontWeight: 'bold',
-    color: '#2E7D32',
+    color: '#34C759',
     flex: 1,
   },
   moveHotel: {
     fontSize: getResponsiveFontSize(14),
-    color: '#4CAF50',
+    color: '#34C759',
     marginBottom: getResponsiveSize(8),
     fontWeight: '600',
   },
@@ -1960,12 +1920,12 @@ const styles = StyleSheet.create({
   },
   detailText: {
     fontSize: getResponsiveFontSize(12),
-    color: '#4CAF50',
+    color: '#34C759',
     marginLeft: getResponsiveSize(8),
   },
   moveNote: {
     fontSize: getResponsiveFontSize(12),
-    color: '#666',
+    color: '#999',
     marginBottom: getResponsiveSize(4),
     lineHeight: getResponsiveFontSize(16),
   },
@@ -1973,9 +1933,9 @@ const styles = StyleSheet.create({
   addButtonWrapper: {
     borderRadius: getResponsiveSize(18),
     overflow: 'hidden',
-    shadowColor: '#DAA520',
+    shadowColor: '#FFD700',
     shadowOffset: { width: 0, height: 5 },
-    shadowOpacity: 0.4,
+    shadowOpacity: 0.5,
     shadowRadius: 10,
     elevation: 8,
   },
@@ -1987,7 +1947,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: getResponsiveSize(25),
   },
   addButtonText: {
-    color: 'white',
+    color: '#1a1a1a',
     fontSize: getResponsiveFontSize(16),
     fontWeight: 'bold',
     marginLeft: getResponsiveSize(8),
@@ -2000,13 +1960,13 @@ const styles = StyleSheet.create({
   eventTypeModalGradient: {
     borderRadius: getResponsiveSize(30),
     padding: getResponsiveSize(25),
-    shadowColor: '#8B6B4F',
+    shadowColor: '#FFD700',
     shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.15,
+    shadowOpacity: 0.3,
     shadowRadius: 12,
     elevation: 8,
     borderWidth: 1,
-    borderColor: 'rgba(218, 165, 32, 0.3)',
+    borderColor: 'rgba(255, 215, 0, 0.3)',
   },
   eventTypeHeader: {
     flexDirection: 'row',
@@ -2017,7 +1977,7 @@ const styles = StyleSheet.create({
   eventTypeTitle: {
     fontSize: getResponsiveFontSize(22),
     fontWeight: '900',
-    color: '#3E2723',
+    color: '#E0E0E0',
     letterSpacing: 0.3,
   },
   eventTypeOptions: {
@@ -2028,7 +1988,7 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.2,
+    shadowOpacity: 0.3,
     shadowRadius: 8,
     elevation: 5,
   },

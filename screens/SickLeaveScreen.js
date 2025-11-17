@@ -5,6 +5,7 @@ import { addDoc, collection, doc, getDocs, query, updateDoc, where } from 'fireb
 import { useEffect, useState } from 'react';
 import {
   Alert,
+  Dimensions,
   KeyboardAvoidingView,
   Platform,
   ScrollView,
@@ -15,6 +16,21 @@ import {
   View
 } from 'react-native';
 import { auth, db } from '../firebaseConfig';
+
+const { width, height } = Dimensions.get('window');
+const isSmallDevice = width < 375;
+const isLargeDevice = width > 414;
+
+const getResponsiveSize = (size) => {
+  if (isSmallDevice) return size * 0.85;
+  if (isLargeDevice) return size * 1.15;
+  return size;
+};
+
+const getResponsiveFontSize = (size) => {
+  const baseSize = getResponsiveSize(size);
+  return Math.round(baseSize);
+};
 
 export default function SickLeave({ navigation, route }) {
   const { userRole, userEmail: paramEmail } = route.params || {};
@@ -31,17 +47,16 @@ export default function SickLeave({ navigation, route }) {
   const [loading, setLoading] = useState(false);
   const [initialLoad, setInitialLoad] = useState(true);
 
-  // ОБНОВЛЕННЫЙ МАССИВ СТАТУСОВ - ДОБАВЛЕН "БЕЗ СОДЕРЖАНИЯ"
+  // ОБНОВЛЕННЫЙ МАССИВ СТАТУСОВ С НОВЫМИ ЦВЕТАМИ ПОД ТЕМНУЮ ТЕМУ
   const statusOptions = [
-    { value: 'working', label: 'На работе', color: '#4CAF50' },
-    { value: 'sick', label: 'Больничный', color: '#FF9800' },
-    { value: 'vacation', label: 'Отпуск', color: '#2196F3' },
-    { value: 'dayoff', label: 'Отгул', color: '#9C27B0' },
-    { value: 'unpaid', label: 'Без содержания', color: '#FF0000' }, // НОВЫЙ СТАТУС
-    { value: 'other', label: 'Другое', color: '#795548' },
+    { value: 'working', label: 'На работе', color: '#34C759', icon: 'checkmark-circle' },
+    { value: 'sick', label: 'Больничный', color: '#FF6B6B', icon: 'medical' },
+    { value: 'vacation', label: 'Отпуск', color: '#4A90E2', icon: 'airplane' },
+    { value: 'dayoff', label: 'Отгул', color: '#9B59B6', icon: 'calendar' },
+    { value: 'unpaid', label: 'Без содержания', color: '#FFD700', icon: 'warning' },
+    { value: 'other', label: 'Другое', color: '#8E8E93', icon: 'ellipsis-horizontal' },
   ];
 
-  // ... остальной код без изменений ...
   useEffect(() => {
     if (!paramEmail && auth?.currentUser?.email) {
       setUserEmail(auth.currentUser.email);
@@ -216,7 +231,9 @@ export default function SickLeave({ navigation, route }) {
     if (!dateString) return '';
     try {
       const [year, month, day] = dateString.split('-');
-      return `${day}.${month}.${year}`;
+      const months = ['января', 'февраля', 'марта', 'апреля', 'мая', 'июня', 
+                      'июля', 'августа', 'сентября', 'октября', 'ноября', 'декабря'];
+      return `${parseInt(day)} ${months[parseInt(month) - 1]} ${year}`;
     } catch (error) {
       return dateString;
     }
@@ -224,22 +241,23 @@ export default function SickLeave({ navigation, route }) {
 
   const getStatusColor = (statusValue) => {
     const option = statusOptions.find(opt => opt.value === statusValue);
-    return option ? option.color : '#666';
+    return option ? option.color : '#888';
   };
 
   const getStatusInfo = () => {
     const currentStatus = statusOptions.find(opt => opt.value === status);
     return {
       label: currentStatus?.label || 'Неизвестно',
-      color: currentStatus?.color || '#666'
+      color: currentStatus?.color || '#888',
+      icon: currentStatus?.icon || 'help'
     };
   };
 
   if (initialLoad) {
     return (
-      <LinearGradient colors={['#FFF8E1', '#FFE4B5', '#FFD700']} style={styles.container}>
+      <LinearGradient colors={['#0a0a0a', '#1a1a1a', '#2a2a2a']} style={styles.container}>
         <View style={styles.loadingContainer}>
-          <Ionicons name="hourglass-outline" size={50} color="#DAA520" />
+          <Ionicons name="hourglass-outline" size={50} color="#FFD700" />
           <Text style={styles.loadingText}>Загрузка...</Text>
         </View>
       </LinearGradient>
@@ -248,7 +266,7 @@ export default function SickLeave({ navigation, route }) {
 
   if (!userEmail) {
     return (
-      <LinearGradient colors={['#FFF8E1', '#FFE4B5', '#FFD700']} style={styles.container}>
+      <LinearGradient colors={['#0a0a0a', '#1a1a1a', '#2a2a2a']} style={styles.container}>
         <View style={styles.errorContainer}>
           <Ionicons name="warning-outline" size={50} color="#FF6B6B" />
           <Text style={styles.errorText}>Ошибка загрузки данных</Text>
@@ -257,7 +275,12 @@ export default function SickLeave({ navigation, route }) {
             style={styles.retryButton}
             onPress={() => navigation.goBack()}
           >
-            <Text style={styles.retryButtonText}>Вернуться назад</Text>
+            <LinearGradient
+              colors={['#FFD700', '#FFA500']}
+              style={styles.retryButtonGradient}
+            >
+              <Text style={styles.retryButtonText}>Вернуться назад</Text>
+            </LinearGradient>
           </TouchableOpacity>
         </View>
       </LinearGradient>
@@ -266,16 +289,17 @@ export default function SickLeave({ navigation, route }) {
 
   return (
     <LinearGradient
-      colors={['#FFF8E1', '#FFE4B5', '#FFD700']}
+      colors={['#0a0a0a', '#1a1a1a', '#2a2a2a']}
       style={styles.container}
     >
       <KeyboardAvoidingView 
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         style={styles.keyboardAvoid}
       >
-        <ScrollView showsVerticalScrollIndicator={false}>
+        <ScrollView showsVerticalScrollIndicator={false} style={styles.scrollView}>
+          {/* ХЕДЕР В СТИЛЕ КАЛЕНДАРЯ */}
           <LinearGradient
-            colors={['rgba(255, 248, 225, 0.95)', 'rgba(255, 228, 181, 0.9)']}
+            colors={['rgba(26, 26, 26, 0.98)', 'rgba(35, 35, 35, 0.95)']}
             style={styles.header}
           >
             <View style={styles.headerContent}>
@@ -283,53 +307,85 @@ export default function SickLeave({ navigation, route }) {
                 onPress={() => navigation.goBack()}
                 style={styles.backButton}
               >
-                <Ionicons name="arrow-back" size={24} color="#3E2723" />
+                <LinearGradient
+                  colors={['#FFD700', '#FFA500']}
+                  style={styles.backButtonGradient}
+                >
+                  <Ionicons name="arrow-back" size={getResponsiveSize(20)} color="#1a1a1a" />
+                </LinearGradient>
               </TouchableOpacity>
-              <Text style={styles.headerTitle}>Мой статус</Text>
+              
+              <View style={styles.titleSection}>
+                <View style={styles.titleIconContainer}>
+                  <LinearGradient
+                    colors={['#FFD700', '#FFA500']}
+                    style={styles.titleIconGradient}
+                  >
+                    <Ionicons name="medical" size={getResponsiveSize(24)} color="#1a1a1a" />
+                  </LinearGradient>
+                </View>
+                <View style={styles.titleTextContainer}>
+                  <Text style={styles.headerTitle}>Мой статус</Text>
+                  <Text style={styles.headerSubtitle}>Управление состоянием</Text>
+                </View>
+              </View>
+              
               <View style={styles.headerSpacer} />
             </View>
           </LinearGradient>
 
           <View style={styles.formContainer}>
+            {/* ИНФОРМАЦИЯ О СОТРУДНИКЕ */}
             <View style={styles.section}>
-              <Text style={styles.sectionTitle}>Информация о сотруднике</Text>
+              <View style={styles.sectionHeader}>
+                <Ionicons name="person" size={getResponsiveSize(20)} color="#FFD700" />
+                <Text style={styles.sectionTitle}>Информация о сотруднике</Text>
+              </View>
               
-              <Text style={styles.label}>ФИО *</Text>
-              <TextInput
-                style={styles.textInput}
-                value={fullName}
-                onChangeText={setFullName}
-                placeholder="Введите ваше ФИО"
-                placeholderTextColor="#8B8B8B"
-                editable={!loading}
-              />
+              <View style={styles.inputGroup}>
+                <Text style={styles.label}>ФИО *</Text>
+                <TextInput
+                  style={styles.textInput}
+                  value={fullName}
+                  onChangeText={setFullName}
+                  placeholder="Введите ваше ФИО"
+                  placeholderTextColor="#666"
+                  editable={!loading}
+                />
+              </View>
 
-              <Text style={styles.label}>Должность *</Text>
-              <TextInput
-                style={styles.textInput}
-                value={position}
-                onChangeText={setPosition}
-                placeholder="Введите вашу должность"
-                placeholderTextColor="#8B8B8B"
-                editable={!loading}
-              />
+              <View style={styles.inputGroup}>
+                <Text style={styles.label}>Должность *</Text>
+                <TextInput
+                  style={styles.textInput}
+                  value={position}
+                  onChangeText={setPosition}
+                  placeholder="Введите вашу должность"
+                  placeholderTextColor="#666"
+                  editable={!loading}
+                />
+              </View>
 
               <View style={styles.emailInfo}>
-                <Ionicons name="mail-outline" size={14} color="#8B8B8B" />
+                <Ionicons name="mail-outline" size={getResponsiveSize(16)} color="#FFD700" />
                 <Text style={styles.emailText}>Email: {userEmail}</Text>
               </View>
             </View>
 
+            {/* ВЫБОР СТАТУСА */}
             <View style={styles.section}>
-              <Text style={styles.sectionTitle}>Текущий статус</Text>
+              <View style={styles.sectionHeader}>
+                <Ionicons name="stats-chart" size={getResponsiveSize(20)} color="#FFD700" />
+                <Text style={styles.sectionTitle}>Текущий статус</Text>
+              </View>
               
-              <View style={styles.statusContainer}>
+              <View style={styles.statusGrid}>
                 {statusOptions.map((option) => (
                   <TouchableOpacity
                     key={option.value}
                     style={[
-                      styles.statusButton,
-                      status === option.value && [styles.statusButtonActive, { borderColor: option.color }]
+                      styles.statusCard,
+                      status === option.value && styles.statusCardActive
                     ]}
                     onPress={() => {
                       setStatus(option.value);
@@ -339,21 +395,36 @@ export default function SickLeave({ navigation, route }) {
                     }}
                     disabled={loading}
                   >
-                    <View style={[styles.statusDot, { backgroundColor: option.color }]} />
-                    <Text style={[
-                      styles.statusButtonText,
-                      status === option.value && styles.statusButtonTextActive
-                    ]}>
-                      {option.label}
-                    </Text>
+                    <LinearGradient
+                      colors={status === option.value ? 
+                        [option.color, option.color] : 
+                        ['rgba(42, 42, 42, 0.8)', 'rgba(42, 42, 42, 0.6)']}
+                      style={styles.statusCardGradient}
+                    >
+                      <Ionicons 
+                        name={option.icon} 
+                        size={getResponsiveSize(24)} 
+                        color={status === option.value ? "#1a1a1a" : option.color} 
+                      />
+                      <Text style={[
+                        styles.statusCardText,
+                        status === option.value && styles.statusCardTextActive
+                      ]}>
+                        {option.label}
+                      </Text>
+                    </LinearGradient>
                   </TouchableOpacity>
                 ))}
               </View>
             </View>
 
+            {/* ПЕРИОД ОТСУТСТВИЯ */}
             {status !== 'working' && (
               <View style={styles.section}>
-                <Text style={styles.sectionTitle}>Период отсутствия</Text>
+                <View style={styles.sectionHeader}>
+                  <Ionicons name="calendar" size={getResponsiveSize(20)} color="#FFD700" />
+                  <Text style={styles.sectionTitle}>Период отсутствия</Text>
+                </View>
                 
                 <View style={styles.dateRow}>
                   <View style={styles.dateColumn}>
@@ -363,10 +434,15 @@ export default function SickLeave({ navigation, route }) {
                       onPress={() => setShowStartDatePicker(true)}
                       disabled={loading}
                     >
-                      <Ionicons name="calendar-outline" size={20} color="#DAA520" />
-                      <Text style={startDate ? styles.dateText : styles.datePlaceholder}>
-                        {startDate ? formatDate(startDate) : 'Выберите дату'}
-                      </Text>
+                      <LinearGradient
+                        colors={['rgba(255, 215, 0, 0.2)', 'rgba(255, 165, 0, 0.2)']}
+                        style={styles.dateInputGradient}
+                      >
+                        <Ionicons name="calendar-outline" size={getResponsiveSize(20)} color="#FFD700" />
+                        <Text style={startDate ? styles.dateText : styles.datePlaceholder}>
+                          {startDate ? formatDate(startDate) : 'Выберите дату'}
+                        </Text>
+                      </LinearGradient>
                     </TouchableOpacity>
                   </View>
 
@@ -377,76 +453,93 @@ export default function SickLeave({ navigation, route }) {
                       onPress={() => setShowEndDatePicker(true)}
                       disabled={loading}
                     >
-                      <Ionicons name="calendar-outline" size={20} color="#DAA520" />
-                      <Text style={endDate ? styles.dateText : styles.datePlaceholder}>
-                        {endDate ? formatDate(endDate) : 'Выберите дату'}
-                      </Text>
+                      <LinearGradient
+                        colors={['rgba(255, 215, 0, 0.2)', 'rgba(255, 165, 0, 0.2)']}
+                        style={styles.dateInputGradient}
+                      >
+                        <Ionicons name="calendar-outline" size={getResponsiveSize(20)} color="#FFD700" />
+                        <Text style={endDate ? styles.dateText : styles.datePlaceholder}>
+                          {endDate ? formatDate(endDate) : 'Выберите дату'}
+                        </Text>
+                      </LinearGradient>
                     </TouchableOpacity>
                   </View>
                 </View>
 
-                <Text style={styles.label}>Причина отсутствия</Text>
-                <TextInput
-                  style={[styles.textInput, styles.textArea]}
-                  value={description}
-                  onChangeText={setDescription}
-                  placeholder="Опишите причину отсутствия..."
-                  placeholderTextColor="#8B8B8B"
-                  multiline
-                  numberOfLines={3}
-                  editable={!loading}
-                />
+                <View style={styles.inputGroup}>
+                  <Text style={styles.label}>Причина отсутствия</Text>
+                  <TextInput
+                    style={[styles.textInput, styles.textArea]}
+                    value={description}
+                    onChangeText={setDescription}
+                    placeholder="Опишите причину отсутствия..."
+                    placeholderTextColor="#666"
+                    multiline
+                    numberOfLines={3}
+                    editable={!loading}
+                  />
+                </View>
               </View>
             )}
 
-            <View style={styles.currentStatus}>
-              <View style={styles.statusIndicator}>
-                <View 
-                  style={[
-                    styles.statusBadge,
-                    { backgroundColor: getStatusColor(status) }
-                  ]}
-                />
-                <Text style={styles.currentStatusText}>
-                  Текущий статус: <Text style={styles.statusValue}>
-                    {getStatusInfo().label}
-                  </Text>
-                </Text>
-              </View>
-              
-              {status !== 'working' && startDate && endDate && (
-                <View style={styles.datesInfo}>
-                  <Text style={styles.statusDates}>
-                    Период: {formatDate(startDate)} - {formatDate(endDate)}
-                  </Text>
-                  {description && (
-                    <Text style={styles.statusDescription}>
-                      Причина: {description}
-                    </Text>
-                  )}
+            {/* ТЕКУЩИЙ СТАТУС */}
+            <View style={styles.currentStatusSection}>
+              <LinearGradient
+                colors={['rgba(255, 215, 0, 0.1)', 'rgba(255, 165, 0, 0.1)']}
+                style={styles.currentStatusCard}
+              >
+                <View style={styles.statusHeader}>
+                  <Ionicons name={getStatusInfo().icon} size={getResponsiveSize(24)} color={getStatusInfo().color} />
+                  <Text style={styles.currentStatusTitle}>Текущий статус</Text>
                 </View>
-              )}
+                
+                <View style={styles.statusInfo}>
+                  <View style={[styles.statusBadge, { backgroundColor: getStatusInfo().color }]} />
+                  <Text style={styles.statusLabel}>{getStatusInfo().label}</Text>
+                </View>
+                
+                {status !== 'working' && startDate && endDate && (
+                  <View style={styles.datesInfo}>
+                    <View style={styles.dateInfoRow}>
+                      <Ionicons name="calendar" size={getResponsiveSize(16)} color="#FFD700" />
+                      <Text style={styles.statusDates}>
+                        {formatDate(startDate)} - {formatDate(endDate)}
+                      </Text>
+                    </View>
+                    {description && (
+                      <View style={styles.descriptionRow}>
+                        <Ionicons name="document-text" size={getResponsiveSize(16)} color="#FFD700" />
+                        <Text style={styles.statusDescription}>{description}</Text>
+                      </View>
+                    )}
+                  </View>
+                )}
 
-              {existingEmployee && existingEmployee.lastUpdated && (
-                <Text style={styles.lastUpdated}>
-                  Последнее обновление: {existingEmployee.lastUpdated.toDate?.().toLocaleDateString('ru-RU') || 'неизвестно'}
-                </Text>
-              )}
+                {existingEmployee && existingEmployee.lastUpdated && (
+                  <View style={styles.lastUpdated}>
+                    <Ionicons name="time" size={getResponsiveSize(14)} color="#888" />
+                    <Text style={styles.lastUpdatedText}>
+                      Обновлено: {existingEmployee.lastUpdated.toDate?.().toLocaleDateString('ru-RU') || 'неизвестно'}
+                    </Text>
+                  </View>
+                )}
+              </LinearGradient>
             </View>
 
+            {/* КНОПКА СОХРАНЕНИЯ */}
             <TouchableOpacity 
               style={[styles.submitButton, loading && styles.submitButtonDisabled]}
               onPress={handleSubmit}
               disabled={loading}
             >
               <LinearGradient
-                colors={['#FFD700', '#DAA520']}
+                colors={['#FFD700', '#FFA500']}
                 style={styles.submitGradient}
               >
                 {loading ? (
-                  <Ionicons name="hourglass-outline" size={20} color="white" />
+                  <Ionicons name="hourglass-outline" size={getResponsiveSize(20)} color="#1a1a1a" />
                 ) : (
-                  <Ionicons name="save-outline" size={20} color="white" />
+                  <Ionicons name="save-outline" size={getResponsiveSize(20)} color="#1a1a1a" />
                 )}
                 <Text style={styles.submitText}>
                   {loading ? 'Сохранение...' : (existingEmployee ? 'Обновить статус' : 'Сохранить статус')}
@@ -454,8 +547,9 @@ export default function SickLeave({ navigation, route }) {
               </LinearGradient>
             </TouchableOpacity>
 
+            {/* ПОДСКАЗКА */}
             <View style={styles.hint}>
-              <Ionicons name="information-circle-outline" size={16} color="#8B8B8B" />
+              <Ionicons name="information-circle-outline" size={getResponsiveSize(16)} color="#FFD700" />
               <Text style={styles.hintText}>
                 Администратор увидит ваш статус в разделе "Список артистов"
               </Text>
@@ -463,6 +557,7 @@ export default function SickLeave({ navigation, route }) {
           </View>
         </ScrollView>
 
+        {/* DATE PICKERS */}
         {showStartDatePicker && (
           <DateTimePicker
             value={startDate ? new Date(startDate) : new Date()}
@@ -491,25 +586,29 @@ export default function SickLeave({ navigation, route }) {
   );
 }
 
-// Стили остаются без изменений
+// ОБНОВЛЕННЫЕ СТИЛИ ПОД ТЕМНУЮ ТЕМУ КАЛЕНДАРЯ
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+    backgroundColor: '#0a0a0a',
   },
   keyboardAvoid: {
     flex: 1,
   },
+  scrollView: {
+    flex: 1,
+  },
   header: {
-    paddingHorizontal: 20,
-    paddingTop: 50,
-    paddingBottom: 15,
-    borderBottomLeftRadius: 25,
-    borderBottomRightRadius: 25,
-    shadowColor: '#8B6B4F',
+    paddingHorizontal: getResponsiveSize(20),
+    paddingTop: Platform.OS === 'ios' ? getResponsiveSize(50) : getResponsiveSize(30),
+    paddingBottom: getResponsiveSize(20),
+    borderBottomLeftRadius: getResponsiveSize(25),
+    borderBottomRightRadius: getResponsiveSize(25),
+    shadowColor: '#FFD700',
     shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.1,
+    shadowOpacity: 0.3,
     shadowRadius: 8,
-    elevation: 5,
+    elevation: 8,
   },
   headerContent: {
     flexDirection: 'row',
@@ -517,102 +616,166 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
   },
   backButton: {
-    padding: 5,
+    borderRadius: getResponsiveSize(20),
+    overflow: 'hidden',
+    shadowColor: '#FFD700',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.4,
+    shadowRadius: 4,
+    elevation: 4,
+  },
+  backButtonGradient: {
+    width: getResponsiveSize(40),
+    height: getResponsiveSize(40),
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderRadius: getResponsiveSize(20),
+  },
+  titleSection: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+    justifyContent: 'center',
+  },
+  titleIconContainer: {
+    marginRight: getResponsiveSize(12),
+  },
+  titleIconGradient: {
+    width: getResponsiveSize(44),
+    height: getResponsiveSize(44),
+    borderRadius: getResponsiveSize(12),
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: '#FFD700',
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.4,
+    shadowRadius: 6,
+    elevation: 5,
+  },
+  titleTextContainer: {
+    alignItems: 'center',
   },
   headerTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: '#3E2723',
-    textAlign: 'center',
+    fontSize: getResponsiveFontSize(20),
+    fontWeight: '800',
+    color: '#E0E0E0',
+    letterSpacing: 0.3,
+  },
+  headerSubtitle: {
+    fontSize: getResponsiveFontSize(12),
+    color: '#FFD700',
+    fontWeight: '500',
+    marginTop: getResponsiveSize(2),
   },
   headerSpacer: {
-    width: 24,
+    width: getResponsiveSize(40),
   },
   formContainer: {
-    padding: 20,
+    padding: getResponsiveSize(20),
   },
   section: {
-    backgroundColor: 'rgba(255, 255, 255, 0.8)',
-    borderRadius: 15,
-    padding: 15,
-    marginBottom: 15,
+    backgroundColor: 'rgba(26, 26, 26, 0.8)',
+    borderRadius: getResponsiveSize(16),
+    padding: getResponsiveSize(18),
+    marginBottom: getResponsiveSize(16),
     borderWidth: 1,
-    borderColor: 'rgba(218, 165, 32, 0.3)',
+    borderColor: 'rgba(255, 215, 0, 0.2)',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 6,
+    elevation: 4,
+  },
+  sectionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: getResponsiveSize(16),
   },
   sectionTitle: {
-    fontSize: 16,
-    fontWeight: 'bold',
-    color: '#3E2723',
-    marginBottom: 15,
+    fontSize: getResponsiveFontSize(16),
+    fontWeight: '700',
+    color: '#E0E0E0',
+    marginLeft: getResponsiveSize(10),
+  },
+  inputGroup: {
+    marginBottom: getResponsiveSize(16),
   },
   label: {
-    fontSize: 14,
+    fontSize: getResponsiveFontSize(14),
     fontWeight: '600',
-    color: '#3E2723',
-    marginBottom: 8,
-    marginTop: 10,
+    color: '#FFD700',
+    marginBottom: getResponsiveSize(8),
   },
   textInput: {
-    backgroundColor: 'white',
-    borderRadius: 12,
-    paddingHorizontal: 15,
-    paddingVertical: 12,
-    fontSize: 14,
-    color: '#3E2723',
+    backgroundColor: 'rgba(42, 42, 42, 0.8)',
+    borderRadius: getResponsiveSize(12),
+    paddingHorizontal: getResponsiveSize(15),
+    paddingVertical: getResponsiveSize(14),
+    fontSize: getResponsiveFontSize(14),
+    color: '#E0E0E0',
     borderWidth: 1,
-    borderColor: '#E0E0E0',
+    borderColor: 'rgba(255, 215, 0, 0.3)',
   },
   textArea: {
-    minHeight: 80,
+    minHeight: getResponsiveSize(100),
     textAlignVertical: 'top',
   },
   emailInfo: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginTop: 10,
-    padding: 10,
-    backgroundColor: '#F5F5F5',
-    borderRadius: 8,
+    marginTop: getResponsiveSize(10),
+    padding: getResponsiveSize(12),
+    backgroundColor: 'rgba(42, 42, 42, 0.6)',
+    borderRadius: getResponsiveSize(10),
+    borderWidth: 1,
+    borderColor: 'rgba(255, 215, 0, 0.2)',
   },
   emailText: {
-    fontSize: 12,
-    color: '#8B8B8B',
-    marginLeft: 6,
+    fontSize: getResponsiveFontSize(13),
+    color: '#FFD700',
+    marginLeft: getResponsiveSize(8),
+    fontWeight: '500',
   },
-  statusContainer: {
+  statusGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     justifyContent: 'space-between',
   },
-  statusButton: {
+  statusCard: {
     width: '48%',
-    flexDirection: 'row',
+    marginBottom: getResponsiveSize(12),
+    borderRadius: getResponsiveSize(12),
+    overflow: 'hidden',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  statusCardActive: {
+    shadowColor: '#FFD700',
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.5,
+    shadowRadius: 6,
+    elevation: 6,
+  },
+  statusCardGradient: {
+    padding: getResponsiveSize(16),
     alignItems: 'center',
-    backgroundColor: '#F5F5F5',
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    borderRadius: 10,
-    marginBottom: 10,
-    borderWidth: 2,
-    borderColor: 'transparent',
+    justifyContent: 'center',
+    borderRadius: getResponsiveSize(12),
+    minHeight: getResponsiveSize(80),
   },
-  statusButtonActive: {
-    backgroundColor: 'white',
-  },
-  statusDot: {
-    width: 12,
-    height: 12,
-    borderRadius: 6,
-    marginRight: 8,
-  },
-  statusButtonText: {
-    fontSize: 12,
-    color: '#666',
-    fontWeight: '500',
-  },
-  statusButtonTextActive: {
-    color: '#3E2723',
+  statusCardText: {
+    fontSize: getResponsiveFontSize(12),
+    color: '#E0E0E0',
     fontWeight: '600',
+    marginTop: getResponsiveSize(8),
+    textAlign: 'center',
+  },
+  statusCardTextActive: {
+    color: '#1a1a1a',
+    fontWeight: '800',
   },
   dateRow: {
     flexDirection: 'row',
@@ -622,83 +785,124 @@ const styles = StyleSheet.create({
     width: '48%',
   },
   dateInput: {
-    backgroundColor: 'white',
-    borderRadius: 12,
-    paddingHorizontal: 15,
-    paddingVertical: 12,
-    borderWidth: 1,
-    borderColor: '#E0E0E0',
+    borderRadius: getResponsiveSize(12),
+    overflow: 'hidden',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  dateInputGradient: {
+    paddingHorizontal: getResponsiveSize(15),
+    paddingVertical: getResponsiveSize(14),
     flexDirection: 'row',
     alignItems: 'center',
+    borderRadius: getResponsiveSize(12),
   },
   dateText: {
-    fontSize: 14,
-    color: '#3E2723',
-    marginLeft: 10,
+    fontSize: getResponsiveFontSize(14),
+    color: '#E0E0E0',
+    marginLeft: getResponsiveSize(10),
     fontWeight: '500',
   },
   datePlaceholder: {
-    fontSize: 14,
-    color: '#8B8B8B',
-    marginLeft: 10,
+    fontSize: getResponsiveFontSize(14),
+    color: '#888',
+    marginLeft: getResponsiveSize(10),
   },
-  currentStatus: {
-    backgroundColor: 'rgba(255, 248, 225, 0.9)',
-    borderRadius: 15,
-    padding: 15,
-    marginTop: 10,
+  currentStatusSection: {
+    marginBottom: getResponsiveSize(16),
+  },
+  currentStatusCard: {
+    borderRadius: getResponsiveSize(16),
+    padding: getResponsiveSize(20),
     borderWidth: 1,
-    borderColor: 'rgba(218, 165, 32, 0.3)',
+    borderColor: 'rgba(255, 215, 0, 0.3)',
+    shadowColor: '#FFD700',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 8,
+    elevation: 5,
   },
-  statusIndicator: {
+  statusHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 8,
+    marginBottom: getResponsiveSize(16),
+  },
+  currentStatusTitle: {
+    fontSize: getResponsiveFontSize(16),
+    fontWeight: '700',
+    color: '#E0E0E0',
+    marginLeft: getResponsiveSize(10),
+  },
+  statusInfo: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: getResponsiveSize(12),
   },
   statusBadge: {
-    width: 16,
-    height: 16,
-    borderRadius: 8,
-    marginRight: 10,
+    width: getResponsiveSize(16),
+    height: getResponsiveSize(16),
+    borderRadius: getResponsiveSize(8),
+    marginRight: getResponsiveSize(10),
   },
-  currentStatusText: {
-    fontSize: 14,
-    color: '#3E2723',
-    fontWeight: '500',
-  },
-  statusValue: {
-    fontWeight: 'bold',
+  statusLabel: {
+    fontSize: getResponsiveFontSize(18),
+    fontWeight: '800',
+    color: '#E0E0E0',
   },
   datesInfo: {
-    marginTop: 8,
+    marginTop: getResponsiveSize(12),
+  },
+  dateInfoRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: getResponsiveSize(8),
   },
   statusDates: {
-    fontSize: 13,
-    color: '#3E2723',
-    fontWeight: '500',
-    marginBottom: 4,
+    fontSize: getResponsiveFontSize(14),
+    color: '#E0E0E0',
+    marginLeft: getResponsiveSize(8),
+    fontWeight: '600',
+  },
+  descriptionRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    marginTop: getResponsiveSize(8),
   },
   statusDescription: {
-    fontSize: 13,
-    color: '#8B8B8B',
+    fontSize: getResponsiveFontSize(13),
+    color: '#888',
+    marginLeft: getResponsiveSize(8),
+    flex: 1,
     fontStyle: 'italic',
+    lineHeight: getResponsiveFontSize(18),
   },
   lastUpdated: {
-    fontSize: 11,
-    color: '#8B8B8B',
-    marginTop: 8,
-    textAlign: 'center',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: getResponsiveSize(12),
+    paddingTop: getResponsiveSize(12),
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(255, 215, 0, 0.2)',
+  },
+  lastUpdatedText: {
+    fontSize: getResponsiveFontSize(12),
+    color: '#888',
+    marginLeft: getResponsiveSize(6),
   },
   submitButton: {
-    marginTop: 30,
-    marginBottom: 20,
-    borderRadius: 15,
+    marginTop: getResponsiveSize(20),
+    marginBottom: getResponsiveSize(20),
+    borderRadius: getResponsiveSize(15),
     overflow: 'hidden',
-    shadowColor: '#DAA520',
+    shadowColor: '#FFD700',
     shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 6,
-    elevation: 5,
+    shadowOpacity: 0.4,
+    shadowRadius: 8,
+    elevation: 6,
   },
   submitButtonDisabled: {
     opacity: 0.6,
@@ -707,25 +911,29 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 15,
-    paddingHorizontal: 20,
+    paddingVertical: getResponsiveSize(16),
+    paddingHorizontal: getResponsiveSize(20),
   },
   submitText: {
-    color: 'white',
-    fontSize: 14,
-    fontWeight: '600',
-    marginLeft: 8,
+    color: '#1a1a1a',
+    fontSize: getResponsiveFontSize(16),
+    fontWeight: '700',
+    marginLeft: getResponsiveSize(8),
   },
   hint: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    padding: 10,
+    padding: getResponsiveSize(12),
+    backgroundColor: 'rgba(42, 42, 42, 0.6)',
+    borderRadius: getResponsiveSize(10),
+    borderWidth: 1,
+    borderColor: 'rgba(255, 215, 0, 0.2)',
   },
   hintText: {
-    fontSize: 12,
-    color: '#8B8B8B',
-    marginLeft: 6,
+    fontSize: getResponsiveFontSize(12),
+    color: '#FFD700',
+    marginLeft: getResponsiveSize(6),
     textAlign: 'center',
     flex: 1,
   },
@@ -735,39 +943,47 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   loadingText: {
-    marginTop: 10,
-    fontSize: 16,
-    color: '#3E2723',
+    marginTop: getResponsiveSize(16),
+    fontSize: getResponsiveFontSize(16),
+    color: '#E0E0E0',
+    fontWeight: '600',
   },
   errorContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    padding: 20,
+    padding: getResponsiveSize(20),
   },
   errorText: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: '#3E2723',
-    marginTop: 10,
+    fontSize: getResponsiveFontSize(18),
+    fontWeight: '700',
+    color: '#E0E0E0',
+    marginTop: getResponsiveSize(16),
     textAlign: 'center',
   },
   errorSubtext: {
-    fontSize: 14,
-    color: '#8B8B8B',
-    marginTop: 5,
+    fontSize: getResponsiveFontSize(14),
+    color: '#888',
+    marginTop: getResponsiveSize(8),
     textAlign: 'center',
   },
   retryButton: {
-    marginTop: 20,
-    backgroundColor: '#DAA520',
-    paddingHorizontal: 20,
-    paddingVertical: 12,
-    borderRadius: 10,
+    marginTop: getResponsiveSize(20),
+    borderRadius: getResponsiveSize(12),
+    overflow: 'hidden',
+    shadowColor: '#FFD700',
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.3,
+    shadowRadius: 6,
+    elevation: 4,
+  },
+  retryButtonGradient: {
+    paddingHorizontal: getResponsiveSize(24),
+    paddingVertical: getResponsiveSize(14),
   },
   retryButtonText: {
-    color: 'white',
-    fontSize: 14,
+    color: '#1a1a1a',
+    fontSize: getResponsiveFontSize(14),
     fontWeight: '600',
   },
 });
