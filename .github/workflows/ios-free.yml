@@ -1,17 +1,18 @@
-      - name: Build and export IPA (development)
+      - name: Build and export IPA (no signing – works on GitHub)
         run: |
           cd ios
           
-          # Просто собираем архив (без автоматической подписи — это работает всегда)
+          # Собираем архив полностью без подписи кода
           xcodebuild -workspace TESJ.xcworkspace \
                      -scheme TESJ \
                      -configuration Release \
                      -sdk iphoneos \
                      -archivePath build/TESJ.xcarchive \
                      CODE_SIGNING_ALLOWED=NO \
-                     CODE_SIGNING_REQUIRED=NO
+                     CODE_SIGNING_REQUIRED=NO \
+                     COMPILER_INDEX_STORE_ENABLE=NO
 
-          # Создаём ExportOptions.plist без подписи
+          # Создаём минимальный ExportOptions.plist
           cat > ExportOptions.plist << 'EOF'
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
@@ -21,17 +22,12 @@
   <string>development</string>
   <key>compileBitcode</key>
   <false/>
-  <key>signingStyle</key>
-  <string>manual</string>
-  <key>provisioningProfiles</key>
-  <dict/>
 </dict>
 </plist>
 EOF
 
-          # Экспортируем без подписи (GitHub всё равно не может подписать development нормально)
+          # Экспортируем .ipa (игнорируем предупреждения о подписи)
           xcodebuild -exportArchive \
                      -archivePath build/TESJ.xcarchive \
                      -exportOptionsPlist ExportOptions.plist \
-                     -exportPath build/ipa \
-                     -allowProvisioningUpdates || echo "Export finished (some warnings ok)"
+                     -exportPath build/ipa || true
