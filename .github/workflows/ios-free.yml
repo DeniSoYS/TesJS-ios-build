@@ -14,7 +14,7 @@ jobs:
 
       - run: npm ci --legacy-peer-deps
 
-      - run: npx expo prebuild --clean
+      - run: npx expo prebuild --clean --platform ios
 
       - run: cd ios && pod install --repo-update
 
