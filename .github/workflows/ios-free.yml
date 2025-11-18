@@ -20,11 +20,11 @@ jobs:
 
       - run: |
           cd ios
-          xcodebuild -workspace TESJ.xcworkspace -scheme TESJ -configuration Release -sdk iphoneos -archivePath build/TESJ.xcarchive CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO
+          xcodebuild -workspace InfoHor.xcworkspace -scheme InfoHor -configuration Release -sdk iphoneos -archivePath build/InfoHor.xcarchive CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO
 
           echo '<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd"><plist version="1.0"><dict><key>method</key><string>development</string><key>compileBitcode</key><false/></dict></plist>' > ExportOptions.plist
 
-          xcodebuild -exportArchive -archivePath build/TESJ.xcarchive -exportOptionsPlist ExportOptions.plist -exportPath build/ipa || true
+          xcodebuild -exportArchive -archivePath build/InfoHor.xcarchive -exportOptionsPlist ExportOptions.plist -exportPath build/ipa || true
 
       - uses: actions/upload-artifact@v4
         with:
