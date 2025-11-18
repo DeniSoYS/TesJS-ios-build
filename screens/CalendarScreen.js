@@ -10,6 +10,8 @@ import {
   Dimensions,
   Modal,
   Platform,
+  RefreshControl // ✅ ДОБАВЛЕН ИМПОРТ
+  ,
   ScrollView,
   StatusBar,
   StyleSheet,
@@ -66,6 +68,9 @@ export default function CalendarScreen({ navigation, route }) {
   const userEmail = route.params?.email || 'Пользователь';
   const userRole = route.params?.role || 'user';
   
+  // ✅ ДОБАВЛЕНО: Состояние для обновления
+  const [refreshing, setRefreshing] = useState(false);
+  
   const getTodayDate = () => {
     const now = new Date();
     const year = now.getFullYear();
@@ -116,14 +121,28 @@ export default function CalendarScreen({ navigation, route }) {
   }, []);
 
   useEffect(() => {
-    loadConcerts();
-    loadTours();
-    loadMoves();
+    loadAllData();
   }, []);
 
   useEffect(() => {
     updateMarkedDates(concerts, tours, moves);
   }, [concerts, tours, moves]);
+
+  // ✅ ДОБАВЛЕНО: Функция для загрузки всех данных
+  const loadAllData = async () => {
+    setRefreshing(true);
+    try {
+      await Promise.all([
+        loadConcerts(),
+        loadTours(),
+        loadMoves()
+      ]);
+    } catch (error) {
+      console.error('❌ Ошибка при обновлении данных:', error);
+    } finally {
+      setRefreshing(false);
+    }
+  };
 
   const loadConcerts = async () => {
     try {
@@ -145,9 +164,11 @@ export default function CalendarScreen({ navigation, route }) {
       
       console.log(`✅ CalendarScreen: Загружено ${concertsData.length} концертов`);
       setConcerts(concertsData);
+      return concertsData;
     } catch (error) {
       console.error('❌ CalendarScreen: Ошибка загрузки концертов:', error);
       Alert.alert('Ошибка', 'Не удалось загрузить концерты');
+      throw error;
     }
   };
 
@@ -170,9 +191,11 @@ export default function CalendarScreen({ navigation, route }) {
       
       console.log(`✅ CalendarScreen: Загружено ${toursData.length} гастролей`);
       setTours(toursData);
+      return toursData;
     } catch (error) {
       console.error('❌ CalendarScreen: Ошибка загрузки гастролей:', error);
       Alert.alert('Ошибка', 'Не удалось загрузить гастроли');
+      throw error;
     }
   };
 
@@ -195,10 +218,18 @@ export default function CalendarScreen({ navigation, route }) {
       
       console.log(`✅ CalendarScreen: Загружено ${movesData.length} переездов`);
       setMoves(movesData);
+      return movesData;
     } catch (error) {
       console.error('❌ CalendarScreen: Ошибка загрузки переездов:', error);
       Alert.alert('Ошибка', 'Не удалось загрузить переезды');
+      throw error;
     }
+  };
+
+  // ✅ ДОБАВЛЕНО: Функция для обработки обновления (pull-to-refresh)
+  const onRefresh = async () => {
+    console.log('🔄 Инициировано обновление календаря...');
+    await loadAllData();
   };
 
   const getTourDates = (tour) => {
@@ -393,7 +424,6 @@ export default function CalendarScreen({ navigation, route }) {
     }, 300);
   };
 
-  // ✅ НОВАЯ ФУНКЦИЯ: Просмотр деталей гастролей
   const handleViewTour = (tour) => {
     closeModal();
     setTimeout(() => {
@@ -404,7 +434,6 @@ export default function CalendarScreen({ navigation, route }) {
     }, 300);
   };
 
-  // ✅ НОВАЯ ФУНКЦИЯ: Просмотр деталей переезда
   const handleViewMove = (move) => {
     closeModal();
     setTimeout(() => {
@@ -726,7 +755,21 @@ export default function CalendarScreen({ navigation, route }) {
           </LinearGradient>
         </Animated.View>
 
-        <ScrollView showsVerticalScrollIndicator={false} style={styles.scrollView}>
+        {/* ✅ ОБНОВЛЕНО: Добавлен RefreshControl для pull-to-refresh */}
+        <ScrollView 
+          showsVerticalScrollIndicator={false} 
+          style={styles.scrollView}
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={onRefresh}
+              colors={['#FFD700']}
+              tintColor="#FFD700"
+              title="Обновление календаря..."
+              titleColor="#999"
+            />
+          }
+        >
           <View style={styles.calendarWrapper}>
             <LinearGradient
               colors={['rgba(26, 26, 26, 0.9)', 'rgba(35, 35, 35, 0.8)']}
@@ -933,7 +976,7 @@ export default function CalendarScreen({ navigation, route }) {
                         <TouchableOpacity
                           key={move.id}
                           style={styles.moveItem}
-                          onPress={() => handleViewMove(move)} // ✅ ОБНОВЛЕНО: нажатие на переезд
+                          onPress={() => handleViewMove(move)}
                         >
                           <LinearGradient
                             colors={['rgba(52, 199, 89, 0.2)', 'rgba(40, 167, 69, 0.2)']}
@@ -1003,7 +1046,7 @@ export default function CalendarScreen({ navigation, route }) {
                         <TouchableOpacity
                           key={tour.id}
                           style={styles.tourItem}
-                          onPress={() => handleViewTour(tour)} // ✅ ОБНОВЛЕНО: нажатие на гастроли
+                          onPress={() => handleViewTour(tour)}
                         >
                           <LinearGradient
                             colors={['rgba(74, 144, 226, 0.2)', 'rgba(53, 122, 189, 0.2)']}
@@ -1228,7 +1271,7 @@ export default function CalendarScreen({ navigation, route }) {
   );
 }
 
-// Стили остаются БЕЗ ИЗМЕНЕНИЙ (такие же как в предыдущем коде)
+// Стили остаются БЕЗ ИЗМЕНЕНИЙ
 const styles = StyleSheet.create({
   container: {
     flex: 1,

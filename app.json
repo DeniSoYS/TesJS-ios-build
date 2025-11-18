@@ -21,7 +21,7 @@
         "backgroundColor": "#FFD700"
       },
       "package": "com.example.firebasetest",
-      "googleServicesFile": "./google-services.json",
+      //"googleServicesFile": "./google-services.json",
       "permissions": [
         "RECEIVE_BOOT_COMPLETED",
         "WAKE_LOCK",

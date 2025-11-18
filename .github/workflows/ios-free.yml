@@ -1,60 +1,41 @@
-name: Build iOS IPA (free development)
+name: Build iOS IPA
 
-on:
-  workflow_dispatch:
+on: workflow_dispatch
 
 jobs:
   build:
     runs-on: macos-14
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
         with:
           node-version: 20
-          cache: 'npm'
-
-      - name: Install dependencies
-        run: npm ci --legacy-peer-deps
-
-      - name: Expo prebuild
-        run: npx expo prebuild --clean
-
-      - name: Install CocoaPods
-        run: cd ios && pod install --repo-update
-
-      - name: Build and export IPA (development)
-        run: |
+      - run: npm ci --legacy-peer-deps
+      - run: npx expo prebuild --clean --platform ios
+      - run: cd ios && pod install --repo-update
+      - run: |
           cd ios
-          
-          xcodebuild -allowProvisioningUpdates \
-                     -workspace TESJ.xcworkspace \
-                     -scheme TESJ \
-                     -configuration Release \
-                     archive \
-                     -archivePath build/TESJ.xcarchive
-
-          cat > ExportOptions.plist << 'EOF'
-<?xml version="1.0" encoding="UTF-8"?>
+          xcodebuild -workspace TESJ.xcworkspace -scheme TESJ -configuration Release -sdk iphoneos -archivePath build/TESJ.xcarchive CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO
+          echo '<?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+ Check failure on line 20 in .github/workflows/ios-free.yml
+
+
+GitHub Actions
+/ .github/workflows/ios-free.yml
+Invalid workflow file
+
+You have an error in your yaml syntax on line 20
 <plist version="1.0">
 <dict>
   <key>method</key>
   <string>development</string>
+  <key>compileBitcode</key>
+  <false/>
 </dict>
-</plist>
-EOF
-
-          xcodebuild -exportArchive \
-                     -archivePath build/TESJ.xcarchive \
-                     -exportOptionsPlist ExportOptions.plist \
-                     -exportPath build/ipa \
-                     -allowProvisioningUpdates
-
-      - name: Upload IPA
-        uses: actions/upload-artifact@v4
+</plist>' > ExportOptions.plist
+          xcodebuild -exportArchive -archivePath build/TESJ.xcarchive -exportOptionsPlist ExportOptions.plist -exportPath build/ipa || true
+      - uses: actions/upload-artifact@v4
         with:
           name: TESJ-ipa
           path: ios/build/ipa/*.ipa
