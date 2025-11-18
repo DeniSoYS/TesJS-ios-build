@@ -1,18 +1,21 @@
-      - name: Build and export IPA (no signing – works on GitHub)
-        run: |
-          cd ios
-          
-          # Собираем архив полностью без подписи кода
-          xcodebuild -workspace TESJ.xcworkspace \
-                     -scheme TESJ \
-                     -configuration Release \
-                     -sdk iphoneos \
-                     -archivePath build/TESJ.xcarchive \
-                     CODE_SIGNING_ALLOWED=NO \
-                     CODE_SIGNING_REQUIRED=NO \
-                     COMPILER_INDEX_STORE_ENABLE=NO
+name: Build iOS IPA
 
-          # Создаём минимальный ExportOptions.plist
+on: workflow_dispatch
+
+jobs:
+  build:
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - run: npm ci --legacy-peer-deps
+      - run: npx expo prebuild --clean
+      - run: cd ios && pod install --repo-update
+      - run: |
+          cd ios
+          xcodebuild -workspace TESJ.xcworkspace -scheme TESJ -configuration Release -sdk iphoneos -archivePath build/TESJ.xcarchive CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO COMPILER_INDEX_STORE_ENABLE=NO
           cat > ExportOptions.plist << 'EOF'
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
@@ -25,9 +28,8 @@
 </dict>
 </plist>
 EOF
-
-          # Экспортируем .ipa (игнорируем предупреждения о подписи)
-          xcodebuild -exportArchive \
-                     -archivePath build/TESJ.xcarchive \
-                     -exportOptionsPlist ExportOptions.plist \
-                     -exportPath build/ipa || true
+          xcodebuild -exportArchive -archivePath build/TESJ.xcarchive -exportOptionsPlist ExportOptions.plist -exportPath build/ipa || true
+      - uses: actions/upload-artifact@v4
+        with:
+          name: TESJ-ipa
+          path: ios/build/ipa/*.ipa
