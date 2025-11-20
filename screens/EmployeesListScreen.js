@@ -1,6 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
-import { collection, doc, getDocs, orderBy, query, updateDoc } from 'firebase/firestore';
+import { collection, deleteDoc, doc, getDocs, orderBy, query, updateDoc } from 'firebase/firestore';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   Alert,
@@ -32,7 +32,7 @@ const getResponsiveFontSize = (size) => {
   return Math.round(baseSize);
 };
 
-const EmployeeItem = React.memo(({ item, onStatusChange, onEdit }) => {
+const EmployeeItem = React.memo(({ item, onStatusChange, onEdit, onDelete }) => {
   const statusInfo = useMemo(() => {
     const statuses = {
       'working': { label: '💼 Работаю', color: '#34C759', gradient: ['#34C759', '#28A745'] },
@@ -51,6 +51,10 @@ const EmployeeItem = React.memo(({ item, onStatusChange, onEdit }) => {
   const handleEditPress = useCallback(() => {
     onEdit(item);
   }, [item, onEdit]);
+
+  const handleDeletePress = useCallback(() => {
+    onDelete(item);
+  }, [item, onDelete]);
 
   return (
     <View style={styles.employeeCard}>
@@ -85,6 +89,20 @@ const EmployeeItem = React.memo(({ item, onStatusChange, onEdit }) => {
                 end={{ x: 1, y: 1 }}
               >
                 <Ionicons name="pencil" size={getResponsiveSize(14)} color="#1a1a1a" />
+              </LinearGradient>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.deleteButton}
+              onPress={handleDeletePress}
+            >
+              <LinearGradient
+                colors={['#FF6B6B', '#EE5A52']}
+                style={styles.deleteButtonGradient}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+              >
+                <Ionicons name="trash-outline" size={getResponsiveSize(14)} color="#FFFFFF" />
               </LinearGradient>
             </TouchableOpacity>
 
@@ -148,7 +166,8 @@ const EditEmployeeModal = ({
   visible, 
   employee, 
   onClose, 
-  onSave 
+  onSave,
+  onDelete 
 }) => {
   const [formData, setFormData] = useState({
     fullName: '',
@@ -180,6 +199,26 @@ const EditEmployeeModal = ({
     onSave(employee.id, formData);
   };
 
+  const handleDelete = () => {
+    if (employee) {
+      Alert.alert(
+        'Удаление артиста',
+        `Вы уверены, что хотите удалить ${employee.fullName}?`,
+        [
+          { text: 'Отмена', style: 'cancel' },
+          { 
+            text: 'Удалить', 
+            style: 'destructive',
+            onPress: () => {
+              onDelete(employee.id);
+              onClose();
+            }
+          }
+        ]
+      );
+    }
+  };
+
   const statusOptions = [
     { value: 'working', label: '💼 Работаю', gradient: ['#34C759', '#28A745'] },
     { value: 'sick', label: '🤒 Больничный', gradient: ['#FFA500', '#FF8C00'] },
@@ -208,7 +247,11 @@ const EditEmployeeModal = ({
               </TouchableOpacity>
             </View>
 
-            <ScrollView style={styles.modalContent}>
+            <ScrollView 
+              style={styles.modalContent}
+              showsVerticalScrollIndicator={true}
+              scrollEventThrottle={16}
+            >
               <View style={styles.inputGroup}>
                 <Text style={styles.label}>ФИО *</Text>
                 <TextInput
@@ -301,6 +344,24 @@ const EditEmployeeModal = ({
               <Text style={styles.dateHint}>
                 💡 Формат даты: ГГГГ-ММ-ДД (например: 2024-12-31)
               </Text>
+
+              {/* Кнопка удаления в модальном окне */}
+              {employee && (
+                <TouchableOpacity 
+                  style={styles.deleteEmployeeButton}
+                  onPress={handleDelete}
+                >
+                  <LinearGradient
+                    colors={['#FF6B6B', '#EE5A52']}
+                    style={styles.deleteEmployeeButtonGradient}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 1 }}
+                  >
+                    <Ionicons name="trash-outline" size={getResponsiveSize(18)} color="#FFFFFF" />
+                    <Text style={styles.deleteEmployeeButtonText}>Удалить артиста</Text>
+                  </LinearGradient>
+                </TouchableOpacity>
+              )}
             </ScrollView>
 
             <View style={styles.modalActions}>
@@ -437,6 +498,30 @@ export default function EmployeesListScreen({ navigation, route }) {
     setEditModalVisible(true);
   }, []);
 
+  const handleDeleteEmployee = useCallback((employee) => {
+    Alert.alert(
+      'Удаление артиста',
+      `Вы уверены, что хотите удалить ${employee.fullName}?`,
+      [
+        { text: 'Отмена', style: 'cancel' },
+        { 
+          text: 'Удалить', 
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await deleteDoc(doc(db, 'employees', employee.id));
+              Alert.alert('Успех', 'Артист удален');
+              loadEmployees();
+            } catch (error) {
+              console.error('Ошибка удаления артиста:', error);
+              Alert.alert('Ошибка', 'Не удалось удалить артиста');
+            }
+          }
+        }
+      ]
+    );
+  }, []);
+
   const handleSaveEmployee = useCallback(async (employeeId, formData) => {
     try {
       await updateDoc(doc(db, 'employees', employeeId), {
@@ -450,6 +535,19 @@ export default function EmployeesListScreen({ navigation, route }) {
     } catch (error) {
       console.error('Ошибка обновления сотрудника:', error);
       Alert.alert('Ошибка', 'Не удалось обновить данные сотрудника');
+    }
+  }, []);
+
+  const handleDeleteFromModal = useCallback(async (employeeId) => {
+    try {
+      await deleteDoc(doc(db, 'employees', employeeId));
+      Alert.alert('Успех', 'Артист удален');
+      setEditModalVisible(false);
+      setSelectedEmployee(null);
+      loadEmployees();
+    } catch (error) {
+      console.error('Ошибка удаления артиста:', error);
+      Alert.alert('Ошибка', 'Не удалось удалить артиста');
     }
   }, []);
 
@@ -485,8 +583,9 @@ export default function EmployeesListScreen({ navigation, route }) {
       item={item} 
       onStatusChange={handleStatusChange} 
       onEdit={handleEditEmployee}
+      onDelete={handleDeleteEmployee}
     />
-  ), [handleStatusChange, handleEditEmployee]);
+  ), [handleStatusChange, handleEditEmployee, handleDeleteEmployee]);
  
   const getStatusLabel = useCallback((status) => {
     const labels = {
@@ -564,7 +663,7 @@ export default function EmployeesListScreen({ navigation, route }) {
           </View>
         </LinearGradient>
 
-        <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
+        <View style={styles.contentContainer}>
           {/* Поиск */}
           <View style={styles.searchContainer}>
             <LinearGradient
@@ -656,6 +755,7 @@ export default function EmployeesListScreen({ navigation, route }) {
                 horizontal 
                 showsHorizontalScrollIndicator={false}
                 style={styles.filtersScroll}
+                contentContainerStyle={styles.filtersScrollContent}
               >
                 <View style={styles.filtersRow}>
                   <FilterChip
@@ -737,7 +837,6 @@ export default function EmployeesListScreen({ navigation, route }) {
               renderItem={renderEmployee}
               keyExtractor={(item) => item.id}
               style={styles.list}
-              scrollEnabled={false}
               refreshControl={
                 <RefreshControl
                   refreshing={refreshing}
@@ -751,7 +850,9 @@ export default function EmployeesListScreen({ navigation, route }) {
               initialNumToRender={10}
               maxToRenderPerBatch={10}
               windowSize={10}
-              removeClippedSubviews={true}
+              removeClippedSubviews={false}
+              showsVerticalScrollIndicator={true}
+              scrollEventThrottle={16}
               ListEmptyComponent={
                 loading ? (
                   <View style={styles.loadingContainer}>
@@ -790,7 +891,7 @@ export default function EmployeesListScreen({ navigation, route }) {
               }
             />
           </View>
-        </ScrollView>
+        </View>
 
         {/* Модальное окно редактирования сотрудника */}
         <EditEmployeeModal
@@ -798,6 +899,7 @@ export default function EmployeesListScreen({ navigation, route }) {
           employee={selectedEmployee}
           onClose={handleCloseEditModal}
           onSave={handleSaveEmployee}
+          onDelete={handleDeleteFromModal}
         />
       </LinearGradient>
     </View>
@@ -812,8 +914,9 @@ const styles = StyleSheet.create({
   background: {
     flex: 1,
   },
-  scrollView: {
+  contentContainer: {
     flex: 1,
+    paddingBottom: getResponsiveSize(20),
   },
   header: {
     paddingHorizontal: getResponsiveSize(20),
@@ -877,6 +980,7 @@ const styles = StyleSheet.create({
   },
   searchContainer: {
     margin: getResponsiveSize(15),
+    marginBottom: getResponsiveSize(10),
   },
   searchGradient: {
     flexDirection: 'row',
@@ -901,7 +1005,7 @@ const styles = StyleSheet.create({
   },
   statsContainer: {
     marginHorizontal: getResponsiveSize(15),
-    marginBottom: getResponsiveSize(15),
+    marginBottom: getResponsiveSize(10),
   },
   statsGradient: {
     borderRadius: getResponsiveSize(15),
@@ -965,7 +1069,7 @@ const styles = StyleSheet.create({
   },
   filtersContainer: {
     marginHorizontal: getResponsiveSize(15),
-    marginBottom: getResponsiveSize(15),
+    marginBottom: getResponsiveSize(10),
   },
   filtersGradient: {
     borderRadius: getResponsiveSize(15),
@@ -986,6 +1090,9 @@ const styles = StyleSheet.create({
   },
   filtersScroll: {
     maxHeight: getResponsiveSize(50),
+  },
+  filtersScrollContent: {
+    paddingRight: getResponsiveSize(10),
   },
   filtersRow: {
     flexDirection: 'row',
@@ -1021,7 +1128,7 @@ const styles = StyleSheet.create({
   },
   filterInfo: {
     marginHorizontal: getResponsiveSize(15),
-    marginBottom: getResponsiveSize(15),
+    marginBottom: getResponsiveSize(10),
   },
   filterInfoGradient: {
     flexDirection: 'row',
@@ -1039,8 +1146,8 @@ const styles = StyleSheet.create({
     fontWeight: '500',
   },
   listContainer: {
+    flex: 1,
     marginHorizontal: getResponsiveSize(15),
-    marginBottom: getResponsiveSize(20),
   },
   list: {
     flex: 1,
@@ -1100,6 +1207,22 @@ const styles = StyleSheet.create({
     elevation: 3,
   },
   editButtonGradient: {
+    width: getResponsiveSize(32),
+    height: getResponsiveSize(32),
+    borderRadius: getResponsiveSize(16),
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  deleteButton: {
+    borderRadius: getResponsiveSize(20),
+    overflow: 'hidden',
+    shadowColor: '#FF6B6B',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  deleteButtonGradient: {
     width: getResponsiveSize(32),
     height: getResponsiveSize(32),
     borderRadius: getResponsiveSize(16),
@@ -1217,7 +1340,7 @@ const styles = StyleSheet.create({
   modalContainer: {
     width: '100%',
     maxWidth: getResponsiveSize(500),
-    maxHeight: '80%',
+    maxHeight: '90%',
   },
   modalGradient: {
     borderRadius: getResponsiveSize(20),
@@ -1306,6 +1429,30 @@ const styles = StyleSheet.create({
     color: '#FFD700',
     fontStyle: 'italic',
     marginTop: getResponsiveSize(8),
+    marginBottom: getResponsiveSize(16),
+  },
+  deleteEmployeeButton: {
+    marginTop: getResponsiveSize(8),
+    marginBottom: getResponsiveSize(8),
+    borderRadius: getResponsiveSize(15),
+    overflow: 'hidden',
+    shadowColor: '#FF6B6B',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 5,
+  },
+  deleteEmployeeButtonGradient: {
+    padding: getResponsiveSize(15),
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexDirection: 'row',
+    gap: getResponsiveSize(8),
+  },
+  deleteEmployeeButtonText: {
+    color: '#FFFFFF',
+    fontSize: getResponsiveFontSize(16),
+    fontWeight: '700',
   },
   modalActions: {
     flexDirection: 'row',
