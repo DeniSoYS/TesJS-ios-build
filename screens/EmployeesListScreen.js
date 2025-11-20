@@ -67,14 +67,16 @@ const EmployeeItem = React.memo(({ item, onStatusChange, onEdit, onDelete }) => 
             <Text style={styles.employeeName}>
               {item.fullName || 'Без имени'}
             </Text>
-            {item.position && (
-              <Text style={styles.employeePosition}>
-                {item.position}
+            <View style={styles.employeeDetails}>
+              {item.position && (
+                <Text style={styles.employeePosition}>
+                  {item.position}
+                </Text>
+              )}
+              <Text style={styles.employeeEmail}>
+                {item.email || 'Нет email'}
               </Text>
-            )}
-            <Text style={styles.employeeEmail}>
-              {item.email || 'Нет email'}
-            </Text>
+            </View>
           </View>
          
           <View style={styles.actionsSection}>
@@ -88,7 +90,7 @@ const EmployeeItem = React.memo(({ item, onStatusChange, onEdit, onDelete }) => 
                 start={{ x: 0, y: 0 }}
                 end={{ x: 1, y: 1 }}
               >
-                <Ionicons name="pencil" size={getResponsiveSize(14)} color="#1a1a1a" />
+                <Ionicons name="pencil" size={getResponsiveSize(12)} color="#1a1a1a" />
               </LinearGradient>
             </TouchableOpacity>
 
@@ -102,7 +104,7 @@ const EmployeeItem = React.memo(({ item, onStatusChange, onEdit, onDelete }) => 
                 start={{ x: 0, y: 0 }}
                 end={{ x: 1, y: 1 }}
               >
-                <Ionicons name="trash-outline" size={getResponsiveSize(14)} color="#FFFFFF" />
+                <Ionicons name="trash-outline" size={getResponsiveSize(12)} color="#FFFFFF" />
               </LinearGradient>
             </TouchableOpacity>
 
@@ -117,16 +119,10 @@ const EmployeeItem = React.memo(({ item, onStatusChange, onEdit, onDelete }) => 
                 end={{ x: 1, y: 1 }}
               >
                 <View style={styles.statusContent}>
-                  <View 
-                    style={[
-                      styles.statusDot,
-                      { backgroundColor: '#FFFFFF' }
-                    ]} 
-                  />
                   <Text style={styles.statusText}>
                     {statusInfo.label}
                   </Text>
-                  <Ionicons name="chevron-down" size={getResponsiveSize(14)} color="#FFFFFF" />
+                  <Ionicons name="chevron-down" size={getResponsiveSize(12)} color="#FFFFFF" />
                 </View>
               </LinearGradient>
             </TouchableOpacity>
@@ -135,25 +131,11 @@ const EmployeeItem = React.memo(({ item, onStatusChange, onEdit, onDelete }) => 
        
         {(item.startDate || item.endDate) && (
           <View style={styles.dateInfo}>
-            <Ionicons name="calendar-outline" size={getResponsiveSize(14)} color="#FFD700" />
+            <Ionicons name="calendar-outline" size={getResponsiveSize(12)} color="#FFD700" />
             <Text style={styles.dateText}>
               {item.startDate && `с ${new Date(item.startDate).toLocaleDateString('ru-RU')}`}
               {item.startDate && item.endDate && ' '}
               {item.endDate && `по ${new Date(item.endDate).toLocaleDateString('ru-RU')}`}
-            </Text>
-          </View>
-        )}
-       
-        {item.lastUpdated && (
-          <View style={styles.lastUpdatedContainer}>
-            <Ionicons name="time-outline" size={getResponsiveSize(12)} color="#888" />
-            <Text style={styles.lastUpdated}>
-              Обновлено: {new Date(item.lastUpdated.toDate()).toLocaleString('ru-RU', {
-                day: 'numeric',
-                month: 'short',
-                hour: '2-digit',
-                minute: '2-digit'
-              })}
             </Text>
           </View>
         )}
@@ -203,7 +185,7 @@ const EditEmployeeModal = ({
     if (employee) {
       Alert.alert(
         'Удаление артиста',
-        `Вы уверены, что хотите удалить ${employee.fullName}?`,
+        `Вы уверены, что хотите удалить "${employee.fullName}"? Это действие нельзя отменить.`,
         [
           { text: 'Отмена', style: 'cancel' },
           { 
@@ -243,14 +225,13 @@ const EditEmployeeModal = ({
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>✏️ Редактирование</Text>
               <TouchableOpacity onPress={onClose} style={styles.modalCloseIcon}>
-                <Ionicons name="close-circle" size={getResponsiveSize(30)} color="#FFD700" />
+                <Ionicons name="close-circle" size={getResponsiveSize(24)} color="#FFD700" />
               </TouchableOpacity>
             </View>
 
             <ScrollView 
               style={styles.modalContent}
               showsVerticalScrollIndicator={true}
-              scrollEventThrottle={16}
             >
               <View style={styles.inputGroup}>
                 <Text style={styles.label}>ФИО *</Text>
@@ -357,7 +338,7 @@ const EditEmployeeModal = ({
                     start={{ x: 0, y: 0 }}
                     end={{ x: 1, y: 1 }}
                   >
-                    <Ionicons name="trash-outline" size={getResponsiveSize(18)} color="#FFFFFF" />
+                    <Ionicons name="trash-outline" size={getResponsiveSize(16)} color="#FFFFFF" />
                     <Text style={styles.deleteEmployeeButtonText}>Удалить артиста</Text>
                   </LinearGradient>
                 </TouchableOpacity>
@@ -382,7 +363,7 @@ const EditEmployeeModal = ({
                   start={{ x: 0, y: 0 }}
                   end={{ x: 1, y: 1 }}
                 >
-                  <Ionicons name="save" size={getResponsiveSize(18)} color="#1a1a1a" />
+                  <Ionicons name="save" size={getResponsiveSize(16)} color="#1a1a1a" />
                   <Text style={styles.saveButtonText}>Сохранить</Text>
                 </LinearGradient>
               </TouchableOpacity>
@@ -391,6 +372,31 @@ const EditEmployeeModal = ({
         </View>
       </View>
     </Modal>
+  );
+};
+
+// Компонент сворачиваемой секции
+const CollapsibleSection = ({ title, isExpanded, onToggle, children, icon }) => {
+  return (
+    <View style={styles.collapsibleContainer}>
+      <TouchableOpacity onPress={onToggle} style={styles.collapsibleHeader}>
+        <View style={styles.collapsibleTitle}>
+          {icon}
+          <Text style={styles.collapsibleTitleText}>{title}</Text>
+        </View>
+        <Ionicons 
+          name={isExpanded ? "chevron-up" : "chevron-down"} 
+          size={getResponsiveSize(16)} 
+          color="#FFD700" 
+        />
+      </TouchableOpacity>
+      
+      {isExpanded && (
+        <View style={styles.collapsibleContent}>
+          {children}
+        </View>
+      )}
+    </View>
   );
 };
 
@@ -404,6 +410,8 @@ export default function EmployeesListScreen({ navigation, route }) {
   const [searchQuery, setSearchQuery] = useState('');
   const [editModalVisible, setEditModalVisible] = useState(false);
   const [selectedEmployee, setSelectedEmployee] = useState(null);
+  const [statsExpanded, setStatsExpanded] = useState(false);
+  const [filtersExpanded, setFiltersExpanded] = useState(false);
  
   useEffect(() => {
     loadEmployees();
@@ -501,7 +509,7 @@ export default function EmployeesListScreen({ navigation, route }) {
   const handleDeleteEmployee = useCallback((employee) => {
     Alert.alert(
       'Удаление артиста',
-      `Вы уверены, что хотите удалить ${employee.fullName}?`,
+      `Вы уверены, что хотите удалить "${employee.fullName}"? Это действие нельзя отменить.`,
       [
         { text: 'Отмена', style: 'cancel' },
         { 
@@ -639,7 +647,7 @@ export default function EmployeesListScreen({ navigation, route }) {
               onPress={() => navigation.goBack()}
               style={styles.backButton}
             >
-              <Ionicons name="arrow-back" size={getResponsiveSize(24)} color="#FFD700" />
+              <Ionicons name="arrow-back" size={getResponsiveSize(20)} color="#FFD700" />
             </TouchableOpacity>
             
             <View style={styles.titleSection}>
@@ -650,7 +658,7 @@ export default function EmployeesListScreen({ navigation, route }) {
                   start={{ x: 0, y: 0 }}
                   end={{ x: 1, y: 1 }}
                 >
-                  <Ionicons name="people" size={getResponsiveSize(24)} color="#1a1a1a" />
+                  <Ionicons name="people" size={getResponsiveSize(18)} color="#1a1a1a" />
                 </LinearGradient>
               </View>
               <View style={styles.titleTextContainer}>
@@ -670,7 +678,7 @@ export default function EmployeesListScreen({ navigation, route }) {
               colors={['rgba(42, 42, 42, 0.9)', 'rgba(35, 35, 35, 0.8)']}
               style={styles.searchGradient}
             >
-              <Ionicons name="search" size={getResponsiveSize(20)} color="#FFD700" />
+              <Ionicons name="search" size={getResponsiveSize(16)} color="#FFD700" />
               <TextInput
                 style={styles.searchInput}
                 value={searchQuery}
@@ -680,130 +688,134 @@ export default function EmployeesListScreen({ navigation, route }) {
               />
               {searchQuery.length > 0 && (
                 <TouchableOpacity onPress={() => setSearchQuery('')}>
-                  <Ionicons name="close-circle" size={getResponsiveSize(20)} color="#888" />
+                  <Ionicons name="close-circle" size={getResponsiveSize(16)} color="#888" />
                 </TouchableOpacity>
               )}
             </LinearGradient>
           </View>
 
-          {/* Статистика */}
-          <View style={styles.statsContainer}>
-            <LinearGradient
-              colors={['rgba(42, 42, 42, 0.9)', 'rgba(35, 35, 35, 0.8)']}
-              style={styles.statsGradient}
-            >
-              <View style={styles.statsHeader}>
-                <View style={styles.statsTitleContainer}>
-                  <Ionicons name="stats-chart" size={getResponsiveSize(18)} color="#FFD700" />
-                  <Text style={styles.statsTitle}>Статистика команды</Text>
-                </View>
-                <Text style={styles.totalCount}>{stats.total} чел.</Text>
-              </View>
-              
-              <View style={styles.statsGrid}>
-                <View style={styles.statItem}>
-                  <LinearGradient colors={['#34C759', '#28A745']} style={styles.statIcon}>
-                    <Ionicons name="business" size={getResponsiveSize(16)} color="white" />
-                  </LinearGradient>
-                  <Text style={styles.statNumber}>{stats.working}</Text>
-                  <Text style={styles.statLabel}>Работают</Text>
-                </View>
-                
-                <View style={styles.statItem}>
-                  <LinearGradient colors={['#FFA500', '#FF8C00']} style={styles.statIcon}>
-                    <Ionicons name="medical" size={getResponsiveSize(16)} color="white" />
-                  </LinearGradient>
-                  <Text style={styles.statNumber}>{stats.sick}</Text>
-                  <Text style={styles.statLabel}>Больничный</Text>
-                </View>
-                
-                <View style={styles.statItem}>
-                  <LinearGradient colors={['#4A90E2', '#357ABD']} style={styles.statIcon}>
-                    <Ionicons name="airplane" size={getResponsiveSize(16)} color="white" />
-                  </LinearGradient>
-                  <Text style={styles.statNumber}>{stats.vacation}</Text>
-                  <Text style={styles.statLabel}>Отпуск</Text>
-                </View>
-                
-                <View style={styles.statItem}>
-                  <LinearGradient colors={['#9B59B6', '#8E44AD']} style={styles.statIcon}>
-                    <Ionicons name="home" size={getResponsiveSize(16)} color="white" />
-                  </LinearGradient>
-                  <Text style={styles.statNumber}>{stats.dayoff}</Text>
-                  <Text style={styles.statLabel}>Отгул</Text>
-                </View>
-                
-                <View style={styles.statItem}>
-                  <LinearGradient colors={['#FF6B6B', '#EE5A52']} style={styles.statIcon}>
-                    <Ionicons name="card" size={getResponsiveSize(16)} color="white" />
-                  </LinearGradient>
-                  <Text style={styles.statNumber}>{stats.unpaid}</Text>
-                  <Text style={styles.statLabel}>Без содержания</Text>
-                </View>
-              </View>
-            </LinearGradient>
-          </View>
-
-          {/* Фильтры */}
-          <View style={styles.filtersContainer}>
-            <LinearGradient
-              colors={['rgba(42, 42, 42, 0.9)', 'rgba(35, 35, 35, 0.8)']}
-              style={styles.filtersGradient}
-            >
-              <Text style={styles.filtersTitle}>Фильтр по статусу</Text>
-              <ScrollView 
-                horizontal 
-                showsHorizontalScrollIndicator={false}
-                style={styles.filtersScroll}
-                contentContainerStyle={styles.filtersScrollContent}
+          {/* Статистика команды - сворачиваемая */}
+          <CollapsibleSection
+            title="Статистика команды"
+            isExpanded={statsExpanded}
+            onToggle={() => setStatsExpanded(!statsExpanded)}
+            icon={<Ionicons name="stats-chart" size={getResponsiveSize(14)} color="#FFD700" />}
+          >
+            <View style={styles.statsContainer}>
+              <LinearGradient
+                colors={['rgba(42, 42, 42, 0.9)', 'rgba(35, 35, 35, 0.8)']}
+                style={styles.statsGradient}
               >
-                <View style={styles.filtersRow}>
-                  <FilterChip
-                    status="all"
-                    count={stats.total}
-                    isActive={filter === 'all'}
-                    onPress={() => setFilter('all')}
-                    gradient={['#FFD700', '#FFA500']}
-                  />
-                  <FilterChip
-                    status="working"
-                    count={stats.working}
-                    isActive={filter === 'working'}
-                    onPress={() => setFilter('working')}
-                    gradient={['#34C759', '#28A745']}
-                  />
-                  <FilterChip
-                    status="sick"
-                    count={stats.sick}
-                    isActive={filter === 'sick'}
-                    onPress={() => setFilter('sick')}
-                    gradient={['#FFA500', '#FF8C00']}
-                  />
-                  <FilterChip
-                    status="vacation"
-                    count={stats.vacation}
-                    isActive={filter === 'vacation'}
-                    onPress={() => setFilter('vacation')}
-                    gradient={['#4A90E2', '#357ABD']}
-                  />
-                  <FilterChip
-                    status="dayoff"
-                    count={stats.dayoff}
-                    isActive={filter === 'dayoff'}
-                    onPress={() => setFilter('dayoff')}
-                    gradient={['#9B59B6', '#8E44AD']}
-                  />
-                  <FilterChip
-                    status="unpaid"
-                    count={stats.unpaid}
-                    isActive={filter === 'unpaid'}
-                    onPress={() => setFilter('unpaid')}
-                    gradient={['#FF6B6B', '#EE5A52']}
-                  />
+                <View style={styles.statsHeader}>
+                  <Text style={styles.totalCount}>Всего: {stats.total} чел.</Text>
                 </View>
-              </ScrollView>
-            </LinearGradient>
-          </View>
+                
+                <View style={styles.statsGrid}>
+                  <View style={styles.statItem}>
+                    <LinearGradient colors={['#34C759', '#28A745']} style={styles.statIcon}>
+                      <Text style={styles.statIconText}>{stats.working}</Text>
+                    </LinearGradient>
+                    <Text style={styles.statLabel}>Работают</Text>
+                  </View>
+                  
+                  <View style={styles.statItem}>
+                    <LinearGradient colors={['#FFA500', '#FF8C00']} style={styles.statIcon}>
+                      <Text style={styles.statIconText}>{stats.sick}</Text>
+                    </LinearGradient>
+                    <Text style={styles.statLabel}>Больничный</Text>
+                  </View>
+                  
+                  <View style={styles.statItem}>
+                    <LinearGradient colors={['#4A90E2', '#357ABD']} style={styles.statIcon}>
+                      <Text style={styles.statIconText}>{stats.vacation}</Text>
+                    </LinearGradient>
+                    <Text style={styles.statLabel}>Отпуск</Text>
+                  </View>
+                  
+                  <View style={styles.statItem}>
+                    <LinearGradient colors={['#9B59B6', '#8E44AD']} style={styles.statIcon}>
+                      <Text style={styles.statIconText}>{stats.dayoff}</Text>
+                    </LinearGradient>
+                    <Text style={styles.statLabel}>Отгул</Text>
+                  </View>
+                  
+                  <View style={styles.statItem}>
+                    <LinearGradient colors={['#FF6B6B', '#EE5A52']} style={styles.statIcon}>
+                      <Text style={styles.statIconText}>{stats.unpaid}</Text>
+                    </LinearGradient>
+                    <Text style={styles.statLabel}>Без содержания</Text>
+                  </View>
+                </View>
+              </LinearGradient>
+            </View>
+          </CollapsibleSection>
+
+          {/* Фильтры по статусу - сворачиваемая */}
+          <CollapsibleSection
+            title="Фильтр по статусу"
+            isExpanded={filtersExpanded}
+            onToggle={() => setFiltersExpanded(!filtersExpanded)}
+            icon={<Ionicons name="filter" size={getResponsiveSize(14)} color="#FFD700" />}
+          >
+            <View style={styles.filtersContainer}>
+              <LinearGradient
+                colors={['rgba(42, 42, 42, 0.9)', 'rgba(35, 35, 35, 0.8)']}
+                style={styles.filtersGradient}
+              >
+                <ScrollView 
+                  horizontal 
+                  showsHorizontalScrollIndicator={false}
+                  style={styles.filtersScroll}
+                  contentContainerStyle={styles.filtersScrollContent}
+                >
+                  <View style={styles.filtersRow}>
+                    <FilterChip
+                      status="all"
+                      count={stats.total}
+                      isActive={filter === 'all'}
+                      onPress={() => setFilter('all')}
+                      gradient={['#FFD700', '#FFA500']}
+                    />
+                    <FilterChip
+                      status="working"
+                      count={stats.working}
+                      isActive={filter === 'working'}
+                      onPress={() => setFilter('working')}
+                      gradient={['#34C759', '#28A745']}
+                    />
+                    <FilterChip
+                      status="sick"
+                      count={stats.sick}
+                      isActive={filter === 'sick'}
+                      onPress={() => setFilter('sick')}
+                      gradient={['#FFA500', '#FF8C00']}
+                    />
+                    <FilterChip
+                      status="vacation"
+                      count={stats.vacation}
+                      isActive={filter === 'vacation'}
+                      onPress={() => setFilter('vacation')}
+                      gradient={['#4A90E2', '#357ABD']}
+                    />
+                    <FilterChip
+                      status="dayoff"
+                      count={stats.dayoff}
+                      isActive={filter === 'dayoff'}
+                      onPress={() => setFilter('dayoff')}
+                      gradient={['#9B59B6', '#8E44AD']}
+                    />
+                    <FilterChip
+                      status="unpaid"
+                      count={stats.unpaid}
+                      isActive={filter === 'unpaid'}
+                      onPress={() => setFilter('unpaid')}
+                      gradient={['#FF6B6B', '#EE5A52']}
+                    />
+                  </View>
+                </ScrollView>
+              </LinearGradient>
+            </View>
+          </CollapsibleSection>
 
           {/* Информация о фильтрах */}
           {(filter !== 'all' || searchQuery) && (
@@ -812,10 +824,10 @@ export default function EmployeesListScreen({ navigation, route }) {
                 colors={['rgba(255, 215, 0, 0.2)', 'rgba(255, 165, 0, 0.2)']}
                 style={styles.filterInfoGradient}
               >
-                <Ionicons name="information-circle" size={getResponsiveSize(16)} color="#FFD700" />
+                <Ionicons name="information-circle" size={getResponsiveSize(12)} color="#FFD700" />
                 <Text style={styles.filterInfoText}>
-                  Показано: {filteredEmployees.length} из {employees.length} сотрудников
-                  {filter !== 'all' && ` • Фильтр: ${getStatusLabel(filter)}`}
+                  Показано: {filteredEmployees.length} из {employees.length}
+                  {filter !== 'all' && ` • ${getStatusLabel(filter)}`}
                   {searchQuery && ` • Поиск: "${searchQuery}"`}
                 </Text>
                 <TouchableOpacity 
@@ -824,7 +836,7 @@ export default function EmployeesListScreen({ navigation, route }) {
                     setFilter('all');
                   }}
                 >
-                  <Ionicons name="close" size={getResponsiveSize(16)} color="#FFD700" />
+                  <Ionicons name="close" size={getResponsiveSize(12)} color="#FFD700" />
                 </TouchableOpacity>
               </LinearGradient>
             </View>
@@ -843,12 +855,10 @@ export default function EmployeesListScreen({ navigation, route }) {
                   onRefresh={onRefresh}
                   colors={['#FFD700']}
                   tintColor="#FFD700"
-                  title="Обновление..."
-                  titleColor="#FFD700"
                 />
               }
-              initialNumToRender={10}
-              maxToRenderPerBatch={10}
+              initialNumToRender={15}
+              maxToRenderPerBatch={15}
               windowSize={10}
               removeClippedSubviews={false}
               showsVerticalScrollIndicator={true}
@@ -856,16 +866,16 @@ export default function EmployeesListScreen({ navigation, route }) {
               ListEmptyComponent={
                 loading ? (
                   <View style={styles.loadingContainer}>
-                    <Ionicons name="people" size={getResponsiveSize(48)} color="#FFD700" />
-                    <Text style={styles.loadingText}>Загрузка сотрудников...</Text>
+                    <Ionicons name="people" size={getResponsiveSize(36)} color="#FFD700" />
+                    <Text style={styles.loadingText}>Загрузка артистов...</Text>
                   </View>
                 ) : (
                   <View style={styles.emptyState}>
-                    <Ionicons name="people-outline" size={getResponsiveSize(48)} color="#555" />
+                    <Ionicons name="people-outline" size={getResponsiveSize(36)} color="#555" />
                     <Text style={styles.emptyStateText}>
                       {employees.length === 0 
-                        ? 'Сотрудников нет' 
-                        : 'Нет сотрудников по выбранному фильтру'
+                        ? 'Артистов нет' 
+                        : 'Нет артистов по выбранному фильтру'
                       }
                     </Text>
                     {(searchQuery || filter !== 'all') && (
@@ -916,19 +926,19 @@ const styles = StyleSheet.create({
   },
   contentContainer: {
     flex: 1,
-    paddingBottom: getResponsiveSize(20),
+    paddingBottom: getResponsiveSize(10),
   },
   header: {
-    paddingHorizontal: getResponsiveSize(20),
-    paddingTop: getResponsiveSize(50),
-    paddingBottom: getResponsiveSize(20),
-    borderBottomLeftRadius: getResponsiveSize(25),
-    borderBottomRightRadius: getResponsiveSize(25),
+    paddingHorizontal: getResponsiveSize(15),
+    paddingTop: getResponsiveSize(45),
+    paddingBottom: getResponsiveSize(15),
+    borderBottomLeftRadius: getResponsiveSize(20),
+    borderBottomRightRadius: getResponsiveSize(20),
     shadowColor: '#FFD700',
-    shadowOffset: { width: 0, height: 8 },
+    shadowOffset: { width: 0, height: 6 },
     shadowOpacity: 0.3,
-    shadowRadius: 16,
-    elevation: 12,
+    shadowRadius: 12,
+    elevation: 8,
     borderBottomWidth: 1,
     borderBottomColor: 'rgba(255, 215, 0, 0.3)',
   },
@@ -938,7 +948,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
   },
   backButton: {
-    padding: getResponsiveSize(8),
+    padding: getResponsiveSize(6),
   },
   titleSection: {
     flexDirection: 'row',
@@ -947,95 +957,112 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   titleIconContainer: {
-    marginRight: getResponsiveSize(12),
+    marginRight: getResponsiveSize(10),
   },
   titleIconGradient: {
-    width: getResponsiveSize(44),
-    height: getResponsiveSize(44),
-    borderRadius: getResponsiveSize(12),
+    width: getResponsiveSize(36),
+    height: getResponsiveSize(36),
+    borderRadius: getResponsiveSize(10),
     justifyContent: 'center',
     alignItems: 'center',
     shadowColor: '#FFD700',
-    shadowOffset: { width: 0, height: 4 },
+    shadowOffset: { width: 0, height: 3 },
     shadowOpacity: 0.4,
-    shadowRadius: 8,
-    elevation: 5,
+    shadowRadius: 6,
+    elevation: 4,
   },
   titleTextContainer: {
     alignItems: 'center',
   },
   mainTitle: {
-    fontSize: getResponsiveFontSize(18),
+    fontSize: getResponsiveFontSize(16),
     fontWeight: '800',
     color: '#E0E0E0',
     letterSpacing: 0.3,
   },
   subtitle: {
-    fontSize: getResponsiveFontSize(12),
+    fontSize: getResponsiveFontSize(11),
     color: '#999',
     fontWeight: '500',
   },
   headerSpacer: {
-    width: getResponsiveSize(44),
+    width: getResponsiveSize(36),
   },
   searchContainer: {
-    margin: getResponsiveSize(15),
-    marginBottom: getResponsiveSize(10),
+    margin: getResponsiveSize(12),
+    marginBottom: getResponsiveSize(8),
   },
   searchGradient: {
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: 'rgba(42, 42, 42, 0.9)',
-    paddingHorizontal: getResponsiveSize(15),
-    paddingVertical: getResponsiveSize(12),
-    borderRadius: getResponsiveSize(15),
+    paddingHorizontal: getResponsiveSize(12),
+    paddingVertical: getResponsiveSize(10),
+    borderRadius: getResponsiveSize(12),
     borderWidth: 1,
     borderColor: 'rgba(255, 215, 0, 0.2)',
     shadowColor: '#FFD700',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.2,
-    shadowRadius: 8,
+    shadowRadius: 6,
     elevation: 3,
   },
   searchInput: {
     flex: 1,
-    marginLeft: getResponsiveSize(10),
-    fontSize: getResponsiveFontSize(14),
+    marginLeft: getResponsiveSize(8),
+    fontSize: getResponsiveFontSize(13),
     color: '#E0E0E0',
   },
-  statsContainer: {
-    marginHorizontal: getResponsiveSize(15),
-    marginBottom: getResponsiveSize(10),
+  // Стили для сворачиваемых секций
+  collapsibleContainer: {
+    marginHorizontal: getResponsiveSize(12),
+    marginBottom: getResponsiveSize(8),
   },
-  statsGradient: {
-    borderRadius: getResponsiveSize(15),
-    padding: getResponsiveSize(16),
-    borderWidth: 1,
-    borderColor: 'rgba(255, 215, 0, 0.2)',
-    shadowColor: '#FFD700',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.2,
-    shadowRadius: 8,
-    elevation: 5,
-  },
-  statsHeader: {
+  collapsibleHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: getResponsiveSize(15),
+    padding: getResponsiveSize(12),
+    backgroundColor: 'rgba(42, 42, 42, 0.7)',
+    borderRadius: getResponsiveSize(10),
+    borderWidth: 1,
+    borderColor: 'rgba(255, 215, 0, 0.2)',
   },
-  statsTitleContainer: {
+  collapsibleTitle: {
     flexDirection: 'row',
     alignItems: 'center',
   },
-  statsTitle: {
-    fontSize: getResponsiveFontSize(16),
+  collapsibleTitleText: {
+    fontSize: getResponsiveFontSize(14),
     fontWeight: '700',
     color: '#E0E0E0',
-    marginLeft: getResponsiveSize(8),
+    marginLeft: getResponsiveSize(6),
+  },
+  collapsibleContent: {
+    marginTop: getResponsiveSize(6),
+  },
+  statsContainer: {
+    marginBottom: getResponsiveSize(0),
+  },
+  statsGradient: {
+    borderRadius: getResponsiveSize(12),
+    padding: getResponsiveSize(12),
+    borderWidth: 1,
+    borderColor: 'rgba(255, 215, 0, 0.2)',
+    shadowColor: '#FFD700',
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.2,
+    shadowRadius: 6,
+    elevation: 4,
+  },
+  statsHeader: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: getResponsiveSize(10),
   },
   totalCount: {
-    fontSize: getResponsiveFontSize(18),
+    fontSize: getResponsiveFontSize(14),
     fontWeight: '800',
     color: '#FFD700',
   },
@@ -1048,63 +1075,55 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   statIcon: {
-    width: getResponsiveSize(32),
-    height: getResponsiveSize(32),
-    borderRadius: getResponsiveSize(16),
+    width: getResponsiveSize(28),
+    height: getResponsiveSize(28),
+    borderRadius: getResponsiveSize(14),
     justifyContent: 'center',
     alignItems: 'center',
-    marginBottom: getResponsiveSize(6),
+    marginBottom: getResponsiveSize(4),
   },
-  statNumber: {
-    fontSize: getResponsiveFontSize(16),
+  statIconText: {
+    fontSize: getResponsiveFontSize(12),
     fontWeight: '800',
-    color: '#E0E0E0',
-    marginBottom: getResponsiveSize(2),
+    color: '#FFFFFF',
   },
   statLabel: {
-    fontSize: getResponsiveFontSize(10),
+    fontSize: getResponsiveFontSize(9),
     color: '#999',
     fontWeight: '600',
     textAlign: 'center',
   },
   filtersContainer: {
-    marginHorizontal: getResponsiveSize(15),
-    marginBottom: getResponsiveSize(10),
+    marginBottom: getResponsiveSize(0),
   },
   filtersGradient: {
-    borderRadius: getResponsiveSize(15),
-    padding: getResponsiveSize(16),
+    borderRadius: getResponsiveSize(12),
+    padding: getResponsiveSize(12),
     borderWidth: 1,
     borderColor: 'rgba(255, 215, 0, 0.2)',
     shadowColor: '#FFD700',
-    shadowOffset: { width: 0, height: 4 },
+    shadowOffset: { width: 0, height: 3 },
     shadowOpacity: 0.2,
-    shadowRadius: 8,
-    elevation: 5,
-  },
-  filtersTitle: {
-    fontSize: getResponsiveFontSize(14),
-    fontWeight: '700',
-    color: '#E0E0E0',
-    marginBottom: getResponsiveSize(12),
+    shadowRadius: 6,
+    elevation: 4,
   },
   filtersScroll: {
-    maxHeight: getResponsiveSize(50),
+    maxHeight: getResponsiveSize(40),
   },
   filtersScrollContent: {
-    paddingRight: getResponsiveSize(10),
+    paddingRight: getResponsiveSize(8),
   },
   filtersRow: {
     flexDirection: 'row',
-    gap: getResponsiveSize(8),
+    gap: getResponsiveSize(6),
   },
   filterChip: {
-    paddingHorizontal: getResponsiveSize(16),
-    paddingVertical: getResponsiveSize(8),
-    borderRadius: getResponsiveSize(20),
+    paddingHorizontal: getResponsiveSize(12),
+    paddingVertical: getResponsiveSize(6),
+    borderRadius: getResponsiveSize(16),
     borderWidth: 1,
     borderColor: 'rgba(255, 215, 0, 0.3)',
-    minHeight: getResponsiveSize(36),
+    minHeight: getResponsiveSize(30),
     justifyContent: 'center',
     alignItems: 'center',
   },
@@ -1114,11 +1133,11 @@ const styles = StyleSheet.create({
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.3,
-    shadowRadius: 4,
-    elevation: 3,
+    shadowRadius: 3,
+    elevation: 2,
   },
   filterChipText: {
-    fontSize: getResponsiveFontSize(12),
+    fontSize: getResponsiveFontSize(10),
     color: '#999',
     fontWeight: '600',
   },
@@ -1127,44 +1146,44 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
   filterInfo: {
-    marginHorizontal: getResponsiveSize(15),
-    marginBottom: getResponsiveSize(10),
+    marginHorizontal: getResponsiveSize(12),
+    marginBottom: getResponsiveSize(8),
   },
   filterInfoGradient: {
     flexDirection: 'row',
     alignItems: 'center',
-    padding: getResponsiveSize(12),
-    borderRadius: getResponsiveSize(12),
+    padding: getResponsiveSize(10),
+    borderRadius: getResponsiveSize(10),
     borderWidth: 1,
     borderColor: 'rgba(255, 215, 0, 0.3)',
   },
   filterInfoText: {
     flex: 1,
-    fontSize: getResponsiveFontSize(12),
+    fontSize: getResponsiveFontSize(11),
     color: '#FFD700',
-    marginLeft: getResponsiveSize(8),
+    marginLeft: getResponsiveSize(6),
     fontWeight: '500',
   },
   listContainer: {
     flex: 1,
-    marginHorizontal: getResponsiveSize(15),
+    marginHorizontal: getResponsiveSize(12),
   },
   list: {
     flex: 1,
   },
   employeeCard: {
-    marginBottom: getResponsiveSize(12),
-    borderRadius: getResponsiveSize(15),
+    marginBottom: getResponsiveSize(8),
+    borderRadius: getResponsiveSize(12),
     overflow: 'hidden',
     shadowColor: '#FFD700',
-    shadowOffset: { width: 0, height: 3 },
+    shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.2,
-    shadowRadius: 8,
-    elevation: 5,
+    shadowRadius: 6,
+    elevation: 4,
   },
   employeeGradient: {
-    padding: getResponsiveSize(16),
-    borderRadius: getResponsiveSize(15),
+    padding: getResponsiveSize(12),
+    borderRadius: getResponsiveSize(12),
     borderWidth: 1,
     borderColor: 'rgba(255, 215, 0, 0.2)',
   },
@@ -1172,91 +1191,89 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'flex-start',
-    marginBottom: getResponsiveSize(12),
   },
   employeeInfo: {
     flex: 1,
   },
   employeeName: {
-    fontSize: getResponsiveFontSize(16),
+    fontSize: getResponsiveFontSize(14),
     fontWeight: '700',
     color: '#E0E0E0',
     marginBottom: getResponsiveSize(4),
   },
+  employeeDetails: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flexWrap: 'wrap',
+  },
   employeePosition: {
-    fontSize: getResponsiveFontSize(13),
+    fontSize: getResponsiveFontSize(11),
     color: '#FFD700',
     fontWeight: '600',
-    marginBottom: getResponsiveSize(2),
+    marginRight: getResponsiveSize(8),
   },
   employeeEmail: {
-    fontSize: getResponsiveFontSize(12),
+    fontSize: getResponsiveFontSize(11),
     color: '#999',
   },
   actionsSection: {
     alignItems: 'flex-end',
-    gap: getResponsiveSize(8),
+    gap: getResponsiveSize(6),
   },
   editButton: {
-    borderRadius: getResponsiveSize(20),
+    borderRadius: getResponsiveSize(16),
     overflow: 'hidden',
     shadowColor: '#FFD700',
-    shadowOffset: { width: 0, height: 2 },
+    shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.3,
-    shadowRadius: 4,
-    elevation: 3,
+    shadowRadius: 3,
+    elevation: 2,
   },
   editButtonGradient: {
-    width: getResponsiveSize(32),
-    height: getResponsiveSize(32),
-    borderRadius: getResponsiveSize(16),
+    width: getResponsiveSize(26),
+    height: getResponsiveSize(26),
+    borderRadius: getResponsiveSize(13),
     justifyContent: 'center',
     alignItems: 'center',
   },
   deleteButton: {
-    borderRadius: getResponsiveSize(20),
+    borderRadius: getResponsiveSize(16),
     overflow: 'hidden',
     shadowColor: '#FF6B6B',
-    shadowOffset: { width: 0, height: 2 },
+    shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.3,
-    shadowRadius: 4,
-    elevation: 3,
+    shadowRadius: 3,
+    elevation: 2,
   },
   deleteButtonGradient: {
-    width: getResponsiveSize(32),
-    height: getResponsiveSize(32),
-    borderRadius: getResponsiveSize(16),
+    width: getResponsiveSize(26),
+    height: getResponsiveSize(26),
+    borderRadius: getResponsiveSize(13),
     justifyContent: 'center',
     alignItems: 'center',
   },
   statusButton: {
-    borderRadius: getResponsiveSize(20),
+    borderRadius: getResponsiveSize(16),
     overflow: 'hidden',
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
+    shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.3,
-    shadowRadius: 4,
-    elevation: 3,
+    shadowRadius: 3,
+    elevation: 2,
   },
   statusBadge: {
-    paddingHorizontal: getResponsiveSize(12),
-    paddingVertical: getResponsiveSize(6),
-    borderRadius: getResponsiveSize(20),
-    minWidth: getResponsiveSize(120),
+    paddingHorizontal: getResponsiveSize(10),
+    paddingVertical: getResponsiveSize(5),
+    borderRadius: getResponsiveSize(16),
+    minWidth: getResponsiveSize(100),
   },
   statusContent: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
   },
-  statusDot: {
-    width: getResponsiveSize(8),
-    height: getResponsiveSize(8),
-    borderRadius: getResponsiveSize(4),
-    marginRight: getResponsiveSize(6),
-  },
   statusText: {
-    fontSize: getResponsiveFontSize(12),
+    fontSize: getResponsiveFontSize(10),
     fontWeight: '600',
     color: '#FFFFFF',
     marginRight: getResponsiveSize(4),
@@ -1264,68 +1281,58 @@ const styles = StyleSheet.create({
   dateInfo: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: getResponsiveSize(8),
-    padding: getResponsiveSize(8),
+    marginTop: getResponsiveSize(6),
+    padding: getResponsiveSize(6),
     backgroundColor: 'rgba(255, 215, 0, 0.1)',
-    borderRadius: getResponsiveSize(8),
-    borderLeftWidth: getResponsiveSize(3),
+    borderRadius: getResponsiveSize(6),
+    borderLeftWidth: getResponsiveSize(2),
     borderLeftColor: '#FFD700',
   },
   dateText: {
-    fontSize: getResponsiveFontSize(12),
-    color: '#E0E0E0',
-    marginLeft: getResponsiveSize(6),
-    fontWeight: '500',
-  },
-  lastUpdatedContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'flex-end',
-  },
-  lastUpdated: {
     fontSize: getResponsiveFontSize(10),
-    color: '#888',
+    color: '#E0E0E0',
     marginLeft: getResponsiveSize(4),
+    fontWeight: '500',
   },
   loadingContainer: {
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: getResponsiveSize(40),
+    paddingVertical: getResponsiveSize(30),
   },
   loadingText: {
-    fontSize: getResponsiveFontSize(14),
+    fontSize: getResponsiveFontSize(13),
     color: '#E0E0E0',
-    marginTop: getResponsiveSize(10),
+    marginTop: getResponsiveSize(8),
   },
   emptyState: {
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: getResponsiveSize(40),
+    paddingVertical: getResponsiveSize(30),
   },
   emptyStateText: {
-    fontSize: getResponsiveFontSize(14),
+    fontSize: getResponsiveFontSize(13),
     color: '#888',
     marginTop: getResponsiveSize(8),
     textAlign: 'center',
   },
   clearFiltersButton: {
-    marginTop: getResponsiveSize(16),
-    borderRadius: getResponsiveSize(20),
+    marginTop: getResponsiveSize(12),
+    borderRadius: getResponsiveSize(16),
     overflow: 'hidden',
     shadowColor: '#FFD700',
-    shadowOffset: { width: 0, height: 3 },
+    shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.3,
-    shadowRadius: 6,
-    elevation: 5,
+    shadowRadius: 4,
+    elevation: 3,
   },
   clearFiltersGradient: {
-    paddingHorizontal: getResponsiveSize(20),
-    paddingVertical: getResponsiveSize(10),
-    borderRadius: getResponsiveSize(20),
+    paddingHorizontal: getResponsiveSize(16),
+    paddingVertical: getResponsiveSize(8),
+    borderRadius: getResponsiveSize(16),
   },
   clearFiltersText: {
     color: '#1a1a1a',
-    fontSize: getResponsiveFontSize(12),
+    fontSize: getResponsiveFontSize(11),
     fontWeight: '700',
   },
 
@@ -1335,21 +1342,21 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(0, 0, 0, 0.8)',
     justifyContent: 'center',
     alignItems: 'center',
-    padding: getResponsiveSize(20),
+    padding: getResponsiveSize(15),
   },
   modalContainer: {
     width: '100%',
-    maxWidth: getResponsiveSize(500),
-    maxHeight: '90%',
+    maxWidth: getResponsiveSize(450),
+    maxHeight: '85%',
   },
   modalGradient: {
-    borderRadius: getResponsiveSize(20),
-    padding: getResponsiveSize(20),
+    borderRadius: getResponsiveSize(16),
+    padding: getResponsiveSize(16),
     shadowColor: '#FFD700',
-    shadowOffset: { width: 0, height: 8 },
+    shadowOffset: { width: 0, height: 6 },
     shadowOpacity: 0.3,
-    shadowRadius: 12,
-    elevation: 8,
+    shadowRadius: 10,
+    elevation: 6,
     borderWidth: 1,
     borderColor: 'rgba(255, 215, 0, 0.3)',
   },
@@ -1357,50 +1364,50 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: getResponsiveSize(20),
+    marginBottom: getResponsiveSize(16),
   },
   modalTitle: {
-    fontSize: getResponsiveFontSize(20),
+    fontSize: getResponsiveFontSize(18),
     fontWeight: '800',
     color: '#E0E0E0',
     flex: 1,
   },
   modalCloseIcon: {
-    padding: getResponsiveSize(5),
+    padding: getResponsiveSize(4),
   },
   modalContent: {
-    maxHeight: getResponsiveSize(400),
+    maxHeight: getResponsiveSize(350),
   },
   inputGroup: {
-    marginBottom: getResponsiveSize(16),
+    marginBottom: getResponsiveSize(12),
   },
   label: {
-    fontSize: getResponsiveFontSize(14),
+    fontSize: getResponsiveFontSize(13),
     fontWeight: '600',
     color: '#E0E0E0',
-    marginBottom: getResponsiveSize(8),
+    marginBottom: getResponsiveSize(6),
   },
   textInput: {
     backgroundColor: 'rgba(42, 42, 42, 0.9)',
     borderWidth: 1,
     borderColor: 'rgba(255, 215, 0, 0.3)',
-    borderRadius: getResponsiveSize(10),
-    padding: getResponsiveSize(12),
+    borderRadius: getResponsiveSize(8),
+    padding: getResponsiveSize(10),
     color: '#E0E0E0',
-    fontSize: getResponsiveFontSize(14),
+    fontSize: getResponsiveFontSize(13),
   },
   statusOptions: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: getResponsiveSize(8),
+    gap: getResponsiveSize(6),
   },
   statusOption: {
-    marginBottom: getResponsiveSize(8),
+    marginBottom: getResponsiveSize(6),
   },
   statusOptionGradient: {
-    paddingHorizontal: getResponsiveSize(12),
-    paddingVertical: getResponsiveSize(8),
-    borderRadius: getResponsiveSize(20),
+    paddingHorizontal: getResponsiveSize(10),
+    paddingVertical: getResponsiveSize(6),
+    borderRadius: getResponsiveSize(16),
     borderWidth: 1,
     borderColor: 'rgba(255, 215, 0, 0.3)',
   },
@@ -1409,7 +1416,7 @@ const styles = StyleSheet.create({
     borderColor: 'rgba(255, 255, 255, 0.8)',
   },
   statusOptionText: {
-    fontSize: getResponsiveFontSize(12),
+    fontSize: getResponsiveFontSize(11),
     fontWeight: '600',
     color: '#999',
   },
@@ -1419,80 +1426,80 @@ const styles = StyleSheet.create({
   },
   datesRow: {
     flexDirection: 'row',
-    gap: getResponsiveSize(12),
+    gap: getResponsiveSize(8),
   },
   dateInput: {
     flex: 1,
   },
   dateHint: {
-    fontSize: getResponsiveFontSize(11),
+    fontSize: getResponsiveFontSize(10),
     color: '#FFD700',
     fontStyle: 'italic',
-    marginTop: getResponsiveSize(8),
-    marginBottom: getResponsiveSize(16),
+    marginTop: getResponsiveSize(6),
+    marginBottom: getResponsiveSize(12),
   },
   deleteEmployeeButton: {
-    marginTop: getResponsiveSize(8),
-    marginBottom: getResponsiveSize(8),
-    borderRadius: getResponsiveSize(15),
+    marginTop: getResponsiveSize(6),
+    marginBottom: getResponsiveSize(6),
+    borderRadius: getResponsiveSize(12),
     overflow: 'hidden',
     shadowColor: '#FF6B6B',
-    shadowOffset: { width: 0, height: 4 },
+    shadowOffset: { width: 0, height: 3 },
     shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 5,
+    shadowRadius: 6,
+    elevation: 4,
   },
   deleteEmployeeButtonGradient: {
-    padding: getResponsiveSize(15),
+    padding: getResponsiveSize(12),
     alignItems: 'center',
     justifyContent: 'center',
     flexDirection: 'row',
-    gap: getResponsiveSize(8),
+    gap: getResponsiveSize(6),
   },
   deleteEmployeeButtonText: {
     color: '#FFFFFF',
-    fontSize: getResponsiveFontSize(16),
+    fontSize: getResponsiveFontSize(14),
     fontWeight: '700',
   },
   modalActions: {
     flexDirection: 'row',
-    gap: getResponsiveSize(12),
-    marginTop: getResponsiveSize(20),
+    gap: getResponsiveSize(8),
+    marginTop: getResponsiveSize(16),
   },
   cancelButton: {
     flex: 1,
-    padding: getResponsiveSize(15),
+    padding: getResponsiveSize(12),
     alignItems: 'center',
     justifyContent: 'center',
-    borderRadius: getResponsiveSize(15),
+    borderRadius: getResponsiveSize(12),
     borderWidth: 1,
     borderColor: 'rgba(255, 215, 0, 0.5)',
   },
   cancelButtonText: {
     color: '#FFD700',
-    fontSize: getResponsiveFontSize(16),
+    fontSize: getResponsiveFontSize(14),
     fontWeight: '600',
   },
   saveButton: {
     flex: 2,
-    borderRadius: getResponsiveSize(15),
+    borderRadius: getResponsiveSize(12),
     overflow: 'hidden',
     shadowColor: '#FFD700',
-    shadowOffset: { width: 0, height: 4 },
+    shadowOffset: { width: 0, height: 3 },
     shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 5,
+    shadowRadius: 6,
+    elevation: 4,
   },
   saveButtonGradient: {
-    padding: getResponsiveSize(15),
+    padding: getResponsiveSize(12),
     alignItems: 'center',
     justifyContent: 'center',
     flexDirection: 'row',
-    gap: getResponsiveSize(8),
+    gap: getResponsiveSize(6),
   },
   saveButtonText: {
     color: '#1a1a1a',
-    fontSize: getResponsiveFontSize(16),
+    fontSize: getResponsiveFontSize(14),
     fontWeight: '700',
   },
 });
