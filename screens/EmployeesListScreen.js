@@ -53,6 +53,7 @@ const EmployeeItem = React.memo(({ item, onStatusChange, onEdit, onDelete }) => 
   }, [item, onEdit]);
 
   const handleDeletePress = useCallback(() => {
+    console.log('🔴 EmployeeItem handleDeletePress вызван для:', item.id, item.fullName);
     onDelete(item);
   }, [item, onDelete]);
 
@@ -184,7 +185,8 @@ const EditEmployeeModal = ({
   };
 
   const handleDelete = () => {
-    if (employee) {
+    console.log('🔴 Modal handleDelete вызван для:', employee?.id, employee?.fullName);
+    if (employee && employee.id) {
       Alert.alert(
         'Удаление артиста',
         `Вы уверены, что хотите удалить "${employee.fullName}"? Это действие нельзя отменить.`,
@@ -194,12 +196,16 @@ const EditEmployeeModal = ({
             text: 'Удалить', 
             style: 'destructive',
             onPress: () => {
+              console.log('🔴 Пользователь подтвердил удаление, вызываем onDelete');
               onDelete(employee.id);
               onClose();
             }
           }
         ]
       );
+    } else {
+      console.log('❌ ОШИБКА: employee или employee.id отсутствует!', employee);
+      Alert.alert('Ошибка', 'Невозможно удалить: отсутствует ID артиста');
     }
   };
 
@@ -447,6 +453,7 @@ export default function EmployeesListScreen({ navigation, route }) {
       const employeesData = [];
       snapshot.forEach((doc) => {
         const data = doc.data();
+        console.log('📄 Документ:', doc.id, data);
         employeesData.push({ id: doc.id, ...data });
       });
      
@@ -504,29 +511,73 @@ export default function EmployeesListScreen({ navigation, route }) {
   }, []);
  
   const handleEditEmployee = useCallback((employee) => {
+    console.log('✏️ Открытие редактирования для:', employee.id, employee.fullName);
     setSelectedEmployee(employee);
     setEditModalVisible(true);
   }, []);
 
   const handleDeleteEmployee = useCallback((employee) => {
+    console.log('🗑️ handleDeleteEmployee вызван');
+    console.log('📋 Employee объект:', employee);
+    console.log('🆔 Employee ID:', employee?.id);
+    console.log('👤 Employee name:', employee?.fullName);
+    
+    if (!employee) {
+      console.log('❌ КРИТИЧЕСКАЯ ОШИБКА: employee = null/undefined');
+      Alert.alert('Ошибка', 'Объект артиста не найден');
+      return;
+    }
+    
+    if (!employee.id) {
+      console.log('❌ КРИТИЧЕСКАЯ ОШИБКА: employee.id отсутствует');
+      Alert.alert('Ошибка', 'ID артиста не найден');
+      return;
+    }
+
     Alert.alert(
       'Удаление артиста',
       `Вы уверены, что хотите удалить "${employee.fullName}"? Это действие нельзя отменить.`,
       [
-        { text: 'Отмена', style: 'cancel' },
+        { 
+          text: 'Отмена', 
+          style: 'cancel',
+          onPress: () => console.log('❌ Удаление отменено пользователем')
+        },
         { 
           text: 'Удалить', 
           style: 'destructive',
           onPress: async () => {
+            console.log('🔥 НАЧАЛО УДАЛЕНИЯ');
+            console.log('🔥 Удаляем артиста ID:', employee.id);
+            
             try {
-              console.log('🗑️ Удаление артиста:', employee.id);
-              await deleteDoc(doc(db, 'employees', employee.id));
-              console.log('✅ Артист удален успешно');
+              console.log('📍 Проверка auth.currentUser:', auth.currentUser?.email);
+              console.log('📍 Проверка db:', db ? 'DB инициализирован' : 'DB НЕ инициализирован');
+              
+              const docRef = doc(db, 'employees', employee.id);
+              console.log('📍 Document reference создан:', docRef.path);
+              
+              console.log('🗑️ Вызываем deleteDoc...');
+              await deleteDoc(docRef);
+              
+              console.log('✅ deleteDoc выполнен успешно!');
               Alert.alert('Успех', 'Артист удален');
+              
+              console.log('🔄 Перезагружаем список...');
               await loadEmployees();
+              console.log('✅ Список перезагружен');
+              
             } catch (error) {
-              console.error('❌ Ошибка удаления артиста:', error);
-              Alert.alert('Ошибка', `Не удалось удалить артиста: ${error.message}`);
+              console.error('❌❌❌ ОШИБКА ПРИ УДАЛЕНИИ:', error);
+              console.error('❌ Error name:', error.name);
+              console.error('❌ Error message:', error.message);
+              console.error('❌ Error code:', error.code);
+              console.error('❌ Full error:', JSON.stringify(error, null, 2));
+              
+              Alert.alert(
+                'Ошибка', 
+                `Не удалось удалить артиста.\n\nТехнические детали:\n${error.message}\n\nКод: ${error.code || 'нет кода'}`
+              );
             }
           }
         }
@@ -536,6 +587,7 @@ export default function EmployeesListScreen({ navigation, route }) {
 
   const handleSaveEmployee = useCallback(async (employeeId, formData) => {
     try {
+      console.log('💾 Сохранение данных для:', employeeId);
       await updateDoc(doc(db, 'employees', employeeId), {
         ...formData,
         lastUpdated: new Date()
@@ -545,23 +597,51 @@ export default function EmployeesListScreen({ navigation, route }) {
       setSelectedEmployee(null);
       loadEmployees();
     } catch (error) {
-      console.error('Ошибка обновления сотрудника:', error);
+      console.error('❌ Ошибка обновления сотрудника:', error);
       Alert.alert('Ошибка', 'Не удалось обновить данные сотрудника');
     }
   }, []);
 
   const handleDeleteFromModal = useCallback(async (employeeId) => {
+    console.log('🗑️ handleDeleteFromModal вызван с ID:', employeeId);
+    
+    if (!employeeId) {
+      console.log('❌ КРИТИЧЕСКАЯ ОШИБКА: employeeId отсутствует!');
+      Alert.alert('Ошибка', 'ID артиста не найден');
+      return;
+    }
+
     try {
-      console.log('🗑️ Удаление артиста из модалки:', employeeId);
-      await deleteDoc(doc(db, 'employees', employeeId));
-      console.log('✅ Артист удален успешно');
+      console.log('📍 Проверка auth.currentUser:', auth.currentUser?.email);
+      console.log('📍 Проверка db:', db ? 'DB инициализирован' : 'DB НЕ инициализирован');
+      
+      const docRef = doc(db, 'employees', employeeId);
+      console.log('📍 Document reference создан:', docRef.path);
+      
+      console.log('🗑️ Вызываем deleteDoc из модалки...');
+      await deleteDoc(docRef);
+      
+      console.log('✅ deleteDoc из модалки выполнен успешно!');
       Alert.alert('Успех', 'Артист удален');
+      
       setEditModalVisible(false);
       setSelectedEmployee(null);
+      
+      console.log('🔄 Перезагружаем список...');
       await loadEmployees();
+      console.log('✅ Список перезагружен');
+      
     } catch (error) {
-      console.error('❌ Ошибка удаления артиста:', error);
-      Alert.alert('Ошибка', `Не удалось удалить артиста: ${error.message}`);
+      console.error('❌❌❌ ОШИБКА ПРИ УДАЛЕНИИ ИЗ МОДАЛКИ:', error);
+      console.error('❌ Error name:', error.name);
+      console.error('❌ Error message:', error.message);
+      console.error('❌ Error code:', error.code);
+      console.error('❌ Full error:', JSON.stringify(error, null, 2));
+      
+      Alert.alert(
+        'Ошибка', 
+        `Не удалось удалить артиста.\n\nТехнические детали:\n${error.message}\n\nКод: ${error.code || 'нет кода'}`
+      );
     }
   }, []);
 
