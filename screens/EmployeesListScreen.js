@@ -7,6 +7,7 @@ import {
   Dimensions,
   FlatList,
   Modal,
+  Platform,
   RefreshControl,
   ScrollView,
   StyleSheet,
@@ -44,25 +45,6 @@ const EmployeeItem = React.memo(({ item, onStatusChange, onEdit, onDelete }) => 
     return statuses[item.status] || { label: '❓ Неизвестно', color: '#8E8E93', gradient: ['#8E8E93', '#636366'] };
   }, [item.status]);
 
-  const handlePress = useCallback(() => {
-    onStatusChange(item.id, item.status);
-  }, [item.id, item.status, onStatusChange]);
-
-  const handleEditPress = useCallback(() => {
-    onEdit(item);
-  }, [item, onEdit]);
-
-  const handleDeletePress = () => {
-    console.log('🔴🔴🔴 EmployeeItem handleDeletePress - START');
-    console.log('Item:', JSON.stringify(item, null, 2));
-    try {
-      onDelete(item);
-      console.log('🔴🔴🔴 EmployeeItem handleDeletePress - onDelete вызван успешно');
-    } catch (error) {
-      console.error('🔴🔴🔴 EmployeeItem handleDeletePress - ОШИБКА:', error);
-    }
-  };
-
   return (
     <View style={styles.employeeCard}>
       <LinearGradient
@@ -90,7 +72,7 @@ const EmployeeItem = React.memo(({ item, onStatusChange, onEdit, onDelete }) => 
             <View style={styles.actionButtonsRow}>
               <TouchableOpacity
                 style={styles.editButton}
-                onPress={handleEditPress}
+                onPress={() => onEdit(item)}
               >
                 <LinearGradient
                   colors={['#FFD700', '#FFA500']}
@@ -104,8 +86,7 @@ const EmployeeItem = React.memo(({ item, onStatusChange, onEdit, onDelete }) => 
 
               <TouchableOpacity
                 style={styles.deleteButton}
-                onPress={handleDeletePress}
-                activeOpacity={0.7}
+                onPress={() => onDelete(item.id, item.fullName)}
               >
                 <LinearGradient
                   colors={['#FF6B6B', '#EE5A52']}
@@ -120,7 +101,7 @@ const EmployeeItem = React.memo(({ item, onStatusChange, onEdit, onDelete }) => 
 
             <TouchableOpacity
               style={styles.statusButton}
-              onPress={handlePress}
+              onPress={() => onStatusChange(item.id, item.status)}
             >
               <LinearGradient
                 colors={statusInfo.gradient}
@@ -189,38 +170,6 @@ const EditEmployeeModal = ({
       return;
     }
     onSave(employee.id, formData);
-  };
-
-  const handleDelete = () => {
-    console.log('🟣🟣🟣 Modal handleDelete - START');
-    console.log('Employee:', JSON.stringify(employee, null, 2));
-    
-    if (employee && employee.id) {
-      console.log('🟣 Показываем Alert.alert для подтверждения');
-      Alert.alert(
-        'Удаление артиста',
-        `Вы уверены, что хотите удалить "${employee.fullName}"? Это действие нельзя отменить.`,
-        [
-          { 
-            text: 'Отмена', 
-            style: 'cancel',
-            onPress: () => console.log('🟣 Удаление отменено')
-          },
-          { 
-            text: 'Удалить', 
-            style: 'destructive',
-            onPress: () => {
-              console.log('🟣🟣🟣 Пользователь подтвердил, вызываем onDelete');
-              onDelete(employee.id);
-              onClose();
-            }
-          }
-        ]
-      );
-    } else {
-      console.log('❌ ОШИБКА: employee или employee.id отсутствует!');
-      Alert.alert('Ошибка', 'Невозможно удалить: отсутствует ID артиста');
-    }
   };
 
   const statusOptions = [
@@ -348,12 +297,10 @@ const EditEmployeeModal = ({
                 💡 Формат даты: ГГГГ-ММ-ДД (например: 2024-12-31)
               </Text>
 
-              {/* Кнопка удаления в модальном окне */}
               {employee && (
                 <TouchableOpacity 
                   style={styles.deleteEmployeeButton}
-                  onPress={handleDelete}
-                  activeOpacity={0.7}
+                  onPress={() => onDelete(employee.id, employee.fullName)}
                 >
                   <LinearGradient
                     colors={['#FF6B6B', '#EE5A52']}
@@ -398,7 +345,6 @@ const EditEmployeeModal = ({
   );
 };
 
-// Компонент сворачиваемой секции
 const CollapsibleSection = ({ title, isExpanded, onToggle, children, icon }) => {
   return (
     <View style={styles.collapsibleContainer}>
@@ -442,10 +388,7 @@ export default function EmployeesListScreen({ navigation, route }) {
  
   const loadEmployees = async () => {
     try {
-      console.log('👥 Загрузка сотрудников...');
-     
       if (!auth.currentUser) {
-        console.log('❌ Пользователь НЕ авторизован');
         Alert.alert('Ошибка', 'Пользователь не авторизован');
         setEmployees([]);
         setLoading(false);
@@ -453,7 +396,6 @@ export default function EmployeesListScreen({ navigation, route }) {
         return;
       }
      
-      console.log('✅ Пользователь авторизован:', auth.currentUser.email);
       setLoading(true);
      
       const employeesQuery = query(
@@ -463,22 +405,19 @@ export default function EmployeesListScreen({ navigation, route }) {
      
       const snapshot = await getDocs(employeesQuery);
      
-      console.log('📥 Получено сотрудников:', snapshot.size);
-     
       const employeesData = [];
       snapshot.forEach((doc) => {
         const data = doc.data();
         employeesData.push({ id: doc.id, ...data });
       });
      
-      console.log(`✅ Загружено ${employeesData.length} сотрудников`);
       setEmployees(employeesData);
       setLoading(false);
       setRefreshing(false);
      
     } catch (error) {
-      console.error('❌ Ошибка загрузки сотрудников:', error);
-      Alert.alert('Ошибка', `Не удалось загрузить список сотрудников: ${error.message}`);
+      console.error('Ошибка загрузки:', error);
+      Alert.alert('Ошибка', `Не удалось загрузить список: ${error.message}`);
       setEmployees([]);
       setLoading(false);
       setRefreshing(false);
@@ -486,18 +425,17 @@ export default function EmployeesListScreen({ navigation, route }) {
   };
  
   const onRefresh = useCallback(() => {
-    console.log('🔄 Обновление списка сотрудников...');
     setRefreshing(true);
     loadEmployees();
   }, []);
  
   const handleStatusChange = useCallback(async (employeeId, currentStatus) => {
     const statuses = [
-      { value: 'working', label: '💼 Работаю', gradient: ['#34C759', '#28A745'] },
-      { value: 'sick', label: '🤒 Больничный', gradient: ['#FFA500', '#FF8C00'] },
-      { value: 'vacation', label: '🏖️ Отпуск', gradient: ['#4A90E2', '#357ABD'] },
-      { value: 'dayoff', label: '🏠 Отгул', gradient: ['#9B59B6', '#8E44AD'] },
-      { value: 'unpaid', label: '💰 Без содержания', gradient: ['#FF6B6B', '#EE5A52'] }
+      { value: 'working', label: '💼 Работаю' },
+      { value: 'sick', label: '🤒 Больничный' },
+      { value: 'vacation', label: '🏖️ Отпуск' },
+      { value: 'dayoff', label: '🏠 Отгул' },
+      { value: 'unpaid', label: '💰 Без содержания' }
     ];
     Alert.alert(
       'Изменить статус',
@@ -514,7 +452,6 @@ export default function EmployeesListScreen({ navigation, route }) {
               Alert.alert('Успех', 'Статус обновлен');
               loadEmployees();
             } catch (error) {
-              console.error('Ошибка обновления статуса:', error);
               Alert.alert('Ошибка', 'Не удалось обновить статус');
             }
           }
@@ -525,113 +462,89 @@ export default function EmployeesListScreen({ navigation, route }) {
   }, []);
  
   const handleEditEmployee = useCallback((employee) => {
-    console.log('✏️ Открытие редактирования для:', employee.id, employee.fullName);
     setSelectedEmployee(employee);
     setEditModalVisible(true);
   }, []);
 
-  // ПРЯМАЯ ФУНКЦИЯ УДАЛЕНИЯ без useCallback
-  const deleteEmployeeDirectly = async (employeeId, employeeName) => {
-    console.log('🔥🔥🔥 deleteEmployeeDirectly НАЧАЛО');
-    console.log('🔥 ID:', employeeId);
-    console.log('🔥 Name:', employeeName);
+  // ПРЯМОЕ УДАЛЕНИЕ - МАКСИМАЛЬНО ПРОСТО
+  const handleDeleteEmployee = async (employeeId, employeeName) => {
+    console.log('=== УДАЛЕНИЕ НАЧАТО ===');
+    console.log('ID:', employeeId);
+    console.log('Имя:', employeeName);
     
-    try {
-      console.log('🔥 Step 1: Проверка auth');
-      if (!auth.currentUser) {
-        throw new Error('Пользователь не авторизован');
+    if (Platform.OS === 'web') {
+      // Для веб используем confirm
+      const confirmed = window.confirm(`Удалить артиста "${employeeName}"?`);
+      if (!confirmed) {
+        console.log('Отменено');
+        return;
       }
-      console.log('🔥 Step 1: OK - User:', auth.currentUser.email);
-      
-      console.log('🔥 Step 2: Создание reference');
-      const docRef = doc(db, 'employees', employeeId);
-      console.log('🔥 Step 2: OK - Path:', docRef.path);
-      
-      console.log('🔥 Step 3: Вызов deleteDoc');
-      await deleteDoc(docRef);
-      console.log('🔥 Step 3: OK - Документ удален!');
-      
-      console.log('🔥 Step 4: Показ успешного сообщения');
-      Alert.alert('Успех', `Артист "${employeeName}" удален`);
-      
-      console.log('🔥 Step 5: Перезагрузка списка');
-      await loadEmployees();
-      console.log('🔥 Step 5: OK - Список обновлен');
-      
-      console.log('🔥🔥🔥 deleteEmployeeDirectly ЗАВЕРШЕНО УСПЕШНО');
-      
-    } catch (error) {
-      console.error('🔥❌ deleteEmployeeDirectly ОШИБКА:', error);
-      console.error('🔥❌ Error name:', error.name);
-      console.error('🔥❌ Error message:', error.message);
-      console.error('🔥❌ Error code:', error.code);
-      console.error('🔥❌ Error stack:', error.stack);
-      
-      Alert.alert(
-        'Ошибка удаления', 
-        `Не удалось удалить артиста.\n\nОшибка: ${error.message}\n\nКод: ${error.code || 'нет'}`
-      );
+    } else {
+      // Для мобильных используем Alert
+      return new Promise((resolve) => {
+        Alert.alert(
+          'Удаление',
+          `Удалить "${employeeName}"?`,
+          [
+            {
+              text: 'Нет',
+              style: 'cancel',
+              onPress: () => {
+                console.log('Отменено');
+                resolve();
+              }
+            },
+            {
+              text: 'Да',
+              style: 'destructive',
+              onPress: async () => {
+                await performDelete(employeeId, employeeName);
+                resolve();
+              }
+            }
+          ]
+        );
+      });
     }
+    
+    // Для веб - сразу удаляем
+    await performDelete(employeeId, employeeName);
   };
 
-  const handleDeleteEmployee = (employee) => {
-    console.log('🗑️🗑️🗑️ handleDeleteEmployee - ВХОД');
-    console.log('🗑️ Employee переданный:', employee);
-    
-    setTimeout(() => {
-      console.log('🗑️ Таймаут начался - показываем Alert');
+  const performDelete = async (employeeId, employeeName) => {
+    try {
+      console.log('>>> Начало удаления');
+      const docRef = doc(db, 'employees', employeeId);
+      console.log('>>> Reference создан');
       
-      Alert.alert(
-        'Удаление артиста',
-        `Вы уверены, что хотите удалить "${employee.fullName}"?`,
-        [
-          { 
-            text: 'Отмена', 
-            style: 'cancel',
-            onPress: () => console.log('🗑️ Пользователь отменил')
-          },
-          { 
-            text: 'Удалить', 
-            style: 'destructive',
-            onPress: () => {
-              console.log('🗑️ Пользователь подтвердил - вызываем deleteEmployeeDirectly');
-              deleteEmployeeDirectly(employee.id, employee.fullName);
-            }
-          }
-        ],
-        { cancelable: true }
-      );
-    }, 100);
+      await deleteDoc(docRef);
+      console.log('>>> Документ удален');
+      
+      Alert.alert('Готово', `Артист "${employeeName}" удален`);
+      
+      await loadEmployees();
+      console.log('>>> Список обновлен');
+      console.log('=== УДАЛЕНИЕ ЗАВЕРШЕНО ===');
+    } catch (error) {
+      console.error('!!! ОШИБКА:', error);
+      Alert.alert('Ошибка', `Не удалось удалить: ${error.message}`);
+    }
   };
 
   const handleSaveEmployee = useCallback(async (employeeId, formData) => {
     try {
-      console.log('💾 Сохранение данных для:', employeeId);
       await updateDoc(doc(db, 'employees', employeeId), {
         ...formData,
         lastUpdated: new Date()
       });
-      Alert.alert('Успех', 'Данные сотрудника обновлены');
+      Alert.alert('Успех', 'Данные обновлены');
       setEditModalVisible(false);
       setSelectedEmployee(null);
       loadEmployees();
     } catch (error) {
-      console.error('❌ Ошибка обновления сотрудника:', error);
-      Alert.alert('Ошибка', 'Не удалось обновить данные сотрудника');
+      Alert.alert('Ошибка', 'Не удалось обновить данные');
     }
   }, []);
-
-  const handleDeleteFromModal = async (employeeId) => {
-    console.log('🟣 handleDeleteFromModal вызван');
-    const employee = employees.find(e => e.id === employeeId);
-    if (employee) {
-      setEditModalVisible(false);
-      setSelectedEmployee(null);
-      await deleteEmployeeDirectly(employeeId, employee.fullName);
-    } else {
-      Alert.alert('Ошибка', 'Артист не найден');
-    }
-  };
 
   const handleCloseEditModal = useCallback(() => {
     setEditModalVisible(false);
@@ -709,7 +622,6 @@ export default function EmployeesListScreen({ navigation, route }) {
         start={{ x: 0, y: 0 }}
         end={{ x: 1, y: 1 }}
       >
-        {/* Хедер */}
         <LinearGradient
           colors={['rgba(26, 26, 26, 0.98)', 'rgba(35, 35, 35, 0.95)']}
           style={styles.header}
@@ -746,7 +658,6 @@ export default function EmployeesListScreen({ navigation, route }) {
         </LinearGradient>
 
         <View style={styles.contentContainer}>
-          {/* Поиск */}
           <View style={styles.searchContainer}>
             <LinearGradient
               colors={['rgba(42, 42, 42, 0.9)', 'rgba(35, 35, 35, 0.8)']}
@@ -768,7 +679,6 @@ export default function EmployeesListScreen({ navigation, route }) {
             </LinearGradient>
           </View>
 
-          {/* Статистика команды - сворачиваемая */}
           <CollapsibleSection
             title="Статистика команды"
             isExpanded={statsExpanded}
@@ -824,7 +734,6 @@ export default function EmployeesListScreen({ navigation, route }) {
             </View>
           </CollapsibleSection>
 
-          {/* Фильтры по статусу - сворачиваемая */}
           <CollapsibleSection
             title="Фильтр по статусу"
             isExpanded={filtersExpanded}
@@ -891,7 +800,6 @@ export default function EmployeesListScreen({ navigation, route }) {
             </View>
           </CollapsibleSection>
 
-          {/* Информация о фильтрах */}
           {(filter !== 'all' || searchQuery) && (
             <View style={styles.filterInfo}>
               <LinearGradient
@@ -916,7 +824,6 @@ export default function EmployeesListScreen({ navigation, route }) {
             </View>
           )}
 
-          {/* Список сотрудников */}
           <View style={styles.listContainer}>
             <FlatList
               data={filteredEmployees}
@@ -977,13 +884,12 @@ export default function EmployeesListScreen({ navigation, route }) {
           </View>
         </View>
 
-        {/* Модальное окно редактирования сотрудника */}
         <EditEmployeeModal
           visible={editModalVisible}
           employee={selectedEmployee}
           onClose={handleCloseEditModal}
           onSave={handleSaveEmployee}
-          onDelete={handleDeleteFromModal}
+          onDelete={handleDeleteEmployee}
         />
       </LinearGradient>
     </View>
@@ -1087,7 +993,6 @@ const styles = StyleSheet.create({
     fontSize: getResponsiveFontSize(13),
     color: '#E0E0E0',
   },
-  // Стили для сворачиваемых секций
   collapsibleContainer: {
     marginHorizontal: getResponsiveSize(10),
     marginBottom: getResponsiveSize(6),
@@ -1414,8 +1319,6 @@ const styles = StyleSheet.create({
     fontSize: getResponsiveFontSize(11),
     fontWeight: '700',
   },
-
-  // Стили для модального окна редактирования
   modalOverlay: {
     flex: 1,
     backgroundColor: 'rgba(0, 0, 0, 0.8)',
