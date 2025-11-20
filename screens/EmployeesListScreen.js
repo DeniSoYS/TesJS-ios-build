@@ -144,7 +144,6 @@ const EmployeeItem = React.memo(({ item, onStatusChange, onEdit }) => {
   );
 });
 
-// Модальное окно редактирования сотрудника
 const EditEmployeeModal = ({ 
   visible, 
   employee, 
@@ -529,7 +528,7 @@ export default function EmployeesListScreen({ navigation, route }) {
         start={{ x: 0, y: 0 }}
         end={{ x: 1, y: 1 }}
       >
-        {/* Хедер в стиле CalendarScreen */}
+        {/* Хедер */}
         <LinearGradient
           colors={['rgba(26, 26, 26, 0.98)', 'rgba(35, 35, 35, 0.95)']}
           style={styles.header}
