@@ -1072,6 +1072,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   createButton: {
+
     flexDirection: 'row',
     alignItems: 'center',
     paddingVertical: getResponsiveSize(12),
