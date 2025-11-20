@@ -21,6 +21,7 @@
         "backgroundColor": "#FFD700"
       },
       "package": "com.example.firebasetest",
+      //"googleServicesFile": "./google-services.json",
       "permissions": [
         "RECEIVE_BOOT_COMPLETED",
         "WAKE_LOCK",
@@ -37,8 +38,7 @@
       }
     },
     "web": {
-      "favicon": "./assets/favicon.png",
-      "bundler": "metro"
+      "favicon": "./assets/favicon.png"
     },
     "plugins": [
       [
