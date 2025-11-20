@@ -28,5 +28,5 @@ jobs:
 
       - uses: actions/upload-artifact@v4
         with:
-          name: TESJ-ipa
-          path: build/ipa/*.ipa
+          name: InfoHor-ipa
+          path: "**/*.ipa"
