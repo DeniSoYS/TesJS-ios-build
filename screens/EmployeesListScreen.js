@@ -98,7 +98,7 @@ const EmployeeItem = React.memo(({ item, onStatusChange, onEdit, onDelete }) => 
                   start={{ x: 0, y: 0 }}
                   end={{ x: 1, y: 1 }}
                 >
-                  <Ionicons name="pencil" size={getResponsiveSize(10)} color="#1a1a1a" />
+                  <Ionicons name="pencil" size={getResponsiveSize(11)} color="#1a1a1a" />
                 </LinearGradient>
               </TouchableOpacity>
 
@@ -113,7 +113,7 @@ const EmployeeItem = React.memo(({ item, onStatusChange, onEdit, onDelete }) => 
                   start={{ x: 0, y: 0 }}
                   end={{ x: 1, y: 1 }}
                 >
-                  <Ionicons name="trash-outline" size={getResponsiveSize(10)} color="#FFFFFF" />
+                  <Ionicons name="trash-outline" size={getResponsiveSize(11)} color="#FFFFFF" />
                 </LinearGradient>
               </TouchableOpacity>
             </View>
@@ -132,7 +132,7 @@ const EmployeeItem = React.memo(({ item, onStatusChange, onEdit, onDelete }) => 
                   <Text style={styles.statusText}>
                     {statusInfo.label}
                   </Text>
-                  <Ionicons name="chevron-down" size={getResponsiveSize(10)} color="#FFFFFF" />
+                  <Ionicons name="chevron-down" size={getResponsiveSize(11)} color="#FFFFFF" />
                 </View>
               </LinearGradient>
             </TouchableOpacity>
@@ -141,7 +141,7 @@ const EmployeeItem = React.memo(({ item, onStatusChange, onEdit, onDelete }) => 
        
         {(item.startDate || item.endDate) && (
           <View style={styles.dateInfo}>
-            <Ionicons name="calendar-outline" size={getResponsiveSize(10)} color="#FFD700" />
+            <Ionicons name="calendar-outline" size={getResponsiveSize(11)} color="#FFD700" />
             <Text style={styles.dateText}>
               {item.startDate && `с ${new Date(item.startDate).toLocaleDateString('ru-RU')}`}
               {item.startDate && item.endDate && ' '}
@@ -247,7 +247,7 @@ const EditEmployeeModal = ({
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>✏️ Редактирование</Text>
               <TouchableOpacity onPress={onClose} style={styles.modalCloseIcon}>
-                <Ionicons name="close-circle" size={getResponsiveSize(24)} color="#FFD700" />
+                <Ionicons name="close-circle" size={getResponsiveSize(26)} color="#FFD700" />
               </TouchableOpacity>
             </View>
 
@@ -361,7 +361,7 @@ const EditEmployeeModal = ({
                     start={{ x: 0, y: 0 }}
                     end={{ x: 1, y: 1 }}
                   >
-                    <Ionicons name="trash-outline" size={getResponsiveSize(16)} color="#FFFFFF" />
+                    <Ionicons name="trash-outline" size={getResponsiveSize(17)} color="#FFFFFF" />
                     <Text style={styles.deleteEmployeeButtonText}>Удалить артиста</Text>
                   </LinearGradient>
                 </TouchableOpacity>
@@ -386,7 +386,7 @@ const EditEmployeeModal = ({
                   start={{ x: 0, y: 0 }}
                   end={{ x: 1, y: 1 }}
                 >
-                  <Ionicons name="save" size={getResponsiveSize(16)} color="#1a1a1a" />
+                  <Ionicons name="save" size={getResponsiveSize(17)} color="#1a1a1a" />
                   <Text style={styles.saveButtonText}>Сохранить</Text>
                 </LinearGradient>
               </TouchableOpacity>
@@ -409,7 +409,7 @@ const CollapsibleSection = ({ title, isExpanded, onToggle, children, icon }) => 
         </View>
         <Ionicons 
           name={isExpanded ? "chevron-up" : "chevron-down"} 
-          size={getResponsiveSize(14)} 
+          size={getResponsiveSize(15)} 
           color="#FFD700" 
         />
       </TouchableOpacity>
@@ -721,7 +721,7 @@ export default function EmployeesListScreen({ navigation, route }) {
               onPress={() => navigation.goBack()}
               style={styles.backButton}
             >
-              <Ionicons name="arrow-back" size={getResponsiveSize(20)} color="#FFD700" />
+              <Ionicons name="arrow-back" size={getResponsiveSize(22)} color="#FFD700" />
             </TouchableOpacity>
             
             <View style={styles.titleSection}>
@@ -732,7 +732,7 @@ export default function EmployeesListScreen({ navigation, route }) {
                   start={{ x: 0, y: 0 }}
                   end={{ x: 1, y: 1 }}
                 >
-                  <Ionicons name="people" size={getResponsiveSize(18)} color="#1a1a1a" />
+                  <Ionicons name="people" size={getResponsiveSize(20)} color="#1a1a1a" />
                 </LinearGradient>
               </View>
               <View style={styles.titleTextContainer}>
@@ -752,7 +752,7 @@ export default function EmployeesListScreen({ navigation, route }) {
               colors={['rgba(42, 42, 42, 0.9)', 'rgba(35, 35, 35, 0.8)']}
               style={styles.searchGradient}
             >
-              <Ionicons name="search" size={getResponsiveSize(14)} color="#FFD700" />
+              <Ionicons name="search" size={getResponsiveSize(15)} color="#FFD700" />
               <TextInput
                 style={styles.searchInput}
                 value={searchQuery}
@@ -762,7 +762,7 @@ export default function EmployeesListScreen({ navigation, route }) {
               />
               {searchQuery.length > 0 && (
                 <TouchableOpacity onPress={() => setSearchQuery('')}>
-                  <Ionicons name="close-circle" size={getResponsiveSize(14)} color="#888" />
+                  <Ionicons name="close-circle" size={getResponsiveSize(15)} color="#888" />
                 </TouchableOpacity>
               )}
             </LinearGradient>
@@ -773,7 +773,7 @@ export default function EmployeesListScreen({ navigation, route }) {
             title="Статистика команды"
             isExpanded={statsExpanded}
             onToggle={() => setStatsExpanded(!statsExpanded)}
-            icon={<Ionicons name="stats-chart" size={getResponsiveSize(12)} color="#FFD700" />}
+            icon={<Ionicons name="stats-chart" size={getResponsiveSize(13)} color="#FFD700" />}
           >
             <View style={styles.statsContainer}>
               <LinearGradient
@@ -829,7 +829,7 @@ export default function EmployeesListScreen({ navigation, route }) {
             title="Фильтр по статусу"
             isExpanded={filtersExpanded}
             onToggle={() => setFiltersExpanded(!filtersExpanded)}
-            icon={<Ionicons name="filter" size={getResponsiveSize(12)} color="#FFD700" />}
+            icon={<Ionicons name="filter" size={getResponsiveSize(13)} color="#FFD700" />}
           >
             <View style={styles.filtersContainer}>
               <LinearGradient
@@ -898,7 +898,7 @@ export default function EmployeesListScreen({ navigation, route }) {
                 colors={['rgba(255, 215, 0, 0.2)', 'rgba(255, 165, 0, 0.2)']}
                 style={styles.filterInfoGradient}
               >
-                <Ionicons name="information-circle" size={getResponsiveSize(10)} color="#FFD700" />
+                <Ionicons name="information-circle" size={getResponsiveSize(11)} color="#FFD700" />
                 <Text style={styles.filterInfoText}>
                   Показано: {filteredEmployees.length} из {employees.length}
                   {filter !== 'all' && ` • ${getStatusLabel(filter)}`}
@@ -910,7 +910,7 @@ export default function EmployeesListScreen({ navigation, route }) {
                     setFilter('all');
                   }}
                 >
-                  <Ionicons name="close" size={getResponsiveSize(10)} color="#FFD700" />
+                  <Ionicons name="close" size={getResponsiveSize(11)} color="#FFD700" />
                 </TouchableOpacity>
               </LinearGradient>
             </View>
@@ -940,12 +940,12 @@ export default function EmployeesListScreen({ navigation, route }) {
               ListEmptyComponent={
                 loading ? (
                   <View style={styles.loadingContainer}>
-                    <Ionicons name="people" size={getResponsiveSize(36)} color="#FFD700" />
+                    <Ionicons name="people" size={getResponsiveSize(40)} color="#FFD700" />
                     <Text style={styles.loadingText}>Загрузка артистов...</Text>
                   </View>
                 ) : (
                   <View style={styles.emptyState}>
-                    <Ionicons name="people-outline" size={getResponsiveSize(36)} color="#555" />
+                    <Ionicons name="people-outline" size={getResponsiveSize(40)} color="#555" />
                     <Text style={styles.emptyStateText}>
                       {employees.length === 0 
                         ? 'Артистов нет' 
@@ -1049,13 +1049,13 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   mainTitle: {
-    fontSize: getResponsiveFontSize(15),
+    fontSize: getResponsiveFontSize(17),
     fontWeight: '800',
     color: '#E0E0E0',
     letterSpacing: 0.3,
   },
   subtitle: {
-    fontSize: getResponsiveFontSize(10),
+    fontSize: getResponsiveFontSize(11),
     color: '#999',
     fontWeight: '500',
   },
@@ -1084,7 +1084,7 @@ const styles = StyleSheet.create({
   searchInput: {
     flex: 1,
     marginLeft: getResponsiveSize(6),
-    fontSize: getResponsiveFontSize(12),
+    fontSize: getResponsiveFontSize(13),
     color: '#E0E0E0',
   },
   // Стили для сворачиваемых секций
@@ -1107,7 +1107,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   collapsibleTitleText: {
-    fontSize: getResponsiveFontSize(12),
+    fontSize: getResponsiveFontSize(13),
     fontWeight: '700',
     color: '#E0E0E0',
     marginLeft: getResponsiveSize(5),
@@ -1136,7 +1136,7 @@ const styles = StyleSheet.create({
     marginBottom: getResponsiveSize(6),
   },
   totalCount: {
-    fontSize: getResponsiveFontSize(12),
+    fontSize: getResponsiveFontSize(13),
     fontWeight: '800',
     color: '#FFD700',
   },
@@ -1157,12 +1157,12 @@ const styles = StyleSheet.create({
     marginBottom: getResponsiveSize(3),
   },
   statIconText: {
-    fontSize: getResponsiveFontSize(10),
+    fontSize: getResponsiveFontSize(11),
     fontWeight: '800',
     color: '#FFFFFF',
   },
   statLabel: {
-    fontSize: getResponsiveFontSize(8),
+    fontSize: getResponsiveFontSize(9),
     color: '#999',
     fontWeight: '600',
     textAlign: 'center',
@@ -1211,7 +1211,7 @@ const styles = StyleSheet.create({
     elevation: 2,
   },
   filterChipText: {
-    fontSize: getResponsiveFontSize(9),
+    fontSize: getResponsiveFontSize(10),
     color: '#999',
     fontWeight: '600',
   },
@@ -1233,7 +1233,7 @@ const styles = StyleSheet.create({
   },
   filterInfoText: {
     flex: 1,
-    fontSize: getResponsiveFontSize(10),
+    fontSize: getResponsiveFontSize(11),
     color: '#FFD700',
     marginLeft: getResponsiveSize(5),
     fontWeight: '500',
@@ -1271,7 +1271,7 @@ const styles = StyleSheet.create({
     paddingRight: getResponsiveSize(6),
   },
   employeeName: {
-    fontSize: getResponsiveFontSize(13),
+    fontSize: getResponsiveFontSize(14),
     fontWeight: '700',
     color: '#E0E0E0',
     marginBottom: getResponsiveSize(3),
@@ -1282,13 +1282,13 @@ const styles = StyleSheet.create({
     flexWrap: 'wrap',
   },
   employeePosition: {
-    fontSize: getResponsiveFontSize(10),
+    fontSize: getResponsiveFontSize(11),
     color: '#FFD700',
     fontWeight: '600',
     marginRight: getResponsiveSize(6),
   },
   employeeEmail: {
-    fontSize: getResponsiveFontSize(10),
+    fontSize: getResponsiveFontSize(11),
     color: '#999',
   },
   actionsSection: {
@@ -1309,9 +1309,9 @@ const styles = StyleSheet.create({
     elevation: 2,
   },
   editButtonGradient: {
-    width: getResponsiveSize(22),
-    height: getResponsiveSize(22),
-    borderRadius: getResponsiveSize(11),
+    width: getResponsiveSize(24),
+    height: getResponsiveSize(24),
+    borderRadius: getResponsiveSize(12),
     justifyContent: 'center',
     alignItems: 'center',
   },
@@ -1325,9 +1325,9 @@ const styles = StyleSheet.create({
     elevation: 2,
   },
   deleteButtonGradient: {
-    width: getResponsiveSize(22),
-    height: getResponsiveSize(22),
-    borderRadius: getResponsiveSize(11),
+    width: getResponsiveSize(24),
+    height: getResponsiveSize(24),
+    borderRadius: getResponsiveSize(12),
     justifyContent: 'center',
     alignItems: 'center',
   },
@@ -1341,10 +1341,10 @@ const styles = StyleSheet.create({
     elevation: 2,
   },
   statusBadge: {
-    paddingHorizontal: getResponsiveSize(8),
-    paddingVertical: getResponsiveSize(4),
+    paddingHorizontal: getResponsiveSize(9),
+    paddingVertical: getResponsiveSize(5),
     borderRadius: getResponsiveSize(14),
-    minWidth: getResponsiveSize(90),
+    minWidth: getResponsiveSize(95),
   },
   statusContent: {
     flexDirection: 'row',
@@ -1352,7 +1352,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   statusText: {
-    fontSize: getResponsiveFontSize(9),
+    fontSize: getResponsiveFontSize(10),
     fontWeight: '600',
     color: '#FFFFFF',
     marginRight: getResponsiveSize(3),
@@ -1368,7 +1368,7 @@ const styles = StyleSheet.create({
     borderLeftColor: '#FFD700',
   },
   dateText: {
-    fontSize: getResponsiveFontSize(9),
+    fontSize: getResponsiveFontSize(10),
     color: '#E0E0E0',
     marginLeft: getResponsiveSize(3),
     fontWeight: '500',
@@ -1379,7 +1379,7 @@ const styles = StyleSheet.create({
     paddingVertical: getResponsiveSize(30),
   },
   loadingText: {
-    fontSize: getResponsiveFontSize(12),
+    fontSize: getResponsiveFontSize(13),
     color: '#E0E0E0',
     marginTop: getResponsiveSize(8),
   },
@@ -1389,7 +1389,7 @@ const styles = StyleSheet.create({
     paddingVertical: getResponsiveSize(30),
   },
   emptyStateText: {
-    fontSize: getResponsiveFontSize(12),
+    fontSize: getResponsiveFontSize(13),
     color: '#888',
     marginTop: getResponsiveSize(8),
     textAlign: 'center',
@@ -1411,7 +1411,7 @@ const styles = StyleSheet.create({
   },
   clearFiltersText: {
     color: '#1a1a1a',
-    fontSize: getResponsiveFontSize(10),
+    fontSize: getResponsiveFontSize(11),
     fontWeight: '700',
   },
 
@@ -1446,7 +1446,7 @@ const styles = StyleSheet.create({
     marginBottom: getResponsiveSize(16),
   },
   modalTitle: {
-    fontSize: getResponsiveFontSize(18),
+    fontSize: getResponsiveFontSize(20),
     fontWeight: '800',
     color: '#E0E0E0',
     flex: 1,
@@ -1461,7 +1461,7 @@ const styles = StyleSheet.create({
     marginBottom: getResponsiveSize(12),
   },
   label: {
-    fontSize: getResponsiveFontSize(13),
+    fontSize: getResponsiveFontSize(14),
     fontWeight: '600',
     color: '#E0E0E0',
     marginBottom: getResponsiveSize(6),
@@ -1473,7 +1473,7 @@ const styles = StyleSheet.create({
     borderRadius: getResponsiveSize(8),
     padding: getResponsiveSize(10),
     color: '#E0E0E0',
-    fontSize: getResponsiveFontSize(13),
+    fontSize: getResponsiveFontSize(14),
   },
   statusOptions: {
     flexDirection: 'row',
@@ -1495,7 +1495,7 @@ const styles = StyleSheet.create({
     borderColor: 'rgba(255, 255, 255, 0.8)',
   },
   statusOptionText: {
-    fontSize: getResponsiveFontSize(11),
+    fontSize: getResponsiveFontSize(12),
     fontWeight: '600',
     color: '#999',
   },
@@ -1511,7 +1511,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   dateHint: {
-    fontSize: getResponsiveFontSize(10),
+    fontSize: getResponsiveFontSize(11),
     color: '#FFD700',
     fontStyle: 'italic',
     marginTop: getResponsiveSize(6),
@@ -1537,7 +1537,7 @@ const styles = StyleSheet.create({
   },
   deleteEmployeeButtonText: {
     color: '#FFFFFF',
-    fontSize: getResponsiveFontSize(14),
+    fontSize: getResponsiveFontSize(15),
     fontWeight: '700',
   },
   modalActions: {
@@ -1556,7 +1556,7 @@ const styles = StyleSheet.create({
   },
   cancelButtonText: {
     color: '#FFD700',
-    fontSize: getResponsiveFontSize(14),
+    fontSize: getResponsiveFontSize(15),
     fontWeight: '600',
   },
   saveButton: {
@@ -1578,7 +1578,7 @@ const styles = StyleSheet.create({
   },
   saveButtonText: {
     color: '#1a1a1a',
-    fontSize: getResponsiveFontSize(14),
+    fontSize: getResponsiveFontSize(15),
     fontWeight: '700',
   },
 });
