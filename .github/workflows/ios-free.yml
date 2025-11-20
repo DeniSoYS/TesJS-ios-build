@@ -1,32 +1,41 @@
 name: Build iOS IPA
-
 on: workflow_dispatch
-
 jobs:
   build:
     runs-on: macos-14
     steps:
       - uses: actions/checkout@v4
-
       - uses: actions/setup-node@v4
         with:
           node-version: 20
-
       - run: npm ci --legacy-peer-deps
-
       - run: npx expo prebuild --clean --platform ios
-
       - run: cd ios && pod install --repo-update
-
-      - run: |
+      
+      - name: Build Archive
+        run: |
           cd ios
-          xcodebuild -workspace InfoHor.xcworkspace -scheme InfoHor -configuration Release -sdk iphoneos -archivePath build/InfoHor.xcarchive CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO
-
-          echo '<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd"><plist version="1.0"><dict><key>method</key><string>development</string><key>compileBitcode</key><false/></dict></plist>' > ExportOptions.plist
-
-          xcodebuild -exportArchive -archivePath build/InfoHor.xcarchive -exportOptionsPlist ExportOptions.plist -exportPath build/ipa || true
-
+          xcodebuild -workspace InfoHor.xcworkspace \
+            -scheme InfoHor \
+            -configuration Release \
+            -sdk iphoneos \
+            -archivePath build/InfoHor.xcarchive \
+            archive \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGN_IDENTITY="" \
+            CODE_SIGN_ENTITLEMENTS=""
+      
+      - name: Create IPA manually
+        run: |
+          cd ios
+          mkdir -p build/ipa/Payload
+          cp -r build/InfoHor.xcarchive/Products/Applications/InfoHor.app build/ipa/Payload/
+          cd build/ipa
+          zip -r InfoHor.ipa Payload
+          rm -rf Payload
+      
       - uses: actions/upload-artifact@v4
         with:
           name: InfoHor-ipa
-          path: "**/*.ipa"
+          path: ios/build/ipa/*.ipa
