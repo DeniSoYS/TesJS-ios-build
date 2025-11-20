@@ -80,33 +80,35 @@ const EmployeeItem = React.memo(({ item, onStatusChange, onEdit, onDelete }) => 
           </View>
          
           <View style={styles.actionsSection}>
-            <TouchableOpacity
-              style={styles.editButton}
-              onPress={handleEditPress}
-            >
-              <LinearGradient
-                colors={['#FFD700', '#FFA500']}
-                style={styles.editButtonGradient}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 1 }}
+            <View style={styles.actionButtonsRow}>
+              <TouchableOpacity
+                style={styles.editButton}
+                onPress={handleEditPress}
               >
-                <Ionicons name="pencil" size={getResponsiveSize(12)} color="#1a1a1a" />
-              </LinearGradient>
-            </TouchableOpacity>
+                <LinearGradient
+                  colors={['#FFD700', '#FFA500']}
+                  style={styles.editButtonGradient}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 1 }}
+                >
+                  <Ionicons name="pencil" size={getResponsiveSize(10)} color="#1a1a1a" />
+                </LinearGradient>
+              </TouchableOpacity>
 
-            <TouchableOpacity
-              style={styles.deleteButton}
-              onPress={handleDeletePress}
-            >
-              <LinearGradient
-                colors={['#FF6B6B', '#EE5A52']}
-                style={styles.deleteButtonGradient}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 1 }}
+              <TouchableOpacity
+                style={styles.deleteButton}
+                onPress={handleDeletePress}
               >
-                <Ionicons name="trash-outline" size={getResponsiveSize(12)} color="#FFFFFF" />
-              </LinearGradient>
-            </TouchableOpacity>
+                <LinearGradient
+                  colors={['#FF6B6B', '#EE5A52']}
+                  style={styles.deleteButtonGradient}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 1 }}
+                >
+                  <Ionicons name="trash-outline" size={getResponsiveSize(10)} color="#FFFFFF" />
+                </LinearGradient>
+              </TouchableOpacity>
+            </View>
 
             <TouchableOpacity
               style={styles.statusButton}
@@ -122,7 +124,7 @@ const EmployeeItem = React.memo(({ item, onStatusChange, onEdit, onDelete }) => 
                   <Text style={styles.statusText}>
                     {statusInfo.label}
                   </Text>
-                  <Ionicons name="chevron-down" size={getResponsiveSize(12)} color="#FFFFFF" />
+                  <Ionicons name="chevron-down" size={getResponsiveSize(10)} color="#FFFFFF" />
                 </View>
               </LinearGradient>
             </TouchableOpacity>
@@ -131,7 +133,7 @@ const EmployeeItem = React.memo(({ item, onStatusChange, onEdit, onDelete }) => 
        
         {(item.startDate || item.endDate) && (
           <View style={styles.dateInfo}>
-            <Ionicons name="calendar-outline" size={getResponsiveSize(12)} color="#FFD700" />
+            <Ionicons name="calendar-outline" size={getResponsiveSize(10)} color="#FFD700" />
             <Text style={styles.dateText}>
               {item.startDate && `с ${new Date(item.startDate).toLocaleDateString('ru-RU')}`}
               {item.startDate && item.endDate && ' '}
@@ -386,7 +388,7 @@ const CollapsibleSection = ({ title, isExpanded, onToggle, children, icon }) => 
         </View>
         <Ionicons 
           name={isExpanded ? "chevron-up" : "chevron-down"} 
-          size={getResponsiveSize(16)} 
+          size={getResponsiveSize(14)} 
           color="#FFD700" 
         />
       </TouchableOpacity>
@@ -517,12 +519,14 @@ export default function EmployeesListScreen({ navigation, route }) {
           style: 'destructive',
           onPress: async () => {
             try {
+              console.log('🗑️ Удаление артиста:', employee.id);
               await deleteDoc(doc(db, 'employees', employee.id));
+              console.log('✅ Артист удален успешно');
               Alert.alert('Успех', 'Артист удален');
-              loadEmployees();
+              await loadEmployees();
             } catch (error) {
-              console.error('Ошибка удаления артиста:', error);
-              Alert.alert('Ошибка', 'Не удалось удалить артиста');
+              console.error('❌ Ошибка удаления артиста:', error);
+              Alert.alert('Ошибка', `Не удалось удалить артиста: ${error.message}`);
             }
           }
         }
@@ -548,14 +552,16 @@ export default function EmployeesListScreen({ navigation, route }) {
 
   const handleDeleteFromModal = useCallback(async (employeeId) => {
     try {
+      console.log('🗑️ Удаление артиста из модалки:', employeeId);
       await deleteDoc(doc(db, 'employees', employeeId));
+      console.log('✅ Артист удален успешно');
       Alert.alert('Успех', 'Артист удален');
       setEditModalVisible(false);
       setSelectedEmployee(null);
-      loadEmployees();
+      await loadEmployees();
     } catch (error) {
-      console.error('Ошибка удаления артиста:', error);
-      Alert.alert('Ошибка', 'Не удалось удалить артиста');
+      console.error('❌ Ошибка удаления артиста:', error);
+      Alert.alert('Ошибка', `Не удалось удалить артиста: ${error.message}`);
     }
   }, []);
 
@@ -678,7 +684,7 @@ export default function EmployeesListScreen({ navigation, route }) {
               colors={['rgba(42, 42, 42, 0.9)', 'rgba(35, 35, 35, 0.8)']}
               style={styles.searchGradient}
             >
-              <Ionicons name="search" size={getResponsiveSize(16)} color="#FFD700" />
+              <Ionicons name="search" size={getResponsiveSize(14)} color="#FFD700" />
               <TextInput
                 style={styles.searchInput}
                 value={searchQuery}
@@ -688,7 +694,7 @@ export default function EmployeesListScreen({ navigation, route }) {
               />
               {searchQuery.length > 0 && (
                 <TouchableOpacity onPress={() => setSearchQuery('')}>
-                  <Ionicons name="close-circle" size={getResponsiveSize(16)} color="#888" />
+                  <Ionicons name="close-circle" size={getResponsiveSize(14)} color="#888" />
                 </TouchableOpacity>
               )}
             </LinearGradient>
@@ -699,7 +705,7 @@ export default function EmployeesListScreen({ navigation, route }) {
             title="Статистика команды"
             isExpanded={statsExpanded}
             onToggle={() => setStatsExpanded(!statsExpanded)}
-            icon={<Ionicons name="stats-chart" size={getResponsiveSize(14)} color="#FFD700" />}
+            icon={<Ionicons name="stats-chart" size={getResponsiveSize(12)} color="#FFD700" />}
           >
             <View style={styles.statsContainer}>
               <LinearGradient
@@ -755,7 +761,7 @@ export default function EmployeesListScreen({ navigation, route }) {
             title="Фильтр по статусу"
             isExpanded={filtersExpanded}
             onToggle={() => setFiltersExpanded(!filtersExpanded)}
-            icon={<Ionicons name="filter" size={getResponsiveSize(14)} color="#FFD700" />}
+            icon={<Ionicons name="filter" size={getResponsiveSize(12)} color="#FFD700" />}
           >
             <View style={styles.filtersContainer}>
               <LinearGradient
@@ -824,7 +830,7 @@ export default function EmployeesListScreen({ navigation, route }) {
                 colors={['rgba(255, 215, 0, 0.2)', 'rgba(255, 165, 0, 0.2)']}
                 style={styles.filterInfoGradient}
               >
-                <Ionicons name="information-circle" size={getResponsiveSize(12)} color="#FFD700" />
+                <Ionicons name="information-circle" size={getResponsiveSize(10)} color="#FFD700" />
                 <Text style={styles.filterInfoText}>
                   Показано: {filteredEmployees.length} из {employees.length}
                   {filter !== 'all' && ` • ${getStatusLabel(filter)}`}
@@ -836,7 +842,7 @@ export default function EmployeesListScreen({ navigation, route }) {
                     setFilter('all');
                   }}
                 >
-                  <Ionicons name="close" size={getResponsiveSize(12)} color="#FFD700" />
+                  <Ionicons name="close" size={getResponsiveSize(10)} color="#FFD700" />
                 </TouchableOpacity>
               </LinearGradient>
             </View>
@@ -857,8 +863,8 @@ export default function EmployeesListScreen({ navigation, route }) {
                   tintColor="#FFD700"
                 />
               }
-              initialNumToRender={15}
-              maxToRenderPerBatch={15}
+              initialNumToRender={20}
+              maxToRenderPerBatch={20}
               windowSize={10}
               removeClippedSubviews={false}
               showsVerticalScrollIndicator={true}
@@ -926,19 +932,19 @@ const styles = StyleSheet.create({
   },
   contentContainer: {
     flex: 1,
-    paddingBottom: getResponsiveSize(10),
+    paddingBottom: getResponsiveSize(5),
   },
   header: {
     paddingHorizontal: getResponsiveSize(15),
-    paddingTop: getResponsiveSize(45),
-    paddingBottom: getResponsiveSize(15),
-    borderBottomLeftRadius: getResponsiveSize(20),
-    borderBottomRightRadius: getResponsiveSize(20),
+    paddingTop: getResponsiveSize(40),
+    paddingBottom: getResponsiveSize(12),
+    borderBottomLeftRadius: getResponsiveSize(18),
+    borderBottomRightRadius: getResponsiveSize(18),
     shadowColor: '#FFD700',
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.3,
-    shadowRadius: 12,
-    elevation: 8,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.25,
+    shadowRadius: 10,
+    elevation: 6,
     borderBottomWidth: 1,
     borderBottomColor: 'rgba(255, 215, 0, 0.3)',
   },
@@ -948,7 +954,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
   },
   backButton: {
-    padding: getResponsiveSize(6),
+    padding: getResponsiveSize(5),
   },
   titleSection: {
     flexDirection: 'row',
@@ -957,74 +963,74 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   titleIconContainer: {
-    marginRight: getResponsiveSize(10),
+    marginRight: getResponsiveSize(8),
   },
   titleIconGradient: {
-    width: getResponsiveSize(36),
-    height: getResponsiveSize(36),
-    borderRadius: getResponsiveSize(10),
+    width: getResponsiveSize(32),
+    height: getResponsiveSize(32),
+    borderRadius: getResponsiveSize(8),
     justifyContent: 'center',
     alignItems: 'center',
     shadowColor: '#FFD700',
-    shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.4,
-    shadowRadius: 6,
-    elevation: 4,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+    elevation: 3,
   },
   titleTextContainer: {
     alignItems: 'center',
   },
   mainTitle: {
-    fontSize: getResponsiveFontSize(16),
+    fontSize: getResponsiveFontSize(15),
     fontWeight: '800',
     color: '#E0E0E0',
     letterSpacing: 0.3,
   },
   subtitle: {
-    fontSize: getResponsiveFontSize(11),
+    fontSize: getResponsiveFontSize(10),
     color: '#999',
     fontWeight: '500',
   },
   headerSpacer: {
-    width: getResponsiveSize(36),
+    width: getResponsiveSize(32),
   },
   searchContainer: {
-    margin: getResponsiveSize(12),
-    marginBottom: getResponsiveSize(8),
+    margin: getResponsiveSize(10),
+    marginBottom: getResponsiveSize(6),
   },
   searchGradient: {
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: 'rgba(42, 42, 42, 0.9)',
-    paddingHorizontal: getResponsiveSize(12),
-    paddingVertical: getResponsiveSize(10),
-    borderRadius: getResponsiveSize(12),
+    paddingHorizontal: getResponsiveSize(10),
+    paddingVertical: getResponsiveSize(8),
+    borderRadius: getResponsiveSize(10),
     borderWidth: 1,
     borderColor: 'rgba(255, 215, 0, 0.2)',
     shadowColor: '#FFD700',
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.2,
-    shadowRadius: 6,
-    elevation: 3,
+    shadowOpacity: 0.15,
+    shadowRadius: 4,
+    elevation: 2,
   },
   searchInput: {
     flex: 1,
-    marginLeft: getResponsiveSize(8),
-    fontSize: getResponsiveFontSize(13),
+    marginLeft: getResponsiveSize(6),
+    fontSize: getResponsiveFontSize(12),
     color: '#E0E0E0',
   },
   // Стили для сворачиваемых секций
   collapsibleContainer: {
-    marginHorizontal: getResponsiveSize(12),
-    marginBottom: getResponsiveSize(8),
+    marginHorizontal: getResponsiveSize(10),
+    marginBottom: getResponsiveSize(6),
   },
   collapsibleHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    padding: getResponsiveSize(12),
+    padding: getResponsiveSize(8),
     backgroundColor: 'rgba(42, 42, 42, 0.7)',
-    borderRadius: getResponsiveSize(10),
+    borderRadius: getResponsiveSize(8),
     borderWidth: 1,
     borderColor: 'rgba(255, 215, 0, 0.2)',
   },
@@ -1033,36 +1039,36 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   collapsibleTitleText: {
-    fontSize: getResponsiveFontSize(14),
+    fontSize: getResponsiveFontSize(12),
     fontWeight: '700',
     color: '#E0E0E0',
-    marginLeft: getResponsiveSize(6),
+    marginLeft: getResponsiveSize(5),
   },
   collapsibleContent: {
-    marginTop: getResponsiveSize(6),
+    marginTop: getResponsiveSize(5),
   },
   statsContainer: {
     marginBottom: getResponsiveSize(0),
   },
   statsGradient: {
-    borderRadius: getResponsiveSize(12),
-    padding: getResponsiveSize(12),
+    borderRadius: getResponsiveSize(10),
+    padding: getResponsiveSize(8),
     borderWidth: 1,
     borderColor: 'rgba(255, 215, 0, 0.2)',
     shadowColor: '#FFD700',
-    shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.2,
-    shadowRadius: 6,
-    elevation: 4,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.15,
+    shadowRadius: 4,
+    elevation: 2,
   },
   statsHeader: {
     flexDirection: 'row',
     justifyContent: 'center',
     alignItems: 'center',
-    marginBottom: getResponsiveSize(10),
+    marginBottom: getResponsiveSize(6),
   },
   totalCount: {
-    fontSize: getResponsiveFontSize(14),
+    fontSize: getResponsiveFontSize(12),
     fontWeight: '800',
     color: '#FFD700',
   },
@@ -1075,20 +1081,20 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   statIcon: {
-    width: getResponsiveSize(28),
-    height: getResponsiveSize(28),
-    borderRadius: getResponsiveSize(14),
+    width: getResponsiveSize(24),
+    height: getResponsiveSize(24),
+    borderRadius: getResponsiveSize(12),
     justifyContent: 'center',
     alignItems: 'center',
-    marginBottom: getResponsiveSize(4),
+    marginBottom: getResponsiveSize(3),
   },
   statIconText: {
-    fontSize: getResponsiveFontSize(12),
+    fontSize: getResponsiveFontSize(10),
     fontWeight: '800',
     color: '#FFFFFF',
   },
   statLabel: {
-    fontSize: getResponsiveFontSize(9),
+    fontSize: getResponsiveFontSize(8),
     color: '#999',
     fontWeight: '600',
     textAlign: 'center',
@@ -1097,33 +1103,33 @@ const styles = StyleSheet.create({
     marginBottom: getResponsiveSize(0),
   },
   filtersGradient: {
-    borderRadius: getResponsiveSize(12),
-    padding: getResponsiveSize(12),
+    borderRadius: getResponsiveSize(10),
+    padding: getResponsiveSize(8),
     borderWidth: 1,
     borderColor: 'rgba(255, 215, 0, 0.2)',
     shadowColor: '#FFD700',
-    shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.2,
-    shadowRadius: 6,
-    elevation: 4,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.15,
+    shadowRadius: 4,
+    elevation: 2,
   },
   filtersScroll: {
-    maxHeight: getResponsiveSize(40),
+    maxHeight: getResponsiveSize(35),
   },
   filtersScrollContent: {
-    paddingRight: getResponsiveSize(8),
+    paddingRight: getResponsiveSize(6),
   },
   filtersRow: {
     flexDirection: 'row',
-    gap: getResponsiveSize(6),
+    gap: getResponsiveSize(5),
   },
   filterChip: {
-    paddingHorizontal: getResponsiveSize(12),
-    paddingVertical: getResponsiveSize(6),
-    borderRadius: getResponsiveSize(16),
+    paddingHorizontal: getResponsiveSize(10),
+    paddingVertical: getResponsiveSize(5),
+    borderRadius: getResponsiveSize(14),
     borderWidth: 1,
     borderColor: 'rgba(255, 215, 0, 0.3)',
-    minHeight: getResponsiveSize(30),
+    minHeight: getResponsiveSize(26),
     justifyContent: 'center',
     alignItems: 'center',
   },
@@ -1131,13 +1137,13 @@ const styles = StyleSheet.create({
     borderWidth: 2,
     borderColor: 'rgba(255, 255, 255, 0.8)',
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
+    shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.3,
-    shadowRadius: 3,
+    shadowRadius: 2,
     elevation: 2,
   },
   filterChipText: {
-    fontSize: getResponsiveFontSize(10),
+    fontSize: getResponsiveFontSize(9),
     color: '#999',
     fontWeight: '600',
   },
@@ -1146,44 +1152,44 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
   filterInfo: {
-    marginHorizontal: getResponsiveSize(12),
-    marginBottom: getResponsiveSize(8),
+    marginHorizontal: getResponsiveSize(10),
+    marginBottom: getResponsiveSize(6),
   },
   filterInfoGradient: {
     flexDirection: 'row',
     alignItems: 'center',
-    padding: getResponsiveSize(10),
-    borderRadius: getResponsiveSize(10),
+    padding: getResponsiveSize(7),
+    borderRadius: getResponsiveSize(8),
     borderWidth: 1,
     borderColor: 'rgba(255, 215, 0, 0.3)',
   },
   filterInfoText: {
     flex: 1,
-    fontSize: getResponsiveFontSize(11),
+    fontSize: getResponsiveFontSize(10),
     color: '#FFD700',
-    marginLeft: getResponsiveSize(6),
+    marginLeft: getResponsiveSize(5),
     fontWeight: '500',
   },
   listContainer: {
     flex: 1,
-    marginHorizontal: getResponsiveSize(12),
+    marginHorizontal: getResponsiveSize(10),
   },
   list: {
     flex: 1,
   },
   employeeCard: {
-    marginBottom: getResponsiveSize(8),
-    borderRadius: getResponsiveSize(12),
+    marginBottom: getResponsiveSize(6),
+    borderRadius: getResponsiveSize(10),
     overflow: 'hidden',
     shadowColor: '#FFD700',
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.2,
-    shadowRadius: 6,
-    elevation: 4,
+    shadowOpacity: 0.15,
+    shadowRadius: 4,
+    elevation: 3,
   },
   employeeGradient: {
-    padding: getResponsiveSize(12),
-    borderRadius: getResponsiveSize(12),
+    padding: getResponsiveSize(8),
+    borderRadius: getResponsiveSize(10),
     borderWidth: 1,
     borderColor: 'rgba(255, 215, 0, 0.2)',
   },
@@ -1194,12 +1200,13 @@ const styles = StyleSheet.create({
   },
   employeeInfo: {
     flex: 1,
+    paddingRight: getResponsiveSize(6),
   },
   employeeName: {
-    fontSize: getResponsiveFontSize(14),
+    fontSize: getResponsiveFontSize(13),
     fontWeight: '700',
     color: '#E0E0E0',
-    marginBottom: getResponsiveSize(4),
+    marginBottom: getResponsiveSize(3),
   },
   employeeDetails: {
     flexDirection: 'row',
@@ -1207,65 +1214,69 @@ const styles = StyleSheet.create({
     flexWrap: 'wrap',
   },
   employeePosition: {
-    fontSize: getResponsiveFontSize(11),
+    fontSize: getResponsiveFontSize(10),
     color: '#FFD700',
     fontWeight: '600',
-    marginRight: getResponsiveSize(8),
+    marginRight: getResponsiveSize(6),
   },
   employeeEmail: {
-    fontSize: getResponsiveFontSize(11),
+    fontSize: getResponsiveFontSize(10),
     color: '#999',
   },
   actionsSection: {
     alignItems: 'flex-end',
-    gap: getResponsiveSize(6),
+    gap: getResponsiveSize(4),
+  },
+  actionButtonsRow: {
+    flexDirection: 'row',
+    gap: getResponsiveSize(4),
   },
   editButton: {
-    borderRadius: getResponsiveSize(16),
+    borderRadius: getResponsiveSize(12),
     overflow: 'hidden',
     shadowColor: '#FFD700',
     shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.3,
-    shadowRadius: 3,
+    shadowOpacity: 0.25,
+    shadowRadius: 2,
     elevation: 2,
   },
   editButtonGradient: {
-    width: getResponsiveSize(26),
-    height: getResponsiveSize(26),
-    borderRadius: getResponsiveSize(13),
+    width: getResponsiveSize(22),
+    height: getResponsiveSize(22),
+    borderRadius: getResponsiveSize(11),
     justifyContent: 'center',
     alignItems: 'center',
   },
   deleteButton: {
-    borderRadius: getResponsiveSize(16),
+    borderRadius: getResponsiveSize(12),
     overflow: 'hidden',
     shadowColor: '#FF6B6B',
     shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.3,
-    shadowRadius: 3,
+    shadowOpacity: 0.25,
+    shadowRadius: 2,
     elevation: 2,
   },
   deleteButtonGradient: {
-    width: getResponsiveSize(26),
-    height: getResponsiveSize(26),
-    borderRadius: getResponsiveSize(13),
+    width: getResponsiveSize(22),
+    height: getResponsiveSize(22),
+    borderRadius: getResponsiveSize(11),
     justifyContent: 'center',
     alignItems: 'center',
   },
   statusButton: {
-    borderRadius: getResponsiveSize(16),
+    borderRadius: getResponsiveSize(14),
     overflow: 'hidden',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.3,
-    shadowRadius: 3,
+    shadowOpacity: 0.25,
+    shadowRadius: 2,
     elevation: 2,
   },
   statusBadge: {
-    paddingHorizontal: getResponsiveSize(10),
-    paddingVertical: getResponsiveSize(5),
-    borderRadius: getResponsiveSize(16),
-    minWidth: getResponsiveSize(100),
+    paddingHorizontal: getResponsiveSize(8),
+    paddingVertical: getResponsiveSize(4),
+    borderRadius: getResponsiveSize(14),
+    minWidth: getResponsiveSize(90),
   },
   statusContent: {
     flexDirection: 'row',
@@ -1273,25 +1284,25 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   statusText: {
-    fontSize: getResponsiveFontSize(10),
+    fontSize: getResponsiveFontSize(9),
     fontWeight: '600',
     color: '#FFFFFF',
-    marginRight: getResponsiveSize(4),
+    marginRight: getResponsiveSize(3),
   },
   dateInfo: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginTop: getResponsiveSize(6),
-    padding: getResponsiveSize(6),
+    marginTop: getResponsiveSize(5),
+    padding: getResponsiveSize(5),
     backgroundColor: 'rgba(255, 215, 0, 0.1)',
-    borderRadius: getResponsiveSize(6),
+    borderRadius: getResponsiveSize(5),
     borderLeftWidth: getResponsiveSize(2),
     borderLeftColor: '#FFD700',
   },
   dateText: {
-    fontSize: getResponsiveFontSize(10),
+    fontSize: getResponsiveFontSize(9),
     color: '#E0E0E0',
-    marginLeft: getResponsiveSize(4),
+    marginLeft: getResponsiveSize(3),
     fontWeight: '500',
   },
   loadingContainer: {
@@ -1300,7 +1311,7 @@ const styles = StyleSheet.create({
     paddingVertical: getResponsiveSize(30),
   },
   loadingText: {
-    fontSize: getResponsiveFontSize(13),
+    fontSize: getResponsiveFontSize(12),
     color: '#E0E0E0',
     marginTop: getResponsiveSize(8),
   },
@@ -1310,29 +1321,29 @@ const styles = StyleSheet.create({
     paddingVertical: getResponsiveSize(30),
   },
   emptyStateText: {
-    fontSize: getResponsiveFontSize(13),
+    fontSize: getResponsiveFontSize(12),
     color: '#888',
     marginTop: getResponsiveSize(8),
     textAlign: 'center',
   },
   clearFiltersButton: {
     marginTop: getResponsiveSize(12),
-    borderRadius: getResponsiveSize(16),
+    borderRadius: getResponsiveSize(14),
     overflow: 'hidden',
     shadowColor: '#FFD700',
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.3,
-    shadowRadius: 4,
-    elevation: 3,
+    shadowOpacity: 0.25,
+    shadowRadius: 3,
+    elevation: 2,
   },
   clearFiltersGradient: {
-    paddingHorizontal: getResponsiveSize(16),
-    paddingVertical: getResponsiveSize(8),
-    borderRadius: getResponsiveSize(16),
+    paddingHorizontal: getResponsiveSize(14),
+    paddingVertical: getResponsiveSize(7),
+    borderRadius: getResponsiveSize(14),
   },
   clearFiltersText: {
     color: '#1a1a1a',
-    fontSize: getResponsiveFontSize(11),
+    fontSize: getResponsiveFontSize(10),
     fontWeight: '700',
   },
 
