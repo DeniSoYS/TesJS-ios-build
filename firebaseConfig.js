@@ -1,7 +1,8 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { getApps, initializeApp } from 'firebase/app';
-import { getAuth, getReactNativePersistence, initializeAuth } from 'firebase/auth';
+import { browserLocalPersistence, getAuth, getReactNativePersistence, initializeAuth } from 'firebase/auth';
 import { getFirestore } from 'firebase/firestore';
+import { Platform } from 'react-native';
 
 const firebaseConfig = {
   apiKey: "AIzaSyDLjbWUxK6Afl9Ipv3bq4cWc22KBV8GpKI",
@@ -22,17 +23,18 @@ if (getApps().length === 0) {
   console.log('✅ Firebase App уже инициализирован');
 }
 
-// ✅ Инициализация Auth с правильным порядком
+// ✅ Инициализация Auth с учётом платформы
 let auth;
 try {
-  // Сначала пытаемся инициализировать с persistence
-  auth = initializeAuth(app, {
-    persistence: getReactNativePersistence(AsyncStorage)
-  });
-  console.log('✅ Firebase Auth инициализирован с AsyncStorage persistence');
+  // Выбираем persistence в зависимости от платформы
+  const persistence = Platform.OS === 'web' 
+    ? browserLocalPersistence 
+    : getReactNativePersistence(AsyncStorage);
+
+  auth = initializeAuth(app, { persistence });
+  console.log(`✅ Firebase Auth инициализирован для ${Platform.OS}`);
 } catch (error) {
   if (error.code === 'auth/already-initialized') {
-    // Если уже инициализирован, получаем существующий экземпляр
     auth = getAuth(app);
     console.log('✅ Firebase Auth уже инициализирован, используем существующий');
   } else {
@@ -45,9 +47,7 @@ try {
 const db = getFirestore(app);
 console.log('✅ Firestore инициализирован');
 
-// ✅ ВАЖНО: Экспортируем после инициализации
+// ✅ Экспорт
 export { app, auth, db };
-
-// Дополнительный экспорт для совместимости
 export const firestore = db;
 export default app;
