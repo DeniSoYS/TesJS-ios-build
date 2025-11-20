@@ -93,6 +93,10 @@ export default function CalendarScreen({ navigation, route }) {
   const [selectedDateTours, setSelectedDateTours] = useState([]);
   const [selectedDateMoves, setSelectedDateMoves] = useState([]);
   
+  // ✅ ДОБАВЛЕНО: Состояние для модального окна выхода
+  const [logoutModalVisible, setLogoutModalVisible] = useState(false);
+  const [logoutScaleAnim] = useState(new Animated.Value(0));
+  
   // ✅ ОБНОВЛЕНО: Состояние для текущего отображаемого месяца
   const [currentMonth, setCurrentMonth] = useState({
     year: new Date().getFullYear(),
@@ -594,26 +598,47 @@ export default function CalendarScreen({ navigation, route }) {
     );
   };
 
-  const handleLogout = async () => {
-    Alert.alert(
-      'Выход',
-      'Вы уверены, что хотите выйти?',
-      [
-        { text: 'Отмена', style: 'cancel' },
-        { 
-          text: 'Выйти', 
-          style: 'destructive',
-          onPress: async () => {
-            try {
-              await signOut(auth);
-            } catch (error) {
-              console.error('Ошибка выхода:', error);
-              Alert.alert('Ошибка', error.message);
-            }
-          }
-        }
-      ]
-    );
+  // ✅ ИСПРАВЛЕНО: Функция выхода для PWA
+  const handleLogout = () => {
+    setLogoutModalVisible(true);
+    Animated.spring(logoutScaleAnim, {
+      toValue: 1,
+      useNativeDriver: true,
+      friction: 8,
+    }).start();
+  };
+
+  const confirmLogout = async () => {
+    try {
+      console.log('🔓 Начинаем процесс выхода...');
+      
+      // Закрываем модальное окно
+      Animated.timing(logoutScaleAnim, {
+        toValue: 0,
+        duration: 200,
+        useNativeDriver: true,
+      }).start(() => setLogoutModalVisible(false));
+      
+      // Выполняем выход
+      await signOut(auth);
+      console.log('✅ Выход выполнен успешно');
+    } catch (error) {
+      console.error('❌ Ошибка выхода:', error);
+      // Используем window.alert для PWA
+      if (typeof window !== 'undefined') {
+        window.alert('Ошибка при выходе: ' + error.message);
+      } else {
+        Alert.alert('Ошибка', error.message);
+      }
+    }
+  };
+
+  const cancelLogout = () => {
+    Animated.timing(logoutScaleAnim, {
+      toValue: 0,
+      duration: 200,
+      useNativeDriver: true,
+    }).start(() => setLogoutModalVisible(false));
   };
 
   const formatDate = (dateString) => {
@@ -1026,7 +1051,7 @@ export default function CalendarScreen({ navigation, route }) {
           </View>
         </ScrollView>
 
-        {/* 🌙 МОДАЛЬНОЕ ОКНО СОБЫТИЙ С ОБНОВЛЕННЫМИ НАЖАТИЯМИ */}
+        {/* 🌙 МОДАЛЬНОЕ ОКНО СОБЫТИЙ */}
         <Modal
           animationType="fade"
           transparent={true}
@@ -1349,6 +1374,70 @@ export default function CalendarScreen({ navigation, route }) {
                       <Text style={styles.eventTypeOptionDescription}>
                         Запланировать переезд между городами
                       </Text>
+                    </LinearGradient>
+                  </TouchableOpacity>
+                </View>
+              </LinearGradient>
+            </Animated.View>
+          </BlurView>
+        </Modal>
+
+        {/* 🔓 МОДАЛЬНОЕ ОКНО ВЫХОДА */}
+        <Modal
+          animationType="fade"
+          transparent={true}
+          visible={logoutModalVisible}
+          onRequestClose={cancelLogout}
+        >
+          <BlurView intensity={80} style={styles.modalOverlay} tint="dark">
+            <Animated.View 
+              style={[
+                styles.logoutModalContainer,
+                {
+                  transform: [{ scale: logoutScaleAnim }],
+                }
+              ]}
+            >
+              <LinearGradient
+                colors={['rgba(26, 26, 26, 0.98)', 'rgba(35, 35, 35, 0.95)']}
+                style={styles.logoutModalGradient}
+              >
+                <View style={styles.logoutModalHeader}>
+                  <Ionicons name="log-out" size={getResponsiveSize(48)} color="#FF6B6B" />
+                  <Text style={styles.logoutModalTitle}>Выход из аккаунта</Text>
+                  <Text style={styles.logoutModalText}>
+                    Вы уверены, что хотите выйти?
+                  </Text>
+                </View>
+
+                <View style={styles.logoutModalButtons}>
+                  <TouchableOpacity 
+                    style={styles.logoutModalButton}
+                    onPress={cancelLogout}
+                    activeOpacity={0.8}
+                  >
+                    <LinearGradient
+                      colors={['#555', '#444']}
+                      style={styles.logoutModalButtonGradient}
+                      start={{ x: 0, y: 0 }}
+                      end={{ x: 1, y: 1 }}
+                    >
+                      <Text style={styles.logoutModalButtonText}>Отмена</Text>
+                    </LinearGradient>
+                  </TouchableOpacity>
+
+                  <TouchableOpacity 
+                    style={styles.logoutModalButton}
+                    onPress={confirmLogout}
+                    activeOpacity={0.8}
+                  >
+                    <LinearGradient
+                      colors={['#FF6B6B', '#EE5A52']}
+                      style={styles.logoutModalButtonGradient}
+                      start={{ x: 0, y: 0 }}
+                      end={{ x: 1, y: 1 }}
+                    >
+                      <Text style={styles.logoutModalButtonText}>Выйти</Text>
                     </LinearGradient>
                   </TouchableOpacity>
                 </View>
@@ -2159,5 +2248,64 @@ const styles = StyleSheet.create({
     color: 'rgba(255, 255, 255, 0.9)',
     textAlign: 'center',
     fontWeight: '500',
+  },
+
+  // 🔓 СТИЛИ МОДАЛЬНОГО ОКНА ВЫХОДА
+  logoutModalContainer: {
+    width: '85%',
+    maxWidth: getResponsiveSize(350),
+  },
+  logoutModalGradient: {
+    borderRadius: getResponsiveSize(25),
+    padding: getResponsiveSize(30),
+    shadowColor: '#FF6B6B',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.3,
+    shadowRadius: 12,
+    elevation: 8,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 107, 107, 0.3)',
+  },
+  logoutModalHeader: {
+    alignItems: 'center',
+    marginBottom: getResponsiveSize(25),
+  },
+  logoutModalTitle: {
+    fontSize: getResponsiveFontSize(22),
+    fontWeight: '800',
+    color: '#E0E0E0',
+    marginTop: getResponsiveSize(15),
+    marginBottom: getResponsiveSize(10),
+    textAlign: 'center',
+  },
+  logoutModalText: {
+    fontSize: getResponsiveFontSize(15),
+    color: '#999',
+    textAlign: 'center',
+    lineHeight: getResponsiveFontSize(20),
+  },
+  logoutModalButtons: {
+    flexDirection: 'row',
+    gap: getResponsiveSize(12),
+  },
+  logoutModalButton: {
+    flex: 1,
+    borderRadius: getResponsiveSize(15),
+    overflow: 'hidden',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 6,
+    elevation: 4,
+  },
+  logoutModalButtonGradient: {
+    paddingVertical: getResponsiveSize(14),
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  logoutModalButtonText: {
+    fontSize: getResponsiveFontSize(16),
+    fontWeight: '700',
+    color: 'white',
   },
 });
