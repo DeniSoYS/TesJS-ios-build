@@ -6,6 +6,7 @@ import {
   Alert,
   Dimensions,
   FlatList,
+  Modal,
   RefreshControl,
   ScrollView,
   StyleSheet,
@@ -31,7 +32,7 @@ const getResponsiveFontSize = (size) => {
   return Math.round(baseSize);
 };
 
-const EmployeeItem = React.memo(({ item, onStatusChange }) => {
+const EmployeeItem = React.memo(({ item, onStatusChange, onEdit }) => {
   const statusInfo = useMemo(() => {
     const statuses = {
       'working': { label: '💼 Работаю', color: '#34C759', gradient: ['#34C759', '#28A745'] },
@@ -46,6 +47,10 @@ const EmployeeItem = React.memo(({ item, onStatusChange }) => {
   const handlePress = useCallback(() => {
     onStatusChange(item.id, item.status);
   }, [item.id, item.status, onStatusChange]);
+
+  const handleEditPress = useCallback(() => {
+    onEdit(item);
+  }, [item, onEdit]);
 
   return (
     <View style={styles.employeeCard}>
@@ -68,7 +73,21 @@ const EmployeeItem = React.memo(({ item, onStatusChange }) => {
             </Text>
           </View>
          
-          <View style={styles.statusSection}>
+          <View style={styles.actionsSection}>
+            <TouchableOpacity
+              style={styles.editButton}
+              onPress={handleEditPress}
+            >
+              <LinearGradient
+                colors={['#FFD700', '#FFA500']}
+                style={styles.editButtonGradient}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+              >
+                <Ionicons name="pencil" size={getResponsiveSize(14)} color="#1a1a1a" />
+              </LinearGradient>
+            </TouchableOpacity>
+
             <TouchableOpacity
               style={styles.statusButton}
               onPress={handlePress}
@@ -125,6 +144,196 @@ const EmployeeItem = React.memo(({ item, onStatusChange }) => {
   );
 });
 
+// Модальное окно редактирования сотрудника
+const EditEmployeeModal = ({ 
+  visible, 
+  employee, 
+  onClose, 
+  onSave 
+}) => {
+  const [formData, setFormData] = useState({
+    fullName: '',
+    position: '',
+    email: '',
+    status: 'working',
+    startDate: '',
+    endDate: ''
+  });
+
+  useEffect(() => {
+    if (employee) {
+      setFormData({
+        fullName: employee.fullName || '',
+        position: employee.position || '',
+        email: employee.email || '',
+        status: employee.status || 'working',
+        startDate: employee.startDate || '',
+        endDate: employee.endDate || ''
+      });
+    }
+  }, [employee]);
+
+  const handleSave = () => {
+    if (!formData.fullName.trim()) {
+      Alert.alert('Ошибка', 'Поле "ФИО" обязательно для заполнения');
+      return;
+    }
+    onSave(employee.id, formData);
+  };
+
+  const statusOptions = [
+    { value: 'working', label: '💼 Работаю', gradient: ['#34C759', '#28A745'] },
+    { value: 'sick', label: '🤒 Больничный', gradient: ['#FFA500', '#FF8C00'] },
+    { value: 'vacation', label: '🏖️ Отпуск', gradient: ['#4A90E2', '#357ABD'] },
+    { value: 'dayoff', label: '🏠 Отгул', gradient: ['#9B59B6', '#8E44AD'] },
+    { value: 'unpaid', label: '💰 Без содержания', gradient: ['#FF6B6B', '#EE5A52'] }
+  ];
+
+  return (
+    <Modal
+      animationType="fade"
+      transparent={true}
+      visible={visible}
+      onRequestClose={onClose}
+    >
+      <View style={styles.modalOverlay}>
+        <View style={styles.modalContainer}>
+          <LinearGradient
+            colors={['rgba(26, 26, 26, 0.98)', 'rgba(35, 35, 35, 0.95)']}
+            style={styles.modalGradient}
+          >
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>✏️ Редактирование</Text>
+              <TouchableOpacity onPress={onClose} style={styles.modalCloseIcon}>
+                <Ionicons name="close-circle" size={getResponsiveSize(30)} color="#FFD700" />
+              </TouchableOpacity>
+            </View>
+
+            <ScrollView style={styles.modalContent}>
+              <View style={styles.inputGroup}>
+                <Text style={styles.label}>ФИО *</Text>
+                <TextInput
+                  style={styles.textInput}
+                  value={formData.fullName}
+                  onChangeText={(text) => setFormData(prev => ({ ...prev, fullName: text }))}
+                  placeholder="Введите ФИО сотрудника"
+                  placeholderTextColor="#888"
+                />
+              </View>
+
+              <View style={styles.inputGroup}>
+                <Text style={styles.label}>Должность</Text>
+                <TextInput
+                  style={styles.textInput}
+                  value={formData.position}
+                  onChangeText={(text) => setFormData(prev => ({ ...prev, position: text }))}
+                  placeholder="Введите должность"
+                  placeholderTextColor="#888"
+                />
+              </View>
+
+              <View style={styles.inputGroup}>
+                <Text style={styles.label}>Email</Text>
+                <TextInput
+                  style={styles.textInput}
+                  value={formData.email}
+                  onChangeText={(text) => setFormData(prev => ({ ...prev, email: text }))}
+                  placeholder="Введите email"
+                  placeholderTextColor="#888"
+                  keyboardType="email-address"
+                  autoCapitalize="none"
+                />
+              </View>
+
+              <View style={styles.inputGroup}>
+                <Text style={styles.label}>Статус</Text>
+                <View style={styles.statusOptions}>
+                  {statusOptions.map((option) => (
+                    <TouchableOpacity
+                      key={option.value}
+                      style={styles.statusOption}
+                      onPress={() => setFormData(prev => ({ ...prev, status: option.value }))}
+                    >
+                      <LinearGradient
+                        colors={formData.status === option.value ? option.gradient : ['#2a2a2a', '#1f1f1f']}
+                        style={[
+                          styles.statusOptionGradient,
+                          formData.status === option.value && styles.statusOptionActive
+                        ]}
+                        start={{ x: 0, y: 0 }}
+                        end={{ x: 1, y: 1 }}
+                      >
+                        <Text style={[
+                          styles.statusOptionText,
+                          formData.status === option.value && styles.statusOptionTextActive
+                        ]}>
+                          {option.label}
+                        </Text>
+                      </LinearGradient>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              </View>
+
+              <View style={styles.datesRow}>
+                <View style={styles.dateInput}>
+                  <Text style={styles.label}>Дата начала</Text>
+                  <TextInput
+                    style={styles.textInput}
+                    value={formData.startDate}
+                    onChangeText={(text) => setFormData(prev => ({ ...prev, startDate: text }))}
+                    placeholder="ГГГГ-ММ-ДД"
+                    placeholderTextColor="#888"
+                  />
+                </View>
+
+                <View style={styles.dateInput}>
+                  <Text style={styles.label}>Дата окончания</Text>
+                  <TextInput
+                    style={styles.textInput}
+                    value={formData.endDate}
+                    onChangeText={(text) => setFormData(prev => ({ ...prev, endDate: text }))}
+                    placeholder="ГГГГ-ММ-ДД"
+                    placeholderTextColor="#888"
+                  />
+                </View>
+              </View>
+
+              <Text style={styles.dateHint}>
+                💡 Формат даты: ГГГГ-ММ-ДД (например: 2024-12-31)
+              </Text>
+            </ScrollView>
+
+            <View style={styles.modalActions}>
+              <TouchableOpacity 
+                style={styles.cancelButton}
+                onPress={onClose}
+              >
+                <Text style={styles.cancelButtonText}>Отмена</Text>
+              </TouchableOpacity>
+              
+              <TouchableOpacity 
+                style={styles.saveButton}
+                onPress={handleSave}
+              >
+                <LinearGradient
+                  colors={['#FFD700', '#FFA500']}
+                  style={styles.saveButtonGradient}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 1 }}
+                >
+                  <Ionicons name="save" size={getResponsiveSize(18)} color="#1a1a1a" />
+                  <Text style={styles.saveButtonText}>Сохранить</Text>
+                </LinearGradient>
+              </TouchableOpacity>
+            </View>
+          </LinearGradient>
+        </View>
+      </View>
+    </Modal>
+  );
+};
+
 export default function EmployeesListScreen({ navigation, route }) {
   const { userRole } = route.params || {};
  
@@ -133,6 +342,8 @@ export default function EmployeesListScreen({ navigation, route }) {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+  const [editModalVisible, setEditModalVisible] = useState(false);
+  const [selectedEmployee, setSelectedEmployee] = useState(null);
  
   useEffect(() => {
     loadEmployees();
@@ -222,6 +433,32 @@ export default function EmployeesListScreen({ navigation, route }) {
     );
   }, []);
  
+  const handleEditEmployee = useCallback((employee) => {
+    setSelectedEmployee(employee);
+    setEditModalVisible(true);
+  }, []);
+
+  const handleSaveEmployee = useCallback(async (employeeId, formData) => {
+    try {
+      await updateDoc(doc(db, 'employees', employeeId), {
+        ...formData,
+        lastUpdated: new Date()
+      });
+      Alert.alert('Успех', 'Данные сотрудника обновлены');
+      setEditModalVisible(false);
+      setSelectedEmployee(null);
+      loadEmployees();
+    } catch (error) {
+      console.error('Ошибка обновления сотрудника:', error);
+      Alert.alert('Ошибка', 'Не удалось обновить данные сотрудника');
+    }
+  }, []);
+
+  const handleCloseEditModal = useCallback(() => {
+    setEditModalVisible(false);
+    setSelectedEmployee(null);
+  }, []);
+ 
   const { filteredEmployees, stats } = useMemo(() => {
     const total = employees.length;
     const working = employees.filter(e => e.status === 'working').length;
@@ -245,8 +482,12 @@ export default function EmployeesListScreen({ navigation, route }) {
   }, [employees, filter, searchQuery]);
  
   const renderEmployee = useCallback(({ item }) => (
-    <EmployeeItem item={item} onStatusChange={handleStatusChange} />
-  ), [handleStatusChange]);
+    <EmployeeItem 
+      item={item} 
+      onStatusChange={handleStatusChange} 
+      onEdit={handleEditEmployee}
+    />
+  ), [handleStatusChange, handleEditEmployee]);
  
   const getStatusLabel = useCallback((status) => {
     const labels = {
@@ -551,6 +792,14 @@ export default function EmployeesListScreen({ navigation, route }) {
             />
           </View>
         </ScrollView>
+
+        {/* Модальное окно редактирования сотрудника */}
+        <EditEmployeeModal
+          visible={editModalVisible}
+          employee={selectedEmployee}
+          onClose={handleCloseEditModal}
+          onSave={handleSaveEmployee}
+        />
       </LinearGradient>
     </View>
   );
@@ -838,8 +1087,25 @@ const styles = StyleSheet.create({
     fontSize: getResponsiveFontSize(12),
     color: '#999',
   },
-  statusSection: {
+  actionsSection: {
     alignItems: 'flex-end',
+    gap: getResponsiveSize(8),
+  },
+  editButton: {
+    borderRadius: getResponsiveSize(20),
+    overflow: 'hidden',
+    shadowColor: '#FFD700',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  editButtonGradient: {
+    width: getResponsiveSize(32),
+    height: getResponsiveSize(32),
+    borderRadius: getResponsiveSize(16),
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   statusButton: {
     borderRadius: getResponsiveSize(20),
@@ -938,6 +1204,149 @@ const styles = StyleSheet.create({
   clearFiltersText: {
     color: '#1a1a1a',
     fontSize: getResponsiveFontSize(12),
+    fontWeight: '700',
+  },
+
+  // Стили для модального окна редактирования
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.8)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: getResponsiveSize(20),
+  },
+  modalContainer: {
+    width: '100%',
+    maxWidth: getResponsiveSize(500),
+    maxHeight: '80%',
+  },
+  modalGradient: {
+    borderRadius: getResponsiveSize(20),
+    padding: getResponsiveSize(20),
+    shadowColor: '#FFD700',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.3,
+    shadowRadius: 12,
+    elevation: 8,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 215, 0, 0.3)',
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: getResponsiveSize(20),
+  },
+  modalTitle: {
+    fontSize: getResponsiveFontSize(20),
+    fontWeight: '800',
+    color: '#E0E0E0',
+    flex: 1,
+  },
+  modalCloseIcon: {
+    padding: getResponsiveSize(5),
+  },
+  modalContent: {
+    maxHeight: getResponsiveSize(400),
+  },
+  inputGroup: {
+    marginBottom: getResponsiveSize(16),
+  },
+  label: {
+    fontSize: getResponsiveFontSize(14),
+    fontWeight: '600',
+    color: '#E0E0E0',
+    marginBottom: getResponsiveSize(8),
+  },
+  textInput: {
+    backgroundColor: 'rgba(42, 42, 42, 0.9)',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 215, 0, 0.3)',
+    borderRadius: getResponsiveSize(10),
+    padding: getResponsiveSize(12),
+    color: '#E0E0E0',
+    fontSize: getResponsiveFontSize(14),
+  },
+  statusOptions: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: getResponsiveSize(8),
+  },
+  statusOption: {
+    marginBottom: getResponsiveSize(8),
+  },
+  statusOptionGradient: {
+    paddingHorizontal: getResponsiveSize(12),
+    paddingVertical: getResponsiveSize(8),
+    borderRadius: getResponsiveSize(20),
+    borderWidth: 1,
+    borderColor: 'rgba(255, 215, 0, 0.3)',
+  },
+  statusOptionActive: {
+    borderWidth: 2,
+    borderColor: 'rgba(255, 255, 255, 0.8)',
+  },
+  statusOptionText: {
+    fontSize: getResponsiveFontSize(12),
+    fontWeight: '600',
+    color: '#999',
+  },
+  statusOptionTextActive: {
+    color: '#1a1a1a',
+    fontWeight: '700',
+  },
+  datesRow: {
+    flexDirection: 'row',
+    gap: getResponsiveSize(12),
+  },
+  dateInput: {
+    flex: 1,
+  },
+  dateHint: {
+    fontSize: getResponsiveFontSize(11),
+    color: '#FFD700',
+    fontStyle: 'italic',
+    marginTop: getResponsiveSize(8),
+  },
+  modalActions: {
+    flexDirection: 'row',
+    gap: getResponsiveSize(12),
+    marginTop: getResponsiveSize(20),
+  },
+  cancelButton: {
+    flex: 1,
+    padding: getResponsiveSize(15),
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: getResponsiveSize(15),
+    borderWidth: 1,
+    borderColor: 'rgba(255, 215, 0, 0.5)',
+  },
+  cancelButtonText: {
+    color: '#FFD700',
+    fontSize: getResponsiveFontSize(16),
+    fontWeight: '600',
+  },
+  saveButton: {
+    flex: 2,
+    borderRadius: getResponsiveSize(15),
+    overflow: 'hidden',
+    shadowColor: '#FFD700',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 5,
+  },
+  saveButtonGradient: {
+    padding: getResponsiveSize(15),
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexDirection: 'row',
+    gap: getResponsiveSize(8),
+  },
+  saveButtonText: {
+    color: '#1a1a1a',
+    fontSize: getResponsiveFontSize(16),
     fontWeight: '700',
   },
 });

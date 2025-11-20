@@ -10,8 +10,7 @@ import {
   Dimensions,
   Modal,
   Platform,
-  RefreshControl // ✅ ДОБАВЛЕН ИМПОРТ
-  ,
+  RefreshControl,
   ScrollView,
   StatusBar,
   StyleSheet,
@@ -94,6 +93,19 @@ export default function CalendarScreen({ navigation, route }) {
   const [selectedDateTours, setSelectedDateTours] = useState([]);
   const [selectedDateMoves, setSelectedDateMoves] = useState([]);
   
+  // ✅ ОБНОВЛЕНО: Состояние для текущего отображаемого месяца
+  const [currentMonth, setCurrentMonth] = useState({
+    year: new Date().getFullYear(),
+    month: new Date().getMonth() + 1
+  });
+  
+  // ✅ ОБНОВЛЕНО: Статистика текущего отображаемого месяца
+  const [currentMonthStats, setCurrentMonthStats] = useState({
+    concerts: 0,
+    tours: 0,
+    moves: 0
+  });
+  
   const pulseAnim = useRef(new Animated.Value(1)).current;
   const fadeAnim = useRef(new Animated.Value(0)).current;
 
@@ -128,15 +140,53 @@ export default function CalendarScreen({ navigation, route }) {
     updateMarkedDates(concerts, tours, moves);
   }, [concerts, tours, moves]);
 
-  // ✅ ДОБАВЛЕНО: Функция для загрузки всех данных
+  // ✅ ОБНОВЛЕНО: Функция для подсчета статистики выбранного месяца
+  const calculateMonthStats = (concertsData, toursData, movesData, year, month) => {
+    const monthString = String(month).padStart(2, '0');
+    const monthPrefix = `${year}-${monthString}`;
+    
+    // Концерты выбранного месяца
+    const concertsThisMonth = concertsData.filter(concert => 
+      concert.date && concert.date.startsWith(monthPrefix)
+    );
+    
+    // Переезды выбранного месяца
+    const movesThisMonth = movesData.filter(move => 
+      move.date && move.date.startsWith(monthPrefix)
+    );
+    
+    // Гастроли выбранного месяца (1 гастроль = 1 запись, независимо от продолжительности)
+    const toursThisMonth = toursData.filter(tour => {
+      if (!tour.startDate || !tour.endDate) return false;
+      
+      const tourStart = new Date(tour.startDate);
+      const tourEnd = new Date(tour.endDate);
+      const monthStart = new Date(year, month - 1, 1);
+      const monthEnd = new Date(year, month, 0);
+      
+      // Проверяем пересечение гастролей с выбранным месяцем
+      return (tourStart <= monthEnd && tourEnd >= monthStart);
+    });
+    
+    setCurrentMonthStats({
+      concerts: concertsThisMonth.length,
+      tours: toursThisMonth.length,
+      moves: movesThisMonth.length
+    });
+  };
+
+  // ✅ ОБНОВЛЕНО: Функция для загрузки всех данных
   const loadAllData = async () => {
     setRefreshing(true);
     try {
-      await Promise.all([
+      const [concertsData, toursData, movesData] = await Promise.all([
         loadConcerts(),
         loadTours(),
         loadMoves()
       ]);
+      
+      // Пересчитываем статистику для текущего отображаемого месяца
+      calculateMonthStats(concertsData, toursData, movesData, currentMonth.year, currentMonth.month);
     } catch (error) {
       console.error('❌ Ошибка при обновлении данных:', error);
     } finally {
@@ -151,7 +201,7 @@ export default function CalendarScreen({ navigation, route }) {
       if (!auth.currentUser) {
         console.log('❌ CalendarScreen: Пользователь НЕ авторизован');
         setConcerts([]);
-        return;
+        return [];
       }
       
       const concertsQuery = query(collection(db, 'concerts'));
@@ -178,7 +228,7 @@ export default function CalendarScreen({ navigation, route }) {
       
       if (!auth.currentUser) {
         setTours([]);
-        return;
+        return [];
       }
       
       const toursQuery = query(collection(db, 'tours'));
@@ -205,7 +255,7 @@ export default function CalendarScreen({ navigation, route }) {
       
       if (!auth.currentUser) {
         setMoves([]);
-        return;
+        return [];
       }
       
       const movesQuery = query(collection(db, 'moves'));
@@ -226,10 +276,23 @@ export default function CalendarScreen({ navigation, route }) {
     }
   };
 
-  // ✅ ДОБАВЛЕНО: Функция для обработки обновления (pull-to-refresh)
+  // ✅ ОБНОВЛЕНО: Функция для обработки обновления (pull-to-refresh)
   const onRefresh = async () => {
     console.log('🔄 Инициировано обновление календаря...');
     await loadAllData();
+  };
+
+  // ✅ ДОБАВЛЕНО: Обработчик изменения месяца в календаре
+  const handleMonthChange = (month) => {
+    const newMonth = {
+      year: month.year,
+      month: month.month
+    };
+    
+    setCurrentMonth(newMonth);
+    
+    // Пересчитываем статистику для нового месяца
+    calculateMonthStats(concerts, tours, moves, newMonth.year, newMonth.month);
   };
 
   const getTourDates = (tour) => {
@@ -459,7 +522,10 @@ export default function CalendarScreen({ navigation, route }) {
               Alert.alert('Успех', 'Концерт удален');
               const updatedConcerts = selectedDateConcerts.filter(c => c.id !== concertId);
               setSelectedDateConcerts(updatedConcerts);
-              loadConcerts();
+              
+              // Обновляем данные и статистику
+              const concertsData = await loadConcerts();
+              calculateMonthStats(concertsData, tours, moves, currentMonth.year, currentMonth.month);
             } catch (error) {
               console.error('Ошибка удаления:', error);
               Alert.alert('Ошибка', 'Не удалось удалить концерт');
@@ -485,7 +551,10 @@ export default function CalendarScreen({ navigation, route }) {
               Alert.alert('Успех', 'Гастроли удалены');
               const updatedTours = selectedDateTours.filter(t => t.id !== tourId);
               setSelectedDateTours(updatedTours);
-              loadTours();
+              
+              // Обновляем данные и статистику
+              const toursData = await loadTours();
+              calculateMonthStats(concerts, toursData, moves, currentMonth.year, currentMonth.month);
             } catch (error) {
               console.error('Ошибка удаления:', error);
               Alert.alert('Ошибка', 'Не удалось удалить гастроли');
@@ -511,7 +580,10 @@ export default function CalendarScreen({ navigation, route }) {
               Alert.alert('Успех', 'Переезд удален');
               const updatedMoves = selectedDateMoves.filter(m => m.id !== moveId);
               setSelectedDateMoves(updatedMoves);
-              loadMoves();
+              
+              // Обновляем данные и статистику
+              const movesData = await loadMoves();
+              calculateMonthStats(concerts, tours, movesData, currentMonth.year, currentMonth.month);
             } catch (error) {
               console.error('Ошибка удаления:', error);
               Alert.alert('Ошибка', 'Не удалось удалить переезд');
@@ -550,6 +622,13 @@ export default function CalendarScreen({ navigation, route }) {
     const months = ['января', 'февраля', 'марта', 'апреля', 'мая', 'июня', 
                     'июля', 'августа', 'сентября', 'октября', 'ноября', 'декабря'];
     return `${parseInt(day)} ${months[parseInt(month) - 1]} ${year}`;
+  };
+
+  // ✅ ОБНОВЛЕНО: Функция для получения названия текущего отображаемого месяца
+  const getCurrentMonthName = () => {
+    const months = ['Январь', 'Февраль', 'Март', 'Апрель', 'Май', 'Июнь', 
+                   'Июль', 'Август', 'Сентябрь', 'Октябрь', 'Ноябрь', 'Декабрь'];
+    return months[currentMonth.month - 1];
   };
 
   const getQuickActions = () => {
@@ -634,7 +713,7 @@ export default function CalendarScreen({ navigation, route }) {
         start={{ x: 0, y: 0 }}
         end={{ x: 1, y: 1 }}
       >
-        {/* 🌙 ХЕДЕР С ПРАВИЛЬНЫМИ ОТСТУПАМИ */}
+        {/* 🌙 ХЕДЕР С ОБНОВЛЕННОЙ СТАТИСТИКОЙ */}
         <Animated.View style={{ opacity: fadeAnim }}>
           <LinearGradient
             colors={['rgba(26, 26, 26, 0.98)', 'rgba(35, 35, 35, 0.95)']}
@@ -716,38 +795,47 @@ export default function CalendarScreen({ navigation, route }) {
                 </View>
               </View>
 
+              {/* ✅ ОБНОВЛЕНО: Статистика текущего отображаемого месяца */}
               <View style={styles.statsContainer}>
-                <View style={styles.statCard}>
-                  <View style={styles.statIconWrapper}>
-                    <Ionicons name="musical-notes" size={getResponsiveSize(20)} color="#FFD700" />
-                  </View>
-                  <View style={styles.statTextContainer}>
-                    <Text style={styles.statValue}>{concerts.length}</Text>
-                    <Text style={styles.statLabel}>Концертов</Text>
-                  </View>
+                <View style={styles.monthStatsHeader}>
+                  <Text style={styles.monthStatsTitle}>
+                    Статистика за {getCurrentMonthName()} {currentMonth.year}
+                  </Text>
                 </View>
-
-                <View style={styles.statDivider} />
-
-                <View style={styles.statCard}>
-                  <View style={styles.statIconWrapper}>
-                    <Ionicons name="airplane" size={getResponsiveSize(20)} color="#FFA500" />
+                
+                <View style={styles.statsRow}>
+                  <View style={styles.statCard}>
+                    <View style={styles.statIconWrapper}>
+                      <Ionicons name="musical-notes" size={getResponsiveSize(20)} color="#FFD700" />
+                    </View>
+                    <View style={styles.statTextContainer}>
+                      <Text style={styles.statValue}>{currentMonthStats.concerts}</Text>
+                      <Text style={styles.statLabel}>Концертов</Text>
+                    </View>
                   </View>
-                  <View style={styles.statTextContainer}>
-                    <Text style={styles.statValue}>{tours.length}</Text>
-                    <Text style={styles.statLabel}>Гастролей</Text>
-                  </View>
-                </View>
 
-                <View style={styles.statDivider} />
+                  <View style={styles.statDivider} />
 
-                <View style={styles.statCard}>
-                  <View style={styles.statIconWrapper}>
-                    <Ionicons name="bus" size={getResponsiveSize(20)} color="#34C759" />
+                  <View style={styles.statCard}>
+                    <View style={styles.statIconWrapper}>
+                      <Ionicons name="airplane" size={getResponsiveSize(20)} color="#FFA500" />
+                    </View>
+                    <View style={styles.statTextContainer}>
+                      <Text style={styles.statValue}>{currentMonthStats.tours}</Text>
+                      <Text style={styles.statLabel}>Гастролей</Text>
+                    </View>
                   </View>
-                  <View style={styles.statTextContainer}>
-                    <Text style={styles.statValue}>{moves.length}</Text>
-                    <Text style={styles.statLabel}>Переездов</Text>
+
+                  <View style={styles.statDivider} />
+
+                  <View style={styles.statCard}>
+                    <View style={styles.statIconWrapper}>
+                      <Ionicons name="bus" size={getResponsiveSize(20)} color="#34C759" />
+                    </View>
+                    <View style={styles.statTextContainer}>
+                      <Text style={styles.statValue}>{currentMonthStats.moves}</Text>
+                      <Text style={styles.statLabel}>Переездов</Text>
+                    </View>
                   </View>
                 </View>
               </View>
@@ -775,8 +863,10 @@ export default function CalendarScreen({ navigation, route }) {
               colors={['rgba(26, 26, 26, 0.9)', 'rgba(35, 35, 35, 0.8)']}
               style={styles.calendarContainer}
             >
+              {/* ✅ ОБНОВЛЕНО: Добавлен обработчик onMonthChange */}
               <Calendar
                 onDayPress={handleDateSelect}
+                onMonthChange={handleMonthChange}
                 markedDates={markedDates}
                 dayComponent={({ date, state, marking }) => {
                   const isToday = date.dateString === today;
@@ -1271,7 +1361,7 @@ export default function CalendarScreen({ navigation, route }) {
   );
 }
 
-// Стили остаются БЕЗ ИЗМЕНЕНИЙ
+// ✅ ОБНОВЛЕННЫЕ СТИЛИ С НОВОЙ СТРУКТУРОЙ СТАТИСТИКИ
 const styles = StyleSheet.create({
   container: {
     flex: 1,
@@ -1452,8 +1542,8 @@ const styles = StyleSheet.create({
     fontWeight: '500',
   },
   
+  // ✅ ОБНОВЛЕНО: Стили для статистики текущего месяца
   statsContainer: {
-    flexDirection: 'row',
     backgroundColor: 'rgba(42, 42, 42, 0.6)',
     borderRadius: getResponsiveSize(16),
     padding: getResponsiveSize(16),
@@ -1464,6 +1554,22 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.2,
     shadowRadius: 6,
     elevation: 3,
+  },
+  
+  monthStatsHeader: {
+    marginBottom: getResponsiveSize(12),
+  },
+  
+  monthStatsTitle: {
+    fontSize: getResponsiveFontSize(14),
+    fontWeight: '700',
+    color: '#FFD700',
+    textAlign: 'center',
+    letterSpacing: 0.3,
+  },
+  
+  statsRow: {
+    flexDirection: 'row',
   },
   
   statCard: {
