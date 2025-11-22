@@ -565,10 +565,10 @@ export default function LoginScreen({ navigation }) {
       style={styles.container}
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
     >
-       <StatusBar 
-      barStyle="light-content" 
-      backgroundColor="#0a0a0a" 
-    />
+      <StatusBar 
+        barStyle="light-content" 
+        backgroundColor="#0a0a0a" 
+      />
       <LinearGradient
         colors={['#0a0a0a', '#1a1a1a', '#2a2a2a']}
         style={styles.gradientBackground}
@@ -1079,7 +1079,7 @@ const styles = StyleSheet.create({
     height: '90%',
   },
   appTitle: {
-    fontSize: getResponsiveFontSize(24),
+    fontSize: getResponsiveFontSize(29), // +20%
     fontWeight: '800',
     color: '#E0E0E0',
     textAlign: 'center',
@@ -1087,7 +1087,7 @@ const styles = StyleSheet.create({
     marginBottom: getResponsiveSize(5),
   },
   appSubtitle: {
-    fontSize: getResponsiveFontSize(14),
+    fontSize: getResponsiveFontSize(17), // +20%
     color: '#888',
     textAlign: 'center',
     fontWeight: '500',
@@ -1137,14 +1137,14 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   mainTitle: {
-    fontSize: getResponsiveFontSize(18),
+    fontSize: getResponsiveFontSize(22), // +20%
     fontWeight: '700',
     color: '#E0E0E0',
     letterSpacing: 0.3,
     marginBottom: getResponsiveSize(2),
   },
   subtitle: {
-    fontSize: getResponsiveFontSize(12),
+    fontSize: getResponsiveFontSize(14), // +20%
     color: '#999',
     fontWeight: '500',
   },
@@ -1152,7 +1152,7 @@ const styles = StyleSheet.create({
     marginBottom: getResponsiveSize(20),
   },
   inputLabel: {
-    fontSize: getResponsiveFontSize(14),
+    fontSize: getResponsiveFontSize(17), // +20%
     fontWeight: '600',
     color: '#E0E0E0',
     marginBottom: getResponsiveSize(8),
@@ -1185,26 +1185,27 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(35, 35, 35, 0.9)',
     borderRadius: getResponsiveSize(11),
     paddingHorizontal: getResponsiveSize(15),
-    paddingVertical: getResponsiveSize(15),
+    paddingVertical: getResponsiveSize(18), // Увеличил с 15 до 18
     borderWidth: 1,
     borderColor: 'rgba(255, 215, 0, 0.1)',
+    minHeight: getResponsiveSize(60), // Добавил минимальную высоту
   },
   input: {
     flex: 1,
     paddingVertical: 0,
     paddingHorizontal: getResponsiveSize(10),
-    fontSize: getResponsiveFontSize(15),
+    fontSize: getResponsiveFontSize(18), // +20%
     color: '#E0E0E0',
   },
   errorText: {
     color: '#FF6B6B',
-    fontSize: getResponsiveFontSize(12),
+    fontSize: getResponsiveFontSize(14), // +20%
     marginTop: getResponsiveSize(5),
     marginLeft: getResponsiveSize(5),
   },
   passwordHint: {
     color: '#888',
-    fontSize: getResponsiveFontSize(11),
+    fontSize: getResponsiveFontSize(13), // +20%
     marginBottom: getResponsiveSize(20),
     marginLeft: getResponsiveSize(5),
     fontStyle: 'italic',
@@ -1216,7 +1217,7 @@ const styles = StyleSheet.create({
   },
   forgotText: {
     color: '#FFD700',
-    fontSize: getResponsiveFontSize(13),
+    fontSize: getResponsiveFontSize(16), // +20%
     fontWeight: '600',
     textDecorationLine: 'underline',
   },
@@ -1243,7 +1244,7 @@ const styles = StyleSheet.create({
   },
   buttonText: {
     color: '#1a1a1a',
-    fontSize: getResponsiveFontSize(16),
+    fontSize: getResponsiveFontSize(19), // +20%
     fontWeight: '700',
     letterSpacing: 0.5,
     marginLeft: getResponsiveSize(8),
@@ -1259,12 +1260,12 @@ const styles = StyleSheet.create({
   },
   createText: {
     color: '#888',
-    fontSize: getResponsiveFontSize(14),
+    fontSize: getResponsiveFontSize(17), // +20%
     textAlign: 'center',
   },
   createTextBold: {
     color: '#FFD700',
-    fontSize: getResponsiveFontSize(14),
+    fontSize: getResponsiveFontSize(17), // +20%
     fontWeight: '700',
     textAlign: 'center',
   },
@@ -1315,7 +1316,7 @@ const styles = StyleSheet.create({
     elevation: 5,
   },
   modalTitle: {
-    fontSize: getResponsiveFontSize(18),
+    fontSize: getResponsiveFontSize(22), // +20%
     fontWeight: '700',
     color: '#E0E0E0',
   },
@@ -1323,9 +1324,9 @@ const styles = StyleSheet.create({
     padding: getResponsiveSize(5),
   },
   modalDescription: {
-    fontSize: getResponsiveFontSize(14),
+    fontSize: getResponsiveFontSize(17), // +20%
     color: '#999',
     marginBottom: getResponsiveSize(20),
-    lineHeight: 20,
+    lineHeight: 24, // Увеличил с 20
   },
 });
