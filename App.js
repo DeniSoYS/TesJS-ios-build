@@ -2,13 +2,13 @@ import { Ionicons } from '@expo/vector-icons';
 import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import * as Notifications from 'expo-notifications';
+import * as SystemUI from 'expo-system-ui'; // ← ДОБАВЬ
 import { onAuthStateChanged } from 'firebase/auth';
 import { doc, getDoc } from 'firebase/firestore';
 import { useEffect, useState } from 'react';
 import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { auth, db } from './firebaseConfig';
 import MoveDetailScreen from './screens/MoveDetailScreen';
-
 // ИМПОРТЫ РАБОЧИХ ЭКРАНОВ
 import AddEventScreen from './screens/AddEventScreen';
 import AddReminderScreen from './screens/AddReminderScreen';
@@ -68,6 +68,11 @@ export default function App() {
   const [userRole, setUserRole] = useState(null);
   const [loading, setLoading] = useState(true);
   const [showSplash, setShowSplash] = useState(true);
+
+// Устанавливаем цвет статус бара и нижней панели
+useEffect(() => {
+  SystemUI.setBackgroundColorAsync('#0a0a0a');
+}, []);
 
   useEffect(() => {
     const subscription = Notifications.addNotificationResponseReceivedListener(response => {
