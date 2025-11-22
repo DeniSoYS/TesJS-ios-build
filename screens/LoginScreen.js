@@ -243,6 +243,7 @@ export default function LoginScreen({ navigation }) {
   const [resetModalVisible, setResetModalVisible] = useState(false);
   const [resetEmail, setResetEmail] = useState('');
   const [resetLoading, setResetLoading] = useState(false);
+  const [resetSuccess, setResetSuccess] = useState(false); // Новое состояние
   
   // Фокус состояния
   const [emailFocused, setEmailFocused] = useState(false);
@@ -439,11 +440,9 @@ export default function LoginScreen({ navigation }) {
         phone: phone
       });
       
-      Alert.alert(
-        'Успех! 🎉',
-        'Аккаунт создан. Добро пожаловать!',
-        [{ text: 'OK' }]
-      );
+      // После успешной регистрации пользователь автоматически входит
+      // Firebase Auth автоматически авторизует пользователя после createUserWithEmailAndPassword
+      console.log('✅ Регистрация успешна, пользователь автоматически вошел в систему');
       
     } catch (error) {
       console.error(error);
@@ -494,24 +493,17 @@ export default function LoginScreen({ navigation }) {
     setResetLoading(true);
 
     try {
+      console.log('🔄 Отправка письма для сброса пароля на:', emailToReset);
       await sendPasswordResetEmail(auth, emailToReset);
-      Alert.alert(
-        'Письмо отправлено ✉️',
-        `Ссылка для восстановления пароля отправлена на ${emailToReset}. Проверьте почту.`,
-        [
-          { 
-            text: 'OK',
-            onPress: () => {
-              if (resetModalVisible) {
-                setResetModalVisible(false);
-                setResetEmail('');
-              }
-            }
-          }
-        ]
-      );
+      console.log('✅ Письмо успешно отправлено на:', emailToReset);
+      
+      // Показываем успех в модалке вместо Alert
+      setResetSuccess(true);
+      
     } catch (error) {
-      console.error(error);
+      console.error('❌ Ошибка отправки письма:', error);
+      console.error('Код ошибки:', error.code);
+      console.error('Сообщение:', error.message);
       
       let errorMessage = 'Не удалось отправить письмо';
       
@@ -524,6 +516,9 @@ export default function LoginScreen({ navigation }) {
           break;
         case 'auth/network-request-failed':
           errorMessage = 'Ошибка сети. Проверьте подключение к интернету';
+          break;
+        case 'auth/too-many-requests':
+          errorMessage = 'Слишком много попыток. Попробуйте позже';
           break;
         default:
           errorMessage = error.message;
@@ -932,14 +927,17 @@ export default function LoginScreen({ navigation }) {
                   start={{ x: 0, y: 0 }}
                   end={{ x: 1, y: 1 }}
                 >
-                  <Ionicons name="key" size={24} color="#1a1a1a" />
+                  <Ionicons name={resetSuccess ? "checkmark-circle" : "key"} size={24} color="#1a1a1a" />
                 </LinearGradient>
-                <Text style={styles.modalTitle}>Восстановление пароля</Text>
+                <Text style={styles.modalTitle}>
+                  {resetSuccess ? 'Письмо отправлено!' : 'Восстановление пароля'}
+                </Text>
               </View>
               <TouchableOpacity
                 onPress={() => {
                   setResetModalVisible(false);
                   setResetEmail('');
+                  setResetSuccess(false);
                 }}
                 style={styles.closeButton}
               >
@@ -947,55 +945,96 @@ export default function LoginScreen({ navigation }) {
               </TouchableOpacity>
             </View>
 
-            <Text style={styles.modalDescription}>
-              Введите ваш email, и мы отправим вам ссылку для сброса пароля
-            </Text>
-
-            <View style={styles.inputSection}>
-              <Text style={styles.inputLabel}>Email *</Text>
-              <LinearGradient
-                colors={['rgba(42, 42, 42, 0.8)', 'rgba(35, 35, 35, 0.9)']}
-                style={styles.inputContainer}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 1 }}
-              >
-                <View style={styles.inputInnerContainer}>
-                  <Ionicons name="mail" size={20} color="#888" />
-                  <TextInput
-                    style={styles.input}
-                    placeholder="your@email.com"
-                    placeholderTextColor="#666"
-                    value={resetEmail}
-                    onChangeText={setResetEmail}
-                    keyboardType="email-address"
-                    autoCapitalize="none"
-                    editable={!resetLoading}
-                  />
+            {resetSuccess ? (
+              // Сообщение об успешной отправке
+              <>
+                <View style={styles.successContainer}>
+                  <Ionicons name="mail" size={60} color="#FFD700" />
+                  <Text style={styles.successTitle}>Проверьте почту!</Text>
+                  <Text style={styles.successDescription}>
+                    Ссылка для сброса пароля отправлена на{'\n'}
+                    <Text style={styles.successEmail}>{resetEmail}</Text>
+                  </Text>
+                  <Text style={styles.successHint}>
+                    Не забудьте проверить папку "Спам"
+                  </Text>
                 </View>
-              </LinearGradient>
-            </View>
+                
+                <TouchableOpacity
+                  style={styles.mainButtonWrapper}
+                  onPress={() => {
+                    setResetModalVisible(false);
+                    setResetEmail('');
+                    setResetSuccess(false);
+                  }}
+                >
+                  <LinearGradient
+                    colors={['#FFD700', '#FFA500']}
+                    style={styles.mainButtonGradient}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 1 }}
+                  >
+                    <View style={styles.buttonContent}>
+                      <Ionicons name="checkmark" size={20} color="#1a1a1a" />
+                      <Text style={styles.buttonText}>Понятно</Text>
+                    </View>
+                  </LinearGradient>
+                </TouchableOpacity>
+              </>
+            ) : (
+              // Форма ввода email
+              <>
+                <Text style={styles.modalDescription}>
+                  Введите ваш email, и мы отправим вам ссылку для сброса пароля
+                </Text>
 
-            <TouchableOpacity
-              style={styles.mainButtonWrapper}
-              onPress={handleForgotPassword}
-              disabled={resetLoading}
-            >
-              <LinearGradient
-                colors={resetLoading ? ['#666', '#444'] : ['#FFD700', '#FFA500']}
-                style={styles.mainButtonGradient}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 1 }}
-              >
-                {resetLoading ? (
-                  <ActivityIndicator color="#1a1a1a" size="small" />
-                ) : (
-                  <View style={styles.buttonContent}>
-                    <Ionicons name="send" size={20} color="#1a1a1a" />
-                    <Text style={styles.buttonText}>Отправить</Text>
-                  </View>
-                )}
-              </LinearGradient>
-            </TouchableOpacity>
+                <View style={styles.inputSection}>
+                  <Text style={styles.inputLabel}>Email *</Text>
+                  <LinearGradient
+                    colors={['rgba(42, 42, 42, 0.8)', 'rgba(35, 35, 35, 0.9)']}
+                    style={styles.inputContainer}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 1 }}
+                  >
+                    <View style={styles.inputInnerContainer}>
+                      <Ionicons name="mail" size={20} color="#888" />
+                      <TextInput
+                        style={styles.input}
+                        placeholder="your@email.com"
+                        placeholderTextColor="#666"
+                        value={resetEmail}
+                        onChangeText={setResetEmail}
+                        keyboardType="email-address"
+                        autoCapitalize="none"
+                        editable={!resetLoading}
+                      />
+                    </View>
+                  </LinearGradient>
+                </View>
+
+                <TouchableOpacity
+                  style={styles.mainButtonWrapper}
+                  onPress={handleForgotPassword}
+                  disabled={resetLoading}
+                >
+                  <LinearGradient
+                    colors={resetLoading ? ['#666', '#444'] : ['#FFD700', '#FFA500']}
+                    style={styles.mainButtonGradient}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 1 }}
+                  >
+                    {resetLoading ? (
+                      <ActivityIndicator color="#1a1a1a" size="small" />
+                    ) : (
+                      <View style={styles.buttonContent}>
+                        <Ionicons name="send" size={20} color="#1a1a1a" />
+                        <Text style={styles.buttonText}>Отправить</Text>
+                      </View>
+                    )}
+                  </LinearGradient>
+                </TouchableOpacity>
+              </>
+            )}
           </View>
         </View>
       </Modal>
@@ -1328,5 +1367,33 @@ const styles = StyleSheet.create({
     color: '#999',
     marginBottom: getResponsiveSize(20),
     lineHeight: 24, // Увеличил с 20
+  },
+  successContainer: {
+    alignItems: 'center',
+    paddingVertical: getResponsiveSize(30),
+  },
+  successTitle: {
+    fontSize: getResponsiveFontSize(22),
+    fontWeight: '700',
+    color: '#E0E0E0',
+    marginTop: getResponsiveSize(20),
+    marginBottom: getResponsiveSize(10),
+  },
+  successDescription: {
+    fontSize: getResponsiveFontSize(16),
+    color: '#999',
+    textAlign: 'center',
+    lineHeight: 24,
+    marginBottom: getResponsiveSize(15),
+  },
+  successEmail: {
+    color: '#FFD700',
+    fontWeight: '600',
+  },
+  successHint: {
+    fontSize: getResponsiveFontSize(14),
+    color: '#888',
+    fontStyle: 'italic',
+    textAlign: 'center',
   },
 });
