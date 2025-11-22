@@ -21,21 +21,12 @@
         "backgroundColor": "#FFD700"
       },
       "package": "com.example.firebasetest",
-      //"googleServicesFile": "./google-services.json",
       "permissions": [
         "RECEIVE_BOOT_COMPLETED",
         "WAKE_LOCK",
         "VIBRATE",
         "android.permission.POST_NOTIFICATIONS"
-      ],
-      "navigationBar": {
-        "backgroundColor": "#8c7c49",
-        "barStyle": "light-content"
-      },
-      "statusBar": {
-        "backgroundColor": "#8c7c49",
-        "barStyle": "light-content"
-      }
+      ]
     },
     "web": {
       "favicon": "./assets/favicon.png"
