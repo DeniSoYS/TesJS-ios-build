@@ -2,9 +2,10 @@ import { Ionicons } from '@expo/vector-icons';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { LinearGradient } from 'expo-linear-gradient';
 import { addDoc, collection, doc, updateDoc } from 'firebase/firestore';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
   Alert,
+  BackHandler,
   Dimensions,
   KeyboardAvoidingView,
   Modal,
@@ -33,6 +34,15 @@ const getResponsiveFontSize = (size) => {
   return Math.round(baseSize);
 };
 
+// Категории участников
+const PARTICIPANT_CATEGORIES = [
+  { key: 'femaleChoir', label: 'Женский состав хор', icon: 'woman', color: '#E91E63' },
+  { key: 'maleChoir', label: 'Мужской состав хор', icon: 'man', color: '#2196F3' },
+  { key: 'maleBallet', label: 'Мужской состав балет', icon: 'fitness', color: '#FF9800' },
+  { key: 'femaleBallet', label: 'Женский состав балет', icon: 'ribbon', color: '#9C27B0' },
+  { key: 'administration', label: 'Администрация', icon: 'briefcase', color: '#607D8B' },
+];
+
 export default function AddEvent({ navigation, route }) {
   const { date, userRole, concert, isEditing } = route.params || {};
   
@@ -42,9 +52,29 @@ export default function AddEvent({ navigation, route }) {
   const [address, setAddress] = useState(concert?.address || '');
   const [departureTime, setDepartureTime] = useState(concert?.departureTime || '');
   const [startTime, setStartTime] = useState(concert?.startTime || '');
-  const [participants, setParticipants] = useState(concert?.participants || []);
+  
+  // ✅ НОВАЯ СТРУКТУРА УЧАСТНИКОВ ПО КАТЕГОРИЯМ
+  const [participants, setParticipants] = useState(
+    concert?.participants || {
+      femaleChoir: [],
+      maleChoir: [],
+      maleBallet: [],
+      femaleBallet: [],
+      administration: []
+    }
+  );
+  const [expandedCategories, setExpandedCategories] = useState({
+    femaleChoir: true,
+    maleChoir: false,
+    maleBallet: false,
+    femaleBallet: false,
+    administration: false,
+  });
+  
   const [newParticipant, setNewParticipant] = useState('');
   const [showParticipantModal, setShowParticipantModal] = useState(false);
+  const [selectedCategory, setSelectedCategory] = useState(null);
+  
   const [showDepartureTimePicker, setShowDepartureTimePicker] = useState(false);
   const [showStartTimePicker, setShowStartTimePicker] = useState(false);
   const [departureDate, setDepartureDate] = useState(new Date());
@@ -60,6 +90,10 @@ export default function AddEvent({ navigation, route }) {
   });
   const [editingSongIndex, setEditingSongIndex] = useState(null);
 
+  // Рефы для управления модальными окнами
+  const participantModalRef = useRef(null);
+  const programModalRef = useRef(null);
+
   const concertTypes = [
     { value: 'GENERAL', label: 'Общий концерт' },
     { value: 'BRIGADE_1', label: 'Первая бригада' },
@@ -68,7 +102,6 @@ export default function AddEvent({ navigation, route }) {
     { value: 'SOLOISTS_ORCHESTRA', label: 'Солисты оркестр' },
   ];
 
-  // ✅ ОБНОВЛЯЕМ ЗАГОЛОВОК В ЗАВИСИМОСТИ ОТ РЕЖИМА
   useEffect(() => {
     if (isEditing) {
       navigation.setOptions({
@@ -77,7 +110,86 @@ export default function AddEvent({ navigation, route }) {
     }
   }, [isEditing, navigation]);
 
-  // Функции для выбора времени
+  // ✅ ИСПРАВЛЕННАЯ НАВИГАЦИЯ ДЛЯ PWA
+  useEffect(() => {
+    if (Platform.OS !== 'web') {
+      const backHandler = BackHandler.addEventListener('hardwareBackPress', handleBackPress);
+      return () => backHandler.remove();
+    }
+  }, []);
+
+  const handleBackPress = () => {
+    if (showParticipantModal) {
+      setShowParticipantModal(false);
+      return true;
+    }
+    if (showProgramModal) {
+      setShowProgramModal(false);
+      return true;
+    }
+    navigation.goBack();
+    return true;
+  };
+
+  // ✅ УЛУЧШЕННЫЙ ФОРМАТ ВРЕМЕНИ ДЛЯ PWA
+  const formatTimeInput = (text) => {
+    // Удаляем все нецифровые символы
+    const cleaned = text.replace(/\D/g, '');
+    
+    if (cleaned.length === 0) return '';
+    if (cleaned.length <= 2) {
+      const hours = parseInt(cleaned);
+      if (hours > 23) return '23';
+      return cleaned;
+    }
+    
+    const hours = parseInt(cleaned.substring(0, 2));
+    const minutes = cleaned.substring(2, 4);
+    
+    const validHours = hours > 23 ? 23 : hours;
+    const validMinutes = minutes ? (parseInt(minutes) > 59 ? 59 : parseInt(minutes)) : 0;
+    
+    return `${String(validHours).padStart(2, '0')}:${String(validMinutes).padStart(2, '0')}`;
+  };
+
+  // ✅ УЛУЧШЕННЫЙ TIME PICKER ДЛЯ PWA
+  const handleTimePicker = (type) => {
+    if (Platform.OS === 'web') {
+      // Для PWA используем простой выбор времени
+      const currentTime = type === 'departure' ? departureTime : startTime;
+      const newTime = prompt(`Введите время ${type === 'departure' ? 'выезда' : 'начала'} (ЧЧ:ММ):`, currentTime || '00:00');
+      
+      if (newTime) {
+        const formattedTime = formatTimeInput(newTime);
+        if (formattedTime) {
+          if (type === 'departure') {
+            setDepartureTime(formattedTime);
+          } else {
+            setStartTime(formattedTime);
+          }
+        }
+      }
+    } else {
+      // Для нативных платформ используем стандартный пикер
+      if (type === 'departure') {
+        setShowDepartureTimePicker(true);
+      } else {
+        setShowStartTimePicker(true);
+      }
+    }
+  };
+
+  const handleDepartureTimeChange = (text) => {
+    const formatted = formatTimeInput(text);
+    setDepartureTime(formatted);
+  };
+
+  const handleStartTimeChange = (text) => {
+    const formatted = formatTimeInput(text);
+    setStartTime(formatted);
+  };
+
+  // Для нативных платформ
   const onDepartureTimeChange = (event, selectedDate) => {
     setShowDepartureTimePicker(false);
     if (selectedDate) {
@@ -96,23 +208,58 @@ export default function AddEvent({ navigation, route }) {
     }
   };
 
-  // Функции для участников
+  // ========================================
+  // 👥 ФУНКЦИИ ДЛЯ УЧАСТНИКОВ ПО КАТЕГОРИЯМ
+  // ========================================
+
+  const toggleCategory = (categoryKey) => {
+    setExpandedCategories(prev => ({
+      ...prev,
+      [categoryKey]: !prev[categoryKey]
+    }));
+  };
+
+  const openAddParticipant = (categoryKey) => {
+    setSelectedCategory(categoryKey);
+    setNewParticipant('');
+    setShowParticipantModal(true);
+  };
+
   const addParticipant = () => {
-    if (newParticipant.trim() && !participants.includes(newParticipant.trim())) {
-      setParticipants([...participants, newParticipant.trim()]);
-      setNewParticipant('');
-      setShowParticipantModal(false);
-    } else if (participants.includes(newParticipant.trim())) {
-      Alert.alert('Ошибка', 'Этот участник уже добавлен');
+    if (!newParticipant.trim()) {
+      Alert.alert('Ошибка', 'Введите ФИО участника');
+      return;
     }
+
+    if (participants[selectedCategory].includes(newParticipant.trim())) {
+      Alert.alert('Ошибка', 'Этот участник уже добавлен в эту категорию');
+      return;
+    }
+
+    setParticipants(prev => ({
+      ...prev,
+      [selectedCategory]: [...prev[selectedCategory], newParticipant.trim()]
+    }));
+
+    setNewParticipant('');
+    setShowParticipantModal(false);
   };
 
-  const removeParticipant = (index) => {
-    const updatedParticipants = participants.filter((_, i) => i !== index);
-    setParticipants(updatedParticipants);
+  const removeParticipant = (categoryKey, index) => {
+    setParticipants(prev => ({
+      ...prev,
+      [categoryKey]: prev[categoryKey].filter((_, i) => i !== index)
+    }));
   };
 
-  // Функции для концертной программы
+  const getTotalParticipantsCount = () => {
+    return Object.values(participants).reduce((sum, arr) => sum + arr.length, 0);
+  };
+
+  // ========================================
+  // 🎵 ФУНКЦИИ ДЛЯ КОНЦЕРТНОЙ ПРОГРАММЫ
+  // ========================================
+
   const addOrUpdateSong = () => {
     if (!newSong.title.trim()) {
       Alert.alert('Ошибка', 'Введите название произведения');
@@ -120,13 +267,11 @@ export default function AddEvent({ navigation, route }) {
     }
 
     if (editingSongIndex !== null) {
-      // Редактирование существующей песни
       const updatedSongs = [...songs];
       updatedSongs[editingSongIndex] = { ...newSong };
       setSongs(updatedSongs);
       setEditingSongIndex(null);
     } else {
-      // Добавление новой песни
       setSongs([...songs, { ...newSong }]);
     }
 
@@ -154,16 +299,26 @@ export default function AddEvent({ navigation, route }) {
     setEditingSongIndex(null);
   };
 
-  // ✅ ОБНОВЛЕННАЯ ФУНКЦИЯ СОХРАНЕНИЯ С РЕДАКТИРОВАНИЕМ
+  // ========================================
+  // 💾 СОХРАНЕНИЕ КОНЦЕРТА
+  // ========================================
+
   const handleSubmit = async () => {
     if (!description.trim() || !address.trim() || !departureTime || !startTime) {
       Alert.alert('Ошибка', 'Пожалуйста, заполните все обязательные поля');
       return;
     }
 
+    // Проверка формата времени
+    const timeRegex = /^([01]?[0-9]|2[0-3]):[0-5][0-9]$/;
+    if (!timeRegex.test(departureTime) || !timeRegex.test(startTime)) {
+      Alert.alert('Ошибка', 'Неверный формат времени. Используйте HH:MM (например, 14:30)');
+      return;
+    }
+
     try {
       const concertData = {
-        date: isEditing ? concert.date : date, // Сохраняем оригинальную дату при редактировании
+        date: isEditing ? concert.date : date,
         concertType: concertType,
         description: description.trim(),
         address: address.trim(),
@@ -180,11 +335,9 @@ export default function AddEvent({ navigation, route }) {
       let message;
       
       if (isEditing && concert) {
-        // ✅ РЕДАКТИРОВАНИЕ СУЩЕСТВУЮЩЕГО КОНЦЕРТА
         await updateDoc(doc(db, 'concerts', concert.id), concertData);
         message = 'Концерт успешно обновлен';
       } else {
-        // ✅ СОЗДАНИЕ НОВОГО КОНЦЕРТА
         concertData.createdAt = new Date();
         await addDoc(collection(db, 'concerts'), concertData);
         message = 'Концерт успешно добавлен';
@@ -201,6 +354,54 @@ export default function AddEvent({ navigation, route }) {
     }
   };
 
+  // ✅ ИСПРАВЛЕННЫЙ РЕНДЕР ДЛЯ PWA И МОБИЛЬНЫХ УСТРОЙСТВ
+  const renderTimeInput = (type, value, placeholder, label) => {
+    if (Platform.OS === 'web') {
+      // Для PWA - улучшенный ввод с кнопкой выбора
+      return (
+        <View style={styles.timeInputCard}>
+          <Text style={styles.label}>{label} *</Text>
+          <View style={styles.webTimeContainer}>
+            <View style={styles.timeInput}>
+              <Ionicons name="time-outline" size={getResponsiveSize(20)} color="#FFD700" />
+              <TextInput
+                style={styles.timeTextInput}
+                value={value}
+                onChangeText={type === 'departure' ? handleDepartureTimeChange : handleStartTimeChange}
+                placeholder={placeholder}
+                placeholderTextColor="#666"
+                keyboardType="numeric"
+                maxLength={5}
+              />
+            </View>
+            <TouchableOpacity 
+              style={styles.timePickerButton}
+              onPress={() => handleTimePicker(type)}
+            >
+              <Ionicons name="time" size={getResponsiveSize(16)} color="#1a1a1a" />
+            </TouchableOpacity>
+          </View>
+        </View>
+      );
+    } else {
+      // Для нативных платформ
+      return (
+        <View style={styles.timeInputCard}>
+          <Text style={styles.label}>{label} *</Text>
+          <TouchableOpacity 
+            style={styles.timeInput}
+            onPress={() => handleTimePicker(type)}
+          >
+            <Ionicons name="time-outline" size={getResponsiveSize(20)} color="#FFD700" />
+            <Text style={value ? styles.timeText : styles.timePlaceholder}>
+              {value || placeholder}
+            </Text>
+          </TouchableOpacity>
+        </View>
+      );
+    }
+  };
+
   return (
     <LinearGradient
       colors={['#0a0a0a', '#1a1a1a', '#2a2a2a']}
@@ -210,14 +411,14 @@ export default function AddEvent({ navigation, route }) {
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         style={styles.keyboardAvoid}
       >
-        {/* 🌙 ТЕМНЫЙ ХЕДЕР В СТИЛЕ КАЛЕНДАРЯ */}
+        {/* 🌙 ТЕМНЫЙ ХЕДЕР */}
         <LinearGradient
           colors={['rgba(26, 26, 26, 0.98)', 'rgba(35, 35, 35, 0.95)']}
           style={styles.header}
         >
           <View style={styles.headerContent}>
             <TouchableOpacity 
-              onPress={() => navigation.goBack()}
+              onPress={handleBackPress}
               style={styles.backButton}
             >
               <LinearGradient
@@ -241,7 +442,11 @@ export default function AddEvent({ navigation, route }) {
           </View>
         </LinearGradient>
 
-        <ScrollView showsVerticalScrollIndicator={false} style={styles.scrollView}>
+        <ScrollView 
+          showsVerticalScrollIndicator={false} 
+          style={styles.scrollView}
+          contentContainerStyle={styles.scrollContent}
+        >
           <View style={styles.contentContainer}>
             {/* 🌙 КАРТОЧКА С ДАТОЙ */}
             <View style={styles.dateCard}>
@@ -316,6 +521,7 @@ export default function AddEvent({ navigation, route }) {
                   placeholder="Введите описание концерта..."
                   placeholderTextColor="#666"
                   multiline
+                  numberOfLines={3}
                 />
               </View>
 
@@ -331,37 +537,18 @@ export default function AddEvent({ navigation, route }) {
               </View>
             </View>
 
-            {/* 🌙 ВРЕМЯ */}
+            {/* ⏰ ВРЕМЯ (ИСПРАВЛЕНО ДЛЯ PWA И МОБИЛЬНЫХ) */}
             <View style={styles.section}>
               <Text style={styles.sectionTitle}>⏰ Время</Text>
               
               <View style={styles.timeContainer}>
-                <View style={styles.timeInputCard}>
-                  <Text style={styles.label}>Время выезда *</Text>
-                  <TouchableOpacity 
-                    style={styles.timeInput}
-                    onPress={() => setShowDepartureTimePicker(true)}
-                  >
-                    <Ionicons name="time-outline" size={getResponsiveSize(20)} color="#FFD700" />
-                    <Text style={departureTime ? styles.timeText : styles.timePlaceholder}>
-                      {departureTime || 'Выберите время выезда'}
-                    </Text>
-                  </TouchableOpacity>
-                </View>
-
-                <View style={styles.timeInputCard}>
-                  <Text style={styles.label}>Время начала *</Text>
-                  <TouchableOpacity 
-                    style={styles.timeInput}
-                    onPress={() => setShowStartTimePicker(true)}
-                  >
-                    <Ionicons name="time-outline" size={getResponsiveSize(20)} color="#FFD700" />
-                    <Text style={startTime ? styles.timeText : styles.timePlaceholder}>
-                      {startTime || 'Выберите время начала'}
-                    </Text>
-                  </TouchableOpacity>
-                </View>
+                {renderTimeInput('departure', departureTime, '00:00', 'Время выезда')}
+                {renderTimeInput('start', startTime, '00:00', 'Время начала')}
               </View>
+              
+              {Platform.OS === 'web' && (
+                <Text style={styles.timeHint}>💡 Формат времени: ЧЧ:ММ (например, 14:30)</Text>
+              )}
             </View>
 
             {/* 🌙 КОНЦЕРТНАЯ ПРОГРАММА */}
@@ -393,49 +580,96 @@ export default function AddEvent({ navigation, route }) {
               )}
             </View>
 
-            {/* 🌙 УЧАСТНИКИ */}
+            {/* 👥 УЧАСТНИКИ ПО КАТЕГОРИЯМ (АККОРДЕОН) */}
             <View style={styles.section}>
               <View style={styles.sectionHeader}>
-                <Text style={styles.sectionTitle}>👥 Участники</Text>
-                <TouchableOpacity 
-                  style={styles.addParticipantButton}
-                  onPress={() => setShowParticipantModal(true)}
-                >
-                  <LinearGradient
-                    colors={['#4A90E2', '#357ABD']}
-                    style={styles.addParticipantGradient}
-                  >
-                    <Ionicons name="add" size={getResponsiveSize(18)} color="white" />
-                  </LinearGradient>
-                </TouchableOpacity>
+                <Text style={styles.sectionTitle}>
+                  👥 Участники ({getTotalParticipantsCount()})
+                </Text>
               </View>
 
-              {/* Список участников */}
-              {participants.length > 0 ? (
-                <View style={styles.participantsGrid}>
-                  {participants.map((participant, index) => (
-                    <View key={index} style={styles.participantChip}>
-                      <LinearGradient
-                        colors={['rgba(74, 144, 226, 0.2)', 'rgba(53, 122, 189, 0.2)']}
-                        style={styles.participantChipGradient}
-                      >
-                        <Text style={styles.participantText}>{participant}</Text>
+              {/* Категории участников */}
+              {PARTICIPANT_CATEGORIES.map((category) => (
+                <View key={category.key} style={styles.categoryCard}>
+                  {/* Заголовок категории */}
+                  <TouchableOpacity 
+                    style={styles.categoryHeader}
+                    onPress={() => toggleCategory(category.key)}
+                  >
+                    <LinearGradient
+                      colors={expandedCategories[category.key] ? 
+                        [`${category.color}40`, `${category.color}20`] : 
+                        ['rgba(42, 42, 42, 0.6)', 'rgba(35, 35, 35, 0.6)']}
+                      style={styles.categoryHeaderGradient}
+                    >
+                      <View style={styles.categoryTitleContainer}>
+                        <Ionicons 
+                          name={category.icon} 
+                          size={getResponsiveSize(20)} 
+                          color={category.color} 
+                        />
+                        <View style={styles.categoryTitleTextContainer}>
+                          <Text style={styles.categoryTitle}>{category.label}</Text>
+                          <Text style={styles.categoryCount}>
+                            {participants[category.key].length} участников
+                          </Text>
+                        </View>
+                      </View>
+                      
+                      <View style={styles.categoryActions}>
                         <TouchableOpacity 
-                          onPress={() => removeParticipant(index)}
-                          style={styles.removeParticipant}
+                          style={styles.addCategoryButton}
+                          onPress={(e) => {
+                            e.stopPropagation();
+                            openAddParticipant(category.key);
+                          }}
                         >
-                          <Ionicons name="close-circle" size={getResponsiveSize(16)} color="#FF6B6B" />
+                          <Ionicons name="add-circle" size={getResponsiveSize(24)} color={category.color} />
                         </TouchableOpacity>
-                      </LinearGradient>
+                        <Ionicons 
+                          name={expandedCategories[category.key] ? 'chevron-up' : 'chevron-down'} 
+                          size={getResponsiveSize(20)} 
+                          color="#999" 
+                        />
+                      </View>
+                    </LinearGradient>
+                  </TouchableOpacity>
+
+                  {/* Список участников категории (сворачиваемый) */}
+                  {expandedCategories[category.key] && (
+                    <View style={styles.categoryContent}>
+                      {participants[category.key].length === 0 ? (
+                        <View style={styles.categoryEmptyState}>
+                          <Ionicons name="people-outline" size={getResponsiveSize(24)} color="#555" />
+                          <Text style={styles.categoryEmptyText}>Участники не добавлены</Text>
+                        </View>
+                      ) : (
+                        <View style={styles.participantsList}>
+                          {participants[category.key].map((participant, index) => (
+                            <View key={index} style={styles.participantItem}>
+                              <LinearGradient
+                                colors={[`${category.color}20`, `${category.color}10`]}
+                                style={styles.participantItemGradient}
+                              >
+                                <View style={styles.participantInfo}>
+                                  <Text style={styles.participantNumber}>{index + 1}.</Text>
+                                  <Text style={styles.participantName}>{participant}</Text>
+                                </View>
+                                <TouchableOpacity 
+                                  onPress={() => removeParticipant(category.key, index)}
+                                  style={styles.removeParticipantButton}
+                                >
+                                  <Ionicons name="close-circle" size={getResponsiveSize(20)} color="#FF6B6B" />
+                                </TouchableOpacity>
+                              </LinearGradient>
+                            </View>
+                          ))}
+                        </View>
+                      )}
                     </View>
-                  ))}
+                  )}
                 </View>
-              ) : (
-                <View style={styles.emptyState}>
-                  <Ionicons name="people-outline" size={getResponsiveSize(32)} color="#555" />
-                  <Text style={styles.emptyStateText}>Участники не добавлены</Text>
-                </View>
-              )}
+              ))}
             </View>
 
             {/* 🌙 КНОПКА СОХРАНЕНИЯ */}
@@ -463,19 +697,30 @@ export default function AddEvent({ navigation, route }) {
           visible={showParticipantModal}
           transparent={true}
           animationType="slide"
+          onRequestClose={() => setShowParticipantModal(false)}
         >
-          <View style={styles.modalOverlay}>
-            <LinearGradient
-              colors={['rgba(26, 26, 26, 0.98)', 'rgba(35, 35, 35, 0.95)']}
+          <TouchableOpacity 
+            style={styles.modalOverlay}
+            activeOpacity={1}
+            onPress={() => setShowParticipantModal(false)}
+          >
+            <TouchableOpacity 
               style={styles.modalContent}
+              activeOpacity={1}
+              onPress={(e) => e.stopPropagation()}
             >
               <View style={styles.modalHeader}>
-                <Text style={styles.modalTitle}>Добавить участника</Text>
+                <Text style={styles.modalTitle}>
+                  Добавить участника
+                  {selectedCategory && (
+                    <Text style={styles.modalSubtitle}>
+                      {'\n'}
+                      {PARTICIPANT_CATEGORIES.find(c => c.key === selectedCategory)?.label}
+                    </Text>
+                  )}
+                </Text>
                 <TouchableOpacity 
-                  onPress={() => {
-                    setNewParticipant('');
-                    setShowParticipantModal(false);
-                  }}
+                  onPress={() => setShowParticipantModal(false)}
                   style={styles.modalCloseButton}
                 >
                   <Ionicons name="close-circle" size={getResponsiveSize(28)} color="#FFD700" />
@@ -488,16 +733,15 @@ export default function AddEvent({ navigation, route }) {
                 onChangeText={setNewParticipant}
                 placeholder="ФИО участника"
                 placeholderTextColor="#666"
-                autoFocus
+                autoFocus={Platform.OS !== 'web'} // Автофокус на мобильных, в вебе может быть проблемы
+                onSubmitEditing={addParticipant}
+                returnKeyType="done"
               />
 
               <View style={styles.modalButtons}>
                 <TouchableOpacity 
                   style={styles.cancelButton}
-                  onPress={() => {
-                    setNewParticipant('');
-                    setShowParticipantModal(false);
-                  }}
+                  onPress={() => setShowParticipantModal(false)}
                 >
                   <Text style={styles.cancelButtonText}>Отмена</Text>
                 </TouchableOpacity>
@@ -507,15 +751,18 @@ export default function AddEvent({ navigation, route }) {
                   onPress={addParticipant}
                 >
                   <LinearGradient
-                    colors={['#4A90E2', '#357ABD']}
+                    colors={selectedCategory ? [
+                      PARTICIPANT_CATEGORIES.find(c => c.key === selectedCategory)?.color || '#4A90E2',
+                      PARTICIPANT_CATEGORIES.find(c => c.key === selectedCategory)?.color || '#357ABD'
+                    ] : ['#4A90E2', '#357ABD']}
                     style={styles.confirmButtonGradient}
                   >
                     <Text style={styles.confirmButtonText}>Добавить</Text>
                   </LinearGradient>
                 </TouchableOpacity>
               </View>
-            </LinearGradient>
-          </View>
+            </TouchableOpacity>
+          </TouchableOpacity>
         </Modal>
 
         {/* 🌙 МОДАЛЬНОЕ ОКНО ПРОГРАММЫ */}
@@ -523,11 +770,17 @@ export default function AddEvent({ navigation, route }) {
           visible={showProgramModal}
           transparent={true}
           animationType="slide"
+          onRequestClose={() => setShowProgramModal(false)}
         >
-          <View style={styles.modalOverlay}>
-            <LinearGradient
-              colors={['rgba(26, 26, 26, 0.98)', 'rgba(35, 35, 35, 0.95)']}
+          <TouchableOpacity 
+            style={styles.modalOverlay}
+            activeOpacity={1}
+            onPress={() => setShowProgramModal(false)}
+          >
+            <TouchableOpacity 
               style={styles.programModalContent}
+              activeOpacity={1}
+              onPress={(e) => e.stopPropagation()}
             >
               <View style={styles.programModalHeader}>
                 <View style={styles.programTitleContainer}>
@@ -653,7 +906,6 @@ export default function AddEvent({ navigation, route }) {
                     </View>
                   )}
 
-                  {/* Кнопка очистки программы */}
                   {songs.length > 0 && (
                     <TouchableOpacity 
                       style={styles.clearProgramButton}
@@ -669,12 +921,12 @@ export default function AddEvent({ navigation, route }) {
                   )}
                 </View>
               </ScrollView>
-            </LinearGradient>
-          </View>
+            </TouchableOpacity>
+          </TouchableOpacity>
         </Modal>
 
-        {/* Time Pickers */}
-        {showDepartureTimePicker && (
+        {/* Time Pickers для нативных платформ */}
+        {Platform.OS !== 'web' && showDepartureTimePicker && (
           <DateTimePicker
             value={departureDate}
             mode="time"
@@ -683,7 +935,7 @@ export default function AddEvent({ navigation, route }) {
           />
         )}
 
-        {showStartTimePicker && (
+        {Platform.OS !== 'web' && showStartTimePicker && (
           <DateTimePicker
             value={startDate}
             mode="time"
@@ -696,7 +948,7 @@ export default function AddEvent({ navigation, route }) {
   );
 }
 
-// 🌙 ТЕМНЫЕ СТИЛИ В СТИЛЕ КАЛЕНДАРЯ
+// 🌙 ТЕМНЫЕ СТИЛИ С ИСПРАВЛЕНИЯМИ ДЛЯ PWA
 const styles = StyleSheet.create({
   container: {
     flex: 1,
@@ -707,7 +959,9 @@ const styles = StyleSheet.create({
   scrollView: {
     flex: 1,
   },
-  // 🌙 ХЕДЕР
+  scrollContent: {
+    flexGrow: 1,
+  },
   header: {
     paddingHorizontal: getResponsiveSize(20),
     paddingTop: Platform.OS === 'ios' ? getResponsiveSize(50) : getResponsiveSize(30),
@@ -757,8 +1011,8 @@ const styles = StyleSheet.create({
   },
   contentContainer: {
     padding: getResponsiveSize(20),
+    paddingBottom: getResponsiveSize(40),
   },
-  // 🌙 КАРТОЧКА ДАТЫ
   dateCard: {
     marginBottom: getResponsiveSize(25),
   },
@@ -802,7 +1056,6 @@ const styles = StyleSheet.create({
     color: '#FF6B6B',
     fontWeight: '800',
   },
-  // 🌙 СЕКЦИИ
   section: {
     marginBottom: getResponsiveSize(25),
   },
@@ -817,7 +1070,6 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: '#E0E0E0',
   },
-  // 🌙 ТИПЫ КОНЦЕРТОВ
   typeScroll: {
     marginHorizontal: getResponsiveSize(-5),
   },
@@ -849,7 +1101,6 @@ const styles = StyleSheet.create({
     color: '#1a1a1a',
     fontWeight: '700',
   },
-  // 🌙 КАРТОЧКИ ВВОДА
   inputCard: {
     marginBottom: getResponsiveSize(15),
   },
@@ -870,14 +1121,18 @@ const styles = StyleSheet.create({
     borderColor: 'rgba(255, 255, 255, 0.1)',
     textAlignVertical: 'top',
   },
-  // 🌙 ВРЕМЯ
   timeContainer: {
-    flexDirection: 'row',
+    flexDirection: Platform.OS === 'web' ? 'column' : 'row',
     justifyContent: 'space-between',
   },
   timeInputCard: {
     flex: 1,
     marginHorizontal: getResponsiveSize(5),
+    marginBottom: Platform.OS === 'web' ? getResponsiveSize(15) : 0,
+  },
+  webTimeContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
   },
   timeInput: {
     backgroundColor: 'rgba(42, 42, 42, 0.8)',
@@ -888,6 +1143,22 @@ const styles = StyleSheet.create({
     borderColor: 'rgba(255, 255, 255, 0.1)',
     flexDirection: 'row',
     alignItems: 'center',
+    flex: 1,
+  },
+  timePickerButton: {
+    backgroundColor: '#FFD700',
+    borderRadius: getResponsiveSize(12),
+    padding: getResponsiveSize(12),
+    marginLeft: getResponsiveSize(10),
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  timeTextInput: {
+    flex: 1,
+    marginLeft: getResponsiveSize(10),
+    fontSize: getResponsiveFontSize(14),
+    color: '#E0E0E0',
+    fontWeight: '500',
   },
   timeText: {
     fontSize: getResponsiveFontSize(14),
@@ -900,7 +1171,13 @@ const styles = StyleSheet.create({
     color: '#666',
     marginLeft: getResponsiveSize(10),
   },
-  // 🌙 КНОПКИ ПРОГРАММЫ
+  timeHint: {
+    fontSize: getResponsiveFontSize(11),
+    color: '#999',
+    marginTop: getResponsiveSize(8),
+    textAlign: 'center',
+    fontStyle: 'italic',
+  },
   programButton: {
     borderRadius: getResponsiveSize(20),
     overflow: 'hidden',
@@ -931,45 +1208,99 @@ const styles = StyleSheet.create({
     fontWeight: '500',
     textAlign: 'center',
   },
-  // 🌙 УЧАСТНИКИ
-  addParticipantButton: {
-    borderRadius: getResponsiveSize(20),
+  // СТИЛИ КАТЕГОРИЙ УЧАСТНИКОВ
+  categoryCard: {
+    marginBottom: getResponsiveSize(12),
+    borderRadius: getResponsiveSize(12),
     overflow: 'hidden',
   },
-  addParticipantGradient: {
-    width: getResponsiveSize(36),
-    height: getResponsiveSize(36),
-    justifyContent: 'center',
-    alignItems: 'center',
-    borderRadius: getResponsiveSize(20),
-  },
-  participantsGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    marginHorizontal: getResponsiveSize(-5),
-  },
-  participantChip: {
-    margin: getResponsiveSize(5),
-    borderRadius: getResponsiveSize(20),
+  categoryHeader: {
+    borderRadius: getResponsiveSize(12),
     overflow: 'hidden',
   },
-  participantChipGradient: {
+  categoryHeaderGradient: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: getResponsiveSize(16),
+    borderRadius: getResponsiveSize(12),
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.1)',
+  },
+  categoryTitleContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: getResponsiveSize(12),
-    paddingVertical: getResponsiveSize(8),
-    borderRadius: getResponsiveSize(20),
+    flex: 1,
   },
-  participantText: {
+  categoryTitleTextContainer: {
+    marginLeft: getResponsiveSize(12),
+  },
+  categoryTitle: {
+    fontSize: getResponsiveFontSize(14),
+    fontWeight: '700',
+    color: '#E0E0E0',
+  },
+  categoryCount: {
+    fontSize: getResponsiveFontSize(11),
+    color: '#999',
+    marginTop: getResponsiveSize(2),
+  },
+  categoryActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  addCategoryButton: {
+    padding: getResponsiveSize(5),
+    marginRight: getResponsiveSize(10),
+  },
+  categoryContent: {
+    paddingHorizontal: getResponsiveSize(16),
+    paddingBottom: getResponsiveSize(16),
+    backgroundColor: 'rgba(20, 20, 20, 0.5)',
+  },
+  categoryEmptyState: {
+    alignItems: 'center',
+    paddingVertical: getResponsiveSize(20),
+  },
+  categoryEmptyText: {
     fontSize: getResponsiveFontSize(12),
-    color: '#4A90E2',
+    color: '#666',
+    marginTop: getResponsiveSize(8),
+  },
+  participantsList: {
+    paddingTop: getResponsiveSize(8),
+  },
+  participantItem: {
+    marginBottom: getResponsiveSize(8),
+    borderRadius: getResponsiveSize(8),
+    overflow: 'hidden',
+  },
+  participantItemGradient: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: getResponsiveSize(10),
+    borderRadius: getResponsiveSize(8),
+  },
+  participantInfo: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+  },
+  participantNumber: {
+    fontSize: getResponsiveFontSize(12),
+    color: '#999',
+    fontWeight: '600',
+    marginRight: getResponsiveSize(8),
+  },
+  participantName: {
+    fontSize: getResponsiveFontSize(13),
+    color: '#E0E0E0',
     fontWeight: '500',
   },
-  removeParticipant: {
-    padding: getResponsiveSize(2),
-    marginLeft: getResponsiveSize(8),
+  removeParticipantButton: {
+    padding: getResponsiveSize(5),
   },
-  // 🌙 ПУСТЫЕ СОСТОЯНИЯ
   emptyState: {
     alignItems: 'center',
     justifyContent: 'center',
@@ -981,7 +1312,6 @@ const styles = StyleSheet.create({
     marginTop: getResponsiveSize(8),
     textAlign: 'center',
   },
-  // 🌙 КНОПКА СОХРАНЕНИЯ
   submitButton: {
     marginTop: getResponsiveSize(10),
     marginBottom: getResponsiveSize(30),
@@ -1007,7 +1337,6 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     marginLeft: getResponsiveSize(8),
   },
-  // 🌙 МОДАЛЬНЫЕ ОКНА
   modalOverlay: {
     flex: 1,
     backgroundColor: 'rgba(0, 0, 0, 0.8)',
@@ -1022,17 +1351,24 @@ const styles = StyleSheet.create({
     maxWidth: getResponsiveSize(400),
     borderWidth: 1,
     borderColor: 'rgba(255, 215, 0, 0.3)',
+    backgroundColor: 'rgba(26, 26, 26, 0.98)',
   },
   modalHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'center',
+    alignItems: 'flex-start',
     marginBottom: getResponsiveSize(20),
   },
   modalTitle: {
     fontSize: getResponsiveFontSize(18),
     fontWeight: '700',
     color: '#E0E0E0',
+    flex: 1,
+  },
+  modalSubtitle: {
+    fontSize: getResponsiveFontSize(13),
+    color: '#FFD700',
+    fontWeight: '600',
   },
   modalCloseButton: {
     padding: getResponsiveSize(5),
@@ -1082,7 +1418,6 @@ const styles = StyleSheet.create({
     color: 'white',
     fontWeight: '600',
   },
-  // 🌙 МОДАЛЬНОЕ ОКНО ПРОГРАММЫ
   programModalContent: {
     borderRadius: getResponsiveSize(25),
     padding: getResponsiveSize(25),
@@ -1090,6 +1425,8 @@ const styles = StyleSheet.create({
     flex: 1,
     borderWidth: 1,
     borderColor: 'rgba(255, 215, 0, 0.3)',
+    backgroundColor: 'rgba(26, 26, 26, 0.98)',
+    maxHeight: Platform.OS === 'web' ? '80vh' : undefined,
   },
   programModalHeader: {
     flexDirection: 'row',
