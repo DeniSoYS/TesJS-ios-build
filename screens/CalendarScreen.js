@@ -1,16 +1,13 @@
 import { Ionicons } from '@expo/vector-icons';
-import { BlurView } from 'expo-blur';
 import { LinearGradient } from 'expo-linear-gradient';
 import { signOut } from 'firebase/auth';
 import { collection, deleteDoc, doc, getDocs, query } from 'firebase/firestore';
 import { useEffect, useRef, useState } from 'react';
 import {
-  Alert,
   Animated,
   Dimensions,
   Modal,
   Platform,
-  RefreshControl,
   ScrollView,
   StatusBar,
   StyleSheet,
@@ -34,20 +31,116 @@ const toRussianType = (englishType) => {
   return types[englishType] || 'Неизвестно';
 };
 
-// ✅ АДАПТИВНЫЕ РАЗМЕРЫ
-const { width, height } = Dimensions.get('window');
-const isSmallDevice = width < 375;
-const isLargeDevice = width > 414;
+// ✅ АДАПТИВНЫЕ РАЗМЕРЫ С RESIZE LISTENER
+const getWindowDimensions = () => {
+  if (Platform.OS === 'web') {
+    return {
+      width: window.innerWidth,
+      height: window.innerHeight
+    };
+  }
+  return Dimensions.get('window');
+};
 
-const getResponsiveSize = (size) => {
+const useWindowDimensions = () => {
+  const [dimensions, setDimensions] = useState(getWindowDimensions());
+
+  useEffect(() => {
+    if (Platform.OS === 'web') {
+      const handleResize = () => {
+        setDimensions(getWindowDimensions());
+      };
+      window.addEventListener('resize', handleResize);
+      return () => window.removeEventListener('resize', handleResize);
+    }
+  }, []);
+
+  return dimensions;
+};
+
+const getResponsiveSize = (size, windowWidth) => {
+  const isSmallDevice = windowWidth < 375;
+  const isLargeDevice = windowWidth > 414;
   if (isSmallDevice) return size * 0.85;
   if (isLargeDevice) return size * 1.15;
   return size;
 };
 
-const getResponsiveFontSize = (size) => {
-  const baseSize = getResponsiveSize(size);
+const getResponsiveFontSize = (size, windowWidth) => {
+  const baseSize = getResponsiveSize(size, windowWidth);
   return Math.round(baseSize);
+};
+
+// ✅ КОМПОНЕНТ MODAL OVERLAY (ЗАМЕНА BLURVIEW)
+const ModalOverlay = ({ children, visible, onClose }) => {
+  if (!visible) return null;
+  
+  return (
+    <View style={styles.modalOverlay}>
+      <TouchableOpacity 
+        style={styles.modalBackdrop}
+        activeOpacity={1}
+        onPress={onClose}
+      />
+      {children}
+    </View>
+  );
+};
+
+// ✅ КОМПОНЕНТ CUSTOM ALERT
+const CustomAlert = ({ visible, title, message, buttons, onClose }) => {
+  if (!visible) return null;
+
+  return (
+    <Modal
+      visible={visible}
+      transparent={true}
+      animationType="fade"
+      onRequestClose={onClose}
+    >
+      <View style={styles.customAlertOverlay}>
+        <View style={styles.customAlertContainer}>
+          <LinearGradient
+            colors={['rgba(26, 26, 26, 0.98)', 'rgba(35, 35, 35, 0.95)']}
+            style={styles.customAlertGradient}
+          >
+            <Text style={styles.customAlertTitle}>{title}</Text>
+            <Text style={styles.customAlertMessage}>{message}</Text>
+            
+            <View style={styles.customAlertButtons}>
+              {buttons.map((button, index) => (
+                <TouchableOpacity
+                  key={index}
+                  style={[
+                    styles.customAlertButton,
+                    button.style === 'destructive' && styles.customAlertButtonDestructive,
+                    button.style === 'cancel' && styles.customAlertButtonCancel
+                  ]}
+                  onPress={() => {
+                    button.onPress && button.onPress();
+                    onClose();
+                  }}
+                >
+                  <LinearGradient
+                    colors={
+                      button.style === 'destructive' 
+                        ? ['#FF6B6B', '#EE5A52']
+                        : button.style === 'cancel'
+                        ? ['#555', '#444']
+                        : ['#FFD700', '#FFA500']
+                    }
+                    style={styles.customAlertButtonGradient}
+                  >
+                    <Text style={styles.customAlertButtonText}>{button.text}</Text>
+                  </LinearGradient>
+                </TouchableOpacity>
+              ))}
+            </View>
+          </LinearGradient>
+        </View>
+      </View>
+    </Modal>
+  );
 };
 
 // Настройка календаря на русский язык
@@ -64,10 +157,10 @@ LocaleConfig.locales['ru'] = {
 LocaleConfig.defaultLocale = 'ru';
 
 export default function CalendarScreen({ navigation, route }) {
+  const dimensions = useWindowDimensions();
   const userEmail = route.params?.email || 'Пользователь';
   const userRole = route.params?.role || 'user';
   
-  // ✅ ДОБАВЛЕНО: Состояние для обновления
   const [refreshing, setRefreshing] = useState(false);
   
   const getTodayDate = () => {
@@ -93,42 +186,105 @@ export default function CalendarScreen({ navigation, route }) {
   const [selectedDateTours, setSelectedDateTours] = useState([]);
   const [selectedDateMoves, setSelectedDateMoves] = useState([]);
   
-  // ✅ ДОБАВЛЕНО: Состояние для модального окна выхода
   const [logoutModalVisible, setLogoutModalVisible] = useState(false);
   const [logoutScaleAnim] = useState(new Animated.Value(0));
   
-  // ✅ ОБНОВЛЕНО: Состояние для текущего отображаемого месяца
   const [currentMonth, setCurrentMonth] = useState({
     year: new Date().getFullYear(),
     month: new Date().getMonth() + 1
   });
   
-  // ✅ ОБНОВЛЕНО: Статистика текущего отображаемого месяца
   const [currentMonthStats, setCurrentMonthStats] = useState({
     concerts: 0,
     tours: 0,
     moves: 0
   });
+
+  // ✅ CUSTOM ALERT STATE
+  const [alertConfig, setAlertConfig] = useState({
+    visible: false,
+    title: '',
+    message: '',
+    buttons: []
+  });
+
+  const showAlert = (title, message, buttons = [{ text: 'OK' }]) => {
+    setAlertConfig({
+      visible: true,
+      title,
+      message,
+      buttons
+    });
+  };
+
+  const closeAlert = () => {
+    setAlertConfig({ ...alertConfig, visible: false });
+  };
   
   const pulseAnim = useRef(new Animated.Value(1)).current;
   const fadeAnim = useRef(new Animated.Value(0)).current;
 
+  // ✅ ОПТИМИЗИРОВАННАЯ АНИМАЦИЯ (ОСТАНОВКА ПРИ НЕАКТИВНОСТИ)
   useEffect(() => {
-    Animated.loop(
-      Animated.sequence([
-        Animated.timing(pulseAnim, {
-          toValue: 1.08,
-          duration: 1000,
-          useNativeDriver: true,
-        }),
-        Animated.timing(pulseAnim, {
-          toValue: 1,
-          duration: 1000,
-          useNativeDriver: true,
-        }),
-      ])
-    ).start();
+    let pulseAnimation;
+    
+    if (Platform.OS === 'web') {
+      // Для web - остановка анимации при неактивной вкладке
+      const handleVisibilityChange = () => {
+        if (document.hidden) {
+          pulseAnimation && pulseAnimation.stop();
+        } else {
+          startPulseAnimation();
+        }
+      };
 
+      const startPulseAnimation = () => {
+        pulseAnimation = Animated.loop(
+          Animated.sequence([
+            Animated.timing(pulseAnim, {
+              toValue: 1.08,
+              duration: 1000,
+              useNativeDriver: true,
+            }),
+            Animated.timing(pulseAnim, {
+              toValue: 1,
+              duration: 1000,
+              useNativeDriver: true,
+            }),
+          ])
+        );
+        pulseAnimation.start();
+      };
+
+      document.addEventListener('visibilitychange', handleVisibilityChange);
+      startPulseAnimation();
+
+      return () => {
+        document.removeEventListener('visibilitychange', handleVisibilityChange);
+        pulseAnimation && pulseAnimation.stop();
+      };
+    } else {
+      // Для нативных платформ
+      pulseAnimation = Animated.loop(
+        Animated.sequence([
+          Animated.timing(pulseAnim, {
+            toValue: 1.08,
+            duration: 1000,
+            useNativeDriver: true,
+          }),
+          Animated.timing(pulseAnim, {
+            toValue: 1,
+            duration: 1000,
+            useNativeDriver: true,
+          }),
+        ])
+      );
+      pulseAnimation.start();
+      return () => pulseAnimation.stop();
+    }
+  }, []);
+
+  useEffect(() => {
     Animated.timing(fadeAnim, {
       toValue: 1,
       duration: 800,
@@ -144,22 +300,66 @@ export default function CalendarScreen({ navigation, route }) {
     updateMarkedDates(concerts, tours, moves);
   }, [concerts, tours, moves]);
 
-  // ✅ ОБНОВЛЕНО: Функция для подсчета статистики выбранного месяца
+  // ✅ BROWSER HISTORY API ДЛЯ BACK BUTTON
+  useEffect(() => {
+    if (Platform.OS === 'web') {
+      // Добавляем состояние в history при открытии модалки
+      if (modalVisible || eventTypeModalVisible || logoutModalVisible) {
+        window.history.pushState({ modal: true }, '');
+      }
+
+      const handlePopState = (event) => {
+        if (logoutModalVisible) {
+          setLogoutModalVisible(false);
+          return;
+        }
+        if (eventTypeModalVisible) {
+          setEventTypeModalVisible(false);
+          return;
+        }
+        if (modalVisible) {
+          setModalVisible(false);
+          return;
+        }
+      };
+
+      window.addEventListener('popstate', handlePopState);
+      return () => window.removeEventListener('popstate', handlePopState);
+    }
+  }, [modalVisible, eventTypeModalVisible, logoutModalVisible]);
+
+  // ✅ ESC KEY HANDLER
+  useEffect(() => {
+    if (Platform.OS === 'web') {
+      const handleKeyPress = (e) => {
+        if (e.key === 'Escape') {
+          if (logoutModalVisible) {
+            setLogoutModalVisible(false);
+          } else if (eventTypeModalVisible) {
+            setEventTypeModalVisible(false);
+          } else if (modalVisible) {
+            setModalVisible(false);
+          }
+        }
+      };
+
+      document.addEventListener('keydown', handleKeyPress);
+      return () => document.removeEventListener('keydown', handleKeyPress);
+    }
+  }, [modalVisible, eventTypeModalVisible, logoutModalVisible]);
+
   const calculateMonthStats = (concertsData, toursData, movesData, year, month) => {
     const monthString = String(month).padStart(2, '0');
     const monthPrefix = `${year}-${monthString}`;
     
-    // Концерты выбранного месяца
     const concertsThisMonth = concertsData.filter(concert => 
       concert.date && concert.date.startsWith(monthPrefix)
     );
     
-    // Переезды выбранного месяца
     const movesThisMonth = movesData.filter(move => 
       move.date && move.date.startsWith(monthPrefix)
     );
     
-    // Гастроли выбранного месяца (1 гастроль = 1 запись, независимо от продолжительности)
     const toursThisMonth = toursData.filter(tour => {
       if (!tour.startDate || !tour.endDate) return false;
       
@@ -168,7 +368,6 @@ export default function CalendarScreen({ navigation, route }) {
       const monthStart = new Date(year, month - 1, 1);
       const monthEnd = new Date(year, month, 0);
       
-      // Проверяем пересечение гастролей с выбранным месяцем
       return (tourStart <= monthEnd && tourEnd >= monthStart);
     });
     
@@ -179,7 +378,6 @@ export default function CalendarScreen({ navigation, route }) {
     });
   };
 
-  // ✅ ОБНОВЛЕНО: Функция для загрузки всех данных
   const loadAllData = async () => {
     setRefreshing(true);
     try {
@@ -189,10 +387,10 @@ export default function CalendarScreen({ navigation, route }) {
         loadMoves()
       ]);
       
-      // Пересчитываем статистику для текущего отображаемого месяца
       calculateMonthStats(concertsData, toursData, movesData, currentMonth.year, currentMonth.month);
     } catch (error) {
       console.error('❌ Ошибка при обновлении данных:', error);
+      showAlert('Ошибка', 'Не удалось обновить данные');
     } finally {
       setRefreshing(false);
     }
@@ -221,7 +419,7 @@ export default function CalendarScreen({ navigation, route }) {
       return concertsData;
     } catch (error) {
       console.error('❌ CalendarScreen: Ошибка загрузки концертов:', error);
-      Alert.alert('Ошибка', 'Не удалось загрузить концерты');
+      showAlert('Ошибка', 'Не удалось загрузить концерты');
       throw error;
     }
   };
@@ -248,7 +446,7 @@ export default function CalendarScreen({ navigation, route }) {
       return toursData;
     } catch (error) {
       console.error('❌ CalendarScreen: Ошибка загрузки гастролей:', error);
-      Alert.alert('Ошибка', 'Не удалось загрузить гастроли');
+      showAlert('Ошибка', 'Не удалось загрузить гастроли');
       throw error;
     }
   };
@@ -275,18 +473,16 @@ export default function CalendarScreen({ navigation, route }) {
       return movesData;
     } catch (error) {
       console.error('❌ CalendarScreen: Ошибка загрузки переездов:', error);
-      Alert.alert('Ошибка', 'Не удалось загрузить переезды');
+      showAlert('Ошибка', 'Не удалось загрузить переезды');
       throw error;
     }
   };
 
-  // ✅ ОБНОВЛЕНО: Функция для обработки обновления (pull-to-refresh)
   const onRefresh = async () => {
     console.log('🔄 Инициировано обновление календаря...');
     await loadAllData();
   };
 
-  // ✅ ДОБАВЛЕНО: Обработчик изменения месяца в календаре
   const handleMonthChange = (month) => {
     const newMonth = {
       year: month.year,
@@ -294,8 +490,6 @@ export default function CalendarScreen({ navigation, route }) {
     };
     
     setCurrentMonth(newMonth);
-    
-    // Пересчитываем статистику для нового месяца
     calculateMonthStats(concerts, tours, moves, newMonth.year, newMonth.month);
   };
 
@@ -512,7 +706,7 @@ export default function CalendarScreen({ navigation, route }) {
   };
 
   const handleDeleteConcert = async (concertId) => {
-    Alert.alert(
+    showAlert(
       'Удаление концерта',
       'Вы уверены, что хотите удалить этот концерт?',
       [
@@ -522,17 +716,28 @@ export default function CalendarScreen({ navigation, route }) {
           style: 'destructive',
           onPress: async () => {
             try {
+              if (!concertId) {
+                showAlert('Ошибка', 'Концерт не найден');
+                return;
+              }
+
               await deleteDoc(doc(db, 'concerts', concertId));
-              Alert.alert('Успех', 'Концерт удален');
+              showAlert('Успех', 'Концерт успешно удален!');
+              
               const updatedConcerts = selectedDateConcerts.filter(c => c.id !== concertId);
               setSelectedDateConcerts(updatedConcerts);
               
-              // Обновляем данные и статистику
-              const concertsData = await loadConcerts();
-              calculateMonthStats(concertsData, tours, moves, currentMonth.year, currentMonth.month);
+              await loadAllData();
             } catch (error) {
               console.error('Ошибка удаления:', error);
-              Alert.alert('Ошибка', 'Не удалось удалить концерт');
+              if (error.code === 'permission-denied') {
+                showAlert('Ошибка', 'У вас нет прав для удаления концертов');
+              } else if (error.code === 'not-found') {
+                showAlert('Ошибка', 'Концерт уже был удален');
+                await loadAllData();
+              } else {
+                showAlert('Ошибка', 'Не удалось удалить концерт');
+              }
             }
           }
         }
@@ -541,7 +746,7 @@ export default function CalendarScreen({ navigation, route }) {
   };
 
   const handleDeleteTour = async (tourId) => {
-    Alert.alert(
+    showAlert(
       'Удаление гастролей',
       'Вы уверены, что хотите удалить эти гастроли?',
       [
@@ -552,16 +757,15 @@ export default function CalendarScreen({ navigation, route }) {
           onPress: async () => {
             try {
               await deleteDoc(doc(db, 'tours', tourId));
-              Alert.alert('Успех', 'Гастроли удалены');
+              showAlert('Успех', 'Гастроли удалены');
               const updatedTours = selectedDateTours.filter(t => t.id !== tourId);
               setSelectedDateTours(updatedTours);
               
-              // Обновляем данные и статистику
               const toursData = await loadTours();
               calculateMonthStats(concerts, toursData, moves, currentMonth.year, currentMonth.month);
             } catch (error) {
               console.error('Ошибка удаления:', error);
-              Alert.alert('Ошибка', 'Не удалось удалить гастроли');
+              showAlert('Ошибка', 'Не удалось удалить гастроли');
             }
           }
         }
@@ -570,7 +774,7 @@ export default function CalendarScreen({ navigation, route }) {
   };
 
   const handleDeleteMove = async (moveId) => {
-    Alert.alert(
+    showAlert(
       'Удаление переезда',
       'Вы уверены, что хотите удалить этот переезд?',
       [
@@ -581,16 +785,15 @@ export default function CalendarScreen({ navigation, route }) {
           onPress: async () => {
             try {
               await deleteDoc(doc(db, 'moves', moveId));
-              Alert.alert('Успех', 'Переезд удален');
+              showAlert('Успех', 'Переезд удален');
               const updatedMoves = selectedDateMoves.filter(m => m.id !== moveId);
               setSelectedDateMoves(updatedMoves);
               
-              // Обновляем данные и статистику
               const movesData = await loadMoves();
               calculateMonthStats(concerts, tours, movesData, currentMonth.year, currentMonth.month);
             } catch (error) {
               console.error('Ошибка удаления:', error);
-              Alert.alert('Ошибка', 'Не удалось удалить переезд');
+              showAlert('Ошибка', 'Не удалось удалить переезд');
             }
           }
         }
@@ -598,7 +801,6 @@ export default function CalendarScreen({ navigation, route }) {
     );
   };
 
-  // ✅ ИСПРАВЛЕНО: Функция выхода для PWA
   const handleLogout = () => {
     setLogoutModalVisible(true);
     Animated.spring(logoutScaleAnim, {
@@ -612,24 +814,17 @@ export default function CalendarScreen({ navigation, route }) {
     try {
       console.log('🔓 Начинаем процесс выхода...');
       
-      // Закрываем модальное окно
       Animated.timing(logoutScaleAnim, {
         toValue: 0,
         duration: 200,
         useNativeDriver: true,
       }).start(() => setLogoutModalVisible(false));
       
-      // Выполняем выход
       await signOut(auth);
       console.log('✅ Выход выполнен успешно');
     } catch (error) {
       console.error('❌ Ошибка выхода:', error);
-      // Используем window.alert для PWA
-      if (typeof window !== 'undefined') {
-        window.alert('Ошибка при выходе: ' + error.message);
-      } else {
-        Alert.alert('Ошибка', error.message);
-      }
+      showAlert('Ошибка', error.message);
     }
   };
 
@@ -649,7 +844,6 @@ export default function CalendarScreen({ navigation, route }) {
     return `${parseInt(day)} ${months[parseInt(month) - 1]} ${year}`;
   };
 
-  // ✅ ОБНОВЛЕНО: Функция для получения названия текущего отображаемого месяца
   const getCurrentMonthName = () => {
     const months = ['Январь', 'Февраль', 'Март', 'Апрель', 'Май', 'Июнь', 
                    'Июль', 'Август', 'Сентябрь', 'Октябрь', 'Ноябрь', 'Декабрь'];
@@ -709,13 +903,13 @@ export default function CalendarScreen({ navigation, route }) {
         icon: 'checkmark-done', 
         label: 'Задачи', 
         gradient: ['#34C759', '#28A745'],
-        onPress: () => Alert.alert('Задачи', 'Функция в разработке')
+        onPress: () => showAlert('Задачи', 'Функция в разработке')
       },
       { 
         icon: 'settings', 
         label: 'Настройки', 
         gradient: ['#8E8E93', '#636366'],
-        onPress: () => Alert.alert('Настройки', 'Функция в разработке')
+        onPress: () => showAlert('Настройки', 'Функция в разработке')
       }
     );
 
@@ -723,6 +917,10 @@ export default function CalendarScreen({ navigation, route }) {
   };
 
   const quickActions = getQuickActions();
+
+  // ✅ ВЫЧИСЛЯЕМ RESPONSIVE SIZES С АКТУАЛЬНЫМИ РАЗМЕРАМИ
+  const responsiveSize = (size) => getResponsiveSize(size, dimensions.width);
+  const responsiveFontSize = (size) => getResponsiveFontSize(size, dimensions.width);
 
   return (
     <View style={styles.container}>
@@ -738,11 +936,11 @@ export default function CalendarScreen({ navigation, route }) {
         start={{ x: 0, y: 0 }}
         end={{ x: 1, y: 1 }}
       >
-        {/* 🌙 ХЕДЕР С ОБНОВЛЕННОЙ СТАТИСТИКОЙ */}
+        {/* ХЕДЕР */}
         <Animated.View style={{ opacity: fadeAnim }}>
           <LinearGradient
             colors={['rgba(26, 26, 26, 0.98)', 'rgba(35, 35, 35, 0.95)']}
-            style={styles.header}
+            style={[styles.header, { paddingTop: Platform.OS === 'ios' ? responsiveSize(50) : responsiveSize(30) }]}
             start={{ x: 0, y: 0 }}
             end={{ x: 1, y: 1 }}
           >
@@ -755,8 +953,8 @@ export default function CalendarScreen({ navigation, route }) {
             <View style={styles.headerContent}>
               <View style={styles.topRow}>
                 <View style={styles.greetingSection}>
-                  <Text style={styles.greetingText}>Добро пожаловать,</Text>
-                  <Text style={styles.userName} numberOfLines={1}>
+                  <Text style={[styles.greetingText, { fontSize: responsiveFontSize(13) }]}>Добро пожаловать,</Text>
+                  <Text style={[styles.userName, { fontSize: responsiveFontSize(18) }]} numberOfLines={1}>
                     {userEmail.split('@')[0]}
                   </Text>
                 </View>
@@ -765,7 +963,7 @@ export default function CalendarScreen({ navigation, route }) {
                   <TouchableOpacity 
                     style={styles.roleButton}
                     activeOpacity={0.8}
-                    onPress={() => Alert.alert('Роль', `Вы вошли как ${userRole === 'admin' ? 'Администратор' : 'Артист'}`)}
+                    onPress={() => showAlert('Роль', `Вы вошли как ${userRole === 'admin' ? 'Администратор' : 'Артист'}`)}
                   >
                     <LinearGradient
                       colors={userRole === 'admin' ? 
@@ -777,10 +975,10 @@ export default function CalendarScreen({ navigation, route }) {
                     >
                       <Ionicons 
                         name={userRole === 'admin' ? 'shield-checkmark' : 'musical-note'} 
-                        size={getResponsiveSize(16)} 
+                        size={responsiveSize(16)} 
                         color="#1a1a1a" 
                       />
-                      <Text style={styles.roleButtonText}>
+                      <Text style={[styles.roleButtonText, { fontSize: responsiveFontSize(12) }]}>
                         {userRole === 'admin' ? 'Админ' : 'Артист'}
                       </Text>
                     </LinearGradient>
@@ -797,7 +995,7 @@ export default function CalendarScreen({ navigation, route }) {
                       start={{ x: 0, y: 0 }}
                       end={{ x: 1, y: 1 }}
                     >
-                      <Ionicons name="log-out-outline" size={getResponsiveSize(20)} color="white" />
+                      <Ionicons name="log-out-outline" size={responsiveSize(20)} color="white" />
                     </LinearGradient>
                   </TouchableOpacity>
                 </View>
@@ -811,19 +1009,19 @@ export default function CalendarScreen({ navigation, route }) {
                     start={{ x: 0, y: 0 }}
                     end={{ x: 1, y: 1 }}
                   >
-                    <Ionicons name="calendar" size={getResponsiveSize(28)} color="#1a1a1a" />
+                    <Ionicons name="calendar" size={responsiveSize(28)} color="#1a1a1a" />
                   </LinearGradient>
                 </View>
                 <View style={styles.titleTextContainer}>
-                  <Text style={styles.mainTitle}>Концертный календарь</Text>
-                  <Text style={styles.subtitle}>Управление мероприятиями</Text>
+                  <Text style={[styles.mainTitle, { fontSize: responsiveFontSize(20) }]}>Концертный календарь</Text>
+                  <Text style={[styles.subtitle, { fontSize: responsiveFontSize(13) }]}>Управление мероприятиями</Text>
                 </View>
               </View>
 
-              {/* ✅ ОБНОВЛЕНО: Статистика текущего отображаемого месяца */}
+              {/* СТАТИСТИКА */}
               <View style={styles.statsContainer}>
                 <View style={styles.monthStatsHeader}>
-                  <Text style={styles.monthStatsTitle}>
+                  <Text style={[styles.monthStatsTitle, { fontSize: responsiveFontSize(14) }]}>
                     Статистика за {getCurrentMonthName()} {currentMonth.year}
                   </Text>
                 </View>
@@ -831,11 +1029,11 @@ export default function CalendarScreen({ navigation, route }) {
                 <View style={styles.statsRow}>
                   <View style={styles.statCard}>
                     <View style={styles.statIconWrapper}>
-                      <Ionicons name="musical-notes" size={getResponsiveSize(20)} color="#FFD700" />
+                      <Ionicons name="musical-notes" size={responsiveSize(20)} color="#FFD700" />
                     </View>
                     <View style={styles.statTextContainer}>
-                      <Text style={styles.statValue}>{currentMonthStats.concerts}</Text>
-                      <Text style={styles.statLabel}>Концертов</Text>
+                      <Text style={[styles.statValue, { fontSize: responsiveFontSize(20) }]}>{currentMonthStats.concerts}</Text>
+                      <Text style={[styles.statLabel, { fontSize: responsiveFontSize(10) }]}>Концертов</Text>
                     </View>
                   </View>
 
@@ -843,11 +1041,11 @@ export default function CalendarScreen({ navigation, route }) {
 
                   <View style={styles.statCard}>
                     <View style={styles.statIconWrapper}>
-                      <Ionicons name="airplane" size={getResponsiveSize(20)} color="#FFA500" />
+                      <Ionicons name="airplane" size={responsiveSize(20)} color="#FFA500" />
                     </View>
                     <View style={styles.statTextContainer}>
-                      <Text style={styles.statValue}>{currentMonthStats.tours}</Text>
-                      <Text style={styles.statLabel}>Гастролей</Text>
+                      <Text style={[styles.statValue, { fontSize: responsiveFontSize(20) }]}>{currentMonthStats.tours}</Text>
+                      <Text style={[styles.statLabel, { fontSize: responsiveFontSize(10) }]}>Гастролей</Text>
                     </View>
                   </View>
 
@@ -855,11 +1053,11 @@ export default function CalendarScreen({ navigation, route }) {
 
                   <View style={styles.statCard}>
                     <View style={styles.statIconWrapper}>
-                      <Ionicons name="bus" size={getResponsiveSize(20)} color="#34C759" />
+                      <Ionicons name="bus" size={responsiveSize(20)} color="#34C759" />
                     </View>
                     <View style={styles.statTextContainer}>
-                      <Text style={styles.statValue}>{currentMonthStats.moves}</Text>
-                      <Text style={styles.statLabel}>Переездов</Text>
+                      <Text style={[styles.statValue, { fontSize: responsiveFontSize(20) }]}>{currentMonthStats.moves}</Text>
+                      <Text style={[styles.statLabel, { fontSize: responsiveFontSize(10) }]}>Переездов</Text>
                     </View>
                   </View>
                 </View>
@@ -868,27 +1066,41 @@ export default function CalendarScreen({ navigation, route }) {
           </LinearGradient>
         </Animated.View>
 
-        {/* ✅ ОБНОВЛЕНО: Добавлен RefreshControl для pull-to-refresh */}
+        {/* SCROLLVIEW С КНОПКОЙ ОБНОВЛЕНИЯ */}
         <ScrollView 
           showsVerticalScrollIndicator={false} 
           style={styles.scrollView}
-          refreshControl={
-            <RefreshControl
-              refreshing={refreshing}
-              onRefresh={onRefresh}
-              colors={['#FFD700']}
-              tintColor="#FFD700"
-              title="Обновление календаря..."
-              titleColor="#999"
-            />
-          }
         >
+          {/* ✅ КНОПКА ОБНОВЛЕНИЯ (ЗАМЕНА REFRESHCONTROL) */}
+          {Platform.OS === 'web' && (
+            <View style={styles.refreshButtonContainer}>
+              <TouchableOpacity 
+                style={styles.refreshButton}
+                onPress={onRefresh}
+                disabled={refreshing}
+              >
+                <LinearGradient
+                  colors={['#FFD700', '#FFA500']}
+                  style={styles.refreshButtonGradient}
+                >
+                  <Ionicons 
+                    name={refreshing ? "hourglass" : "refresh"} 
+                    size={responsiveSize(16)} 
+                    color="#1a1a1a" 
+                  />
+                  <Text style={[styles.refreshButtonText, { fontSize: responsiveFontSize(12) }]}>
+                    {refreshing ? 'Обновление...' : 'Обновить календарь'}
+                  </Text>
+                </LinearGradient>
+              </TouchableOpacity>
+            </View>
+          )}
+
           <View style={styles.calendarWrapper}>
             <LinearGradient
               colors={['rgba(26, 26, 26, 0.9)', 'rgba(35, 35, 35, 0.8)']}
               style={styles.calendarContainer}
             >
-              {/* ✅ ОБНОВЛЕНО: Добавлен обработчик onMonthChange */}
               <Calendar
                 onDayPress={handleDateSelect}
                 onMonthChange={handleMonthChange}
@@ -964,6 +1176,7 @@ export default function CalendarScreen({ navigation, route }) {
                         >
                           <Text style={[
                             styles.dayText,
+                            { fontSize: responsiveFontSize(14) },
                             textStyle,
                             marking?.selected && styles.selectedText,
                             state === 'disabled' && styles.disabledText
@@ -997,16 +1210,16 @@ export default function CalendarScreen({ navigation, route }) {
                   textDayFontWeight: '600',
                   textMonthFontWeight: '400',
                   textDayHeaderFontWeight: '500',
-                  textDayFontSize: getResponsiveFontSize(14),
-                  textMonthFontSize: getResponsiveFontSize(20),
-                  textDayHeaderFontSize: getResponsiveFontSize(11),
+                  textDayFontSize: responsiveFontSize(14),
+                  textMonthFontSize: responsiveFontSize(20),
+                  textDayHeaderFontSize: responsiveFontSize(11),
                 }}
                 style={styles.calendar}
               />
             </LinearGradient>
           </View>
 
-          {/* 🌙 БЫСТРЫЕ ДЕЙСТВИЯ */}
+          {/* БЫСТРЫЕ ДЕЙСТВИЯ */}
           <View style={styles.quickActionsContainer}>
             <View style={styles.quickActionsHeader}>
               <View style={styles.quickActionsTitleWrapper}>
@@ -1016,12 +1229,12 @@ export default function CalendarScreen({ navigation, route }) {
                   start={{ x: 0, y: 0 }}
                   end={{ x: 1, y: 1 }}
                 >
-                  <Ionicons name="flash" size={getResponsiveSize(18)} color="#1a1a1a" />
+                  <Ionicons name="flash" size={responsiveSize(18)} color="#1a1a1a" />
                 </LinearGradient>
-                <Text style={styles.quickActionsTitle}>Быстрые действия</Text>
+                <Text style={[styles.quickActionsTitle, { fontSize: responsiveFontSize(18) }]}>Быстрые действия</Text>
               </View>
               <TouchableOpacity style={styles.quickActionsMore}>
-                <Ionicons name="ellipsis-horizontal" size={getResponsiveSize(20)} color="#888" />
+                <Ionicons name="ellipsis-horizontal" size={responsiveSize(20)} color="#888" />
               </TouchableOpacity>
             </View>
             
@@ -1039,10 +1252,10 @@ export default function CalendarScreen({ navigation, route }) {
                     start={{ x: 0, y: 0 }}
                     end={{ x: 1, y: 1 }}
                   >
-                    <Ionicons name={action.icon} size={getResponsiveSize(28)} color="white" />
+                    <Ionicons name={action.icon} size={responsiveSize(28)} color="white" />
                   </LinearGradient>
                   
-                  <Text style={styles.quickActionText} numberOfLines={2}>
+                  <Text style={[styles.quickActionText, { fontSize: responsiveFontSize(11) }]} numberOfLines={2}>
                     {action.label}
                   </Text>
                 </TouchableOpacity>
@@ -1051,14 +1264,19 @@ export default function CalendarScreen({ navigation, route }) {
           </View>
         </ScrollView>
 
-        {/* 🌙 МОДАЛЬНОЕ ОКНО СОБЫТИЙ */}
+        {/* ✅ МОДАЛЬНОЕ ОКНО СОБЫТИЙ (БЕЗ BLURVIEW) */}
         <Modal
           animationType="fade"
           transparent={true}
           visible={modalVisible}
           onRequestClose={closeModal}
         >
-          <BlurView intensity={80} style={styles.modalOverlay} tint="dark">
+          <View style={styles.modalOverlay}>
+            <TouchableOpacity 
+              style={styles.modalBackdrop}
+              activeOpacity={1}
+              onPress={closeModal}
+            />
             <Animated.View 
               style={[
                 styles.modalContainer,
@@ -1072,21 +1290,21 @@ export default function CalendarScreen({ navigation, route }) {
                 style={styles.modalGradient}
               >
                 <View style={styles.modalHeader}>
-                  <Text style={styles.modalTitle}>🎵 События</Text>
+                  <Text style={[styles.modalTitle, { fontSize: responsiveFontSize(24) }]}>🎵 События</Text>
                   <TouchableOpacity onPress={closeModal} style={styles.modalCloseIcon}>
-                    <Ionicons name="close-circle" size={getResponsiveSize(30)} color="#FFD700" />
+                    <Ionicons name="close-circle" size={responsiveSize(30)} color="#FFD700" />
                   </TouchableOpacity>
                 </View>
                 
                 <View style={styles.modalDateContainer}>
-                  <Ionicons name="calendar" size={getResponsiveSize(22)} color="#FFD700" />
-                  <Text style={styles.modalDate}>{formatDate(selectedDate)}</Text>
+                  <Ionicons name="calendar" size={responsiveSize(22)} color="#FFD700" />
+                  <Text style={[styles.modalDate, { fontSize: responsiveFontSize(18) }]}>{formatDate(selectedDate)}</Text>
                 </View>
 
                 <ScrollView style={styles.concertsList}>
                   {selectedDateMoves.length > 0 && (
                     <View style={styles.sectionContainer}>
-                      <Text style={styles.sectionTitle}>🚌 Переезды</Text>
+                      <Text style={[styles.sectionTitle, { fontSize: responsiveFontSize(18) }]}>🚌 Переезды</Text>
                       {selectedDateMoves.map((move) => (
                         <TouchableOpacity
                           key={move.id}
@@ -1098,7 +1316,7 @@ export default function CalendarScreen({ navigation, route }) {
                             style={styles.moveGradient}
                           >
                             <View style={styles.moveHeader}>
-                              <Text style={styles.moveTitle}>
+                              <Text style={[styles.moveTitle, { fontSize: responsiveFontSize(16) }]}>
                                 {move.fromCity} → {move.toCity}
                               </Text>
                               {userRole === 'admin' && (
@@ -1109,27 +1327,27 @@ export default function CalendarScreen({ navigation, route }) {
                                   }}
                                   style={styles.deleteButton}
                                 >
-                                  <Ionicons name="trash" size={getResponsiveSize(20)} color="#FF6B6B" />
+                                  <Ionicons name="trash" size={responsiveSize(20)} color="#FF6B6B" />
                                 </TouchableOpacity>
                               )}
                             </View>
                             
                             {move.hotel && (
-                              <Text style={styles.moveHotel}>🏨 {move.hotel}</Text>
+                              <Text style={[styles.moveHotel, { fontSize: responsiveFontSize(14) }]}>🏨 {move.hotel}</Text>
                             )}
                             
                             <View style={styles.moveDetails}>
                               {move.passportRequired && (
                                 <View style={styles.detailItem}>
-                                  <Ionicons name="document" size={getResponsiveSize(14)} color="#34C759" />
-                                  <Text style={styles.detailText}>Нужен паспорт</Text>
+                                  <Ionicons name="document" size={responsiveSize(14)} color="#34C759" />
+                                  <Text style={[styles.detailText, { fontSize: responsiveFontSize(12) }]}>Нужен паспорт</Text>
                                 </View>
                               )}
                               
                               {move.meals && (
                                 <View style={styles.detailItem}>
-                                  <Ionicons name="restaurant" size={getResponsiveSize(14)} color="#34C759" />
-                                  <Text style={styles.detailText}>
+                                  <Ionicons name="restaurant" size={responsiveSize(14)} color="#34C759" />
+                                  <Text style={[styles.detailText, { fontSize: responsiveFontSize(12) }]}>
                                     Питание: {[
                                       move.meals.breakfast && 'завтрак',
                                       move.meals.lunch && 'обед', 
@@ -1142,11 +1360,11 @@ export default function CalendarScreen({ navigation, route }) {
                             </View>
                             
                             {move.whatToTake && (
-                              <Text style={styles.moveNote}>📦 Взять: {move.whatToTake}</Text>
+                              <Text style={[styles.moveNote, { fontSize: responsiveFontSize(12) }]}>📦 Взять: {move.whatToTake}</Text>
                             )}
                             
                             {move.arrivalInfo && (
-                              <Text style={styles.moveNote}>ℹ️ {move.arrivalInfo}</Text>
+                              <Text style={[styles.moveNote, { fontSize: responsiveFontSize(12) }]}>ℹ️ {move.arrivalInfo}</Text>
                             )}
                           </LinearGradient>
                         </TouchableOpacity>
@@ -1156,7 +1374,7 @@ export default function CalendarScreen({ navigation, route }) {
 
                   {selectedDateTours.length > 0 && (
                     <View style={styles.sectionContainer}>
-                      <Text style={styles.sectionTitle}>✈️ Гастроли</Text>
+                      <Text style={[styles.sectionTitle, { fontSize: responsiveFontSize(18) }]}>✈️ Гастроли</Text>
                       {selectedDateTours.map((tour) => (
                         <TouchableOpacity
                           key={tour.id}
@@ -1168,7 +1386,7 @@ export default function CalendarScreen({ navigation, route }) {
                             style={styles.tourGradient}
                           >
                             <View style={styles.tourHeader}>
-                              <Text style={styles.tourTitle}>{tour.title}</Text>
+                              <Text style={[styles.tourTitle, { fontSize: responsiveFontSize(16) }]}>{tour.title}</Text>
                               {userRole === 'admin' && (
                                 <TouchableOpacity 
                                   onPress={(e) => {
@@ -1177,14 +1395,14 @@ export default function CalendarScreen({ navigation, route }) {
                                   }}
                                   style={styles.deleteButton}
                                 >
-                                  <Ionicons name="trash" size={getResponsiveSize(20)} color="#FF6B6B" />
+                                  <Ionicons name="trash" size={responsiveSize(20)} color="#FF6B6B" />
                                 </TouchableOpacity>
                               )}
                             </View>
-                            <Text style={styles.tourDescription}>{tour.description}</Text>
+                            <Text style={[styles.tourDescription, { fontSize: responsiveFontSize(14) }]}>{tour.description}</Text>
                             <View style={styles.tourDates}>
-                              <Ionicons name="calendar" size={getResponsiveSize(14)} color="#4A90E2" />
-                              <Text style={styles.tourDatesText}>
+                              <Ionicons name="calendar" size={responsiveSize(14)} color="#4A90E2" />
+                              <Text style={[styles.tourDatesText, { fontSize: responsiveFontSize(13) }]}>
                                 {formatDate(tour.startDate)} - {formatDate(tour.endDate)}
                               </Text>
                             </View>
@@ -1196,7 +1414,7 @@ export default function CalendarScreen({ navigation, route }) {
 
                   {selectedDateConcerts.length > 0 && (
                     <View style={styles.sectionContainer}>
-                      <Text style={styles.sectionTitle}>🎵 Концерты</Text>
+                      <Text style={[styles.sectionTitle, { fontSize: responsiveFontSize(18) }]}>🎵 Концерты</Text>
                       {selectedDateConcerts.map((concert) => {
                         const concertTypeRussian = toRussianType(concert.concertType);
                         
@@ -1211,7 +1429,7 @@ export default function CalendarScreen({ navigation, route }) {
                               style={styles.concertGradient}
                             >
                               <View style={styles.concertHeader}>
-                                <Text style={styles.concertType}>{concertTypeRussian}</Text>
+                                <Text style={[styles.concertType, { fontSize: responsiveFontSize(16) }]}>{concertTypeRussian}</Text>
                                 {userRole === 'admin' && (
                                   <TouchableOpacity 
                                     onPress={(e) => {
@@ -1220,19 +1438,19 @@ export default function CalendarScreen({ navigation, route }) {
                                     }}
                                     style={styles.deleteButton}
                                   >
-                                    <Ionicons name="trash" size={getResponsiveSize(20)} color="#FF6B6B" />
+                                    <Ionicons name="trash" size={responsiveSize(20)} color="#FF6B6B" />
                                   </TouchableOpacity>
                                 )}
                               </View>
-                              <Text style={styles.concertDescription}>{concert.description}</Text>
-                              <Text style={styles.concertAddress}>{concert.address}</Text>
+                              <Text style={[styles.concertDescription, { fontSize: responsiveFontSize(14) }]}>{concert.description}</Text>
+                              <Text style={[styles.concertAddress, { fontSize: responsiveFontSize(13) }]}>{concert.address}</Text>
                               
                               {(concert.program || concert.participants) && (
                                 <View style={styles.concertInfo}>
                                   {concert.program && concert.program.songs && concert.program.songs.length > 0 && (
                                     <View style={styles.infoItem}>
-                                      <Ionicons name="musical-notes" size={getResponsiveSize(14)} color="#FFD700" />
-                                      <Text style={styles.infoText}>
+                                      <Ionicons name="musical-notes" size={responsiveSize(14)} color="#FFD700" />
+                                      <Text style={[styles.infoText, { fontSize: responsiveFontSize(12) }]}>
                                         Программа: {concert.program.songs.length} произведений
                                       </Text>
                                     </View>
@@ -1240,8 +1458,8 @@ export default function CalendarScreen({ navigation, route }) {
                                   
                                   {concert.participants && concert.participants.length > 0 && (
                                     <View style={styles.infoItem}>
-                                      <Ionicons name="people" size={getResponsiveSize(14)} color="#FFD700" />
-                                      <Text style={styles.infoText}>
+                                      <Ionicons name="people" size={responsiveSize(14)} color="#FFD700" />
+                                      <Text style={[styles.infoText, { fontSize: responsiveFontSize(12) }]}>
                                         Участники: {concert.participants.length} человек
                                       </Text>
                                     </View>
@@ -1250,8 +1468,8 @@ export default function CalendarScreen({ navigation, route }) {
                               )}
                               
                               <View style={styles.concertTime}>
-                                <Ionicons name="time" size={getResponsiveSize(16)} color="#FFD700" />
-                                <Text style={styles.concertTimeText}>
+                                <Ionicons name="time" size={responsiveSize(16)} color="#FFD700" />
+                                <Text style={[styles.concertTimeText, { fontSize: responsiveFontSize(13) }]}>
                                   Выезд: {concert.departureTime} • Начало: {concert.startTime}
                                 </Text>
                               </View>
@@ -1264,8 +1482,8 @@ export default function CalendarScreen({ navigation, route }) {
 
                   {selectedDateConcerts.length === 0 && selectedDateTours.length === 0 && selectedDateMoves.length === 0 && (
                     <View style={styles.noConcerts}>
-                      <Ionicons name="musical-notes" size={getResponsiveSize(48)} color="#555" />
-                      <Text style={styles.noConcertsText}>На эту дату нет событий</Text>
+                      <Ionicons name="musical-notes" size={responsiveSize(48)} color="#555" />
+                      <Text style={[styles.noConcertsText, { fontSize: responsiveFontSize(16) }]}>На эту дату нет событий</Text>
                     </View>
                   )}
                 </ScrollView>
@@ -1282,24 +1500,29 @@ export default function CalendarScreen({ navigation, route }) {
                       start={{ x: 0, y: 0 }}
                       end={{ x: 1, y: 0 }}
                     >
-                      <Ionicons name="add" size={getResponsiveSize(22)} color="#1a1a1a" />
-                      <Text style={styles.addButtonText}>Добавить событие</Text>
+                      <Ionicons name="add" size={responsiveSize(22)} color="#1a1a1a" />
+                      <Text style={[styles.addButtonText, { fontSize: responsiveFontSize(16) }]}>Добавить событие</Text>
                     </LinearGradient>
                   </TouchableOpacity>
                 )}
               </LinearGradient>
             </Animated.View>
-          </BlurView>
+          </View>
         </Modal>
 
-        {/* 🌙 МОДАЛЬНОЕ ОКНО ВЫБОРА ТИПА СОБЫТИЯ */}
+        {/* ✅ МОДАЛЬНОЕ ОКНО ВЫБОРА ТИПА СОБЫТИЯ (БЕЗ BLURVIEW) */}
         <Modal
           animationType="fade"
           transparent={true}
           visible={eventTypeModalVisible}
           onRequestClose={closeEventTypeModal}
         >
-          <BlurView intensity={80} style={styles.modalOverlay} tint="dark">
+          <View style={styles.modalOverlay}>
+            <TouchableOpacity 
+              style={styles.modalBackdrop}
+              activeOpacity={1}
+              onPress={closeEventTypeModal}
+            />
             <Animated.View 
               style={[
                 styles.eventTypeModalContainer,
@@ -1313,9 +1536,9 @@ export default function CalendarScreen({ navigation, route }) {
                 style={styles.eventTypeModalGradient}
               >
                 <View style={styles.eventTypeHeader}>
-                  <Text style={styles.eventTypeTitle}>Выберите тип события</Text>
+                  <Text style={[styles.eventTypeTitle, { fontSize: responsiveFontSize(22) }]}>Выберите тип события</Text>
                   <TouchableOpacity onPress={closeEventTypeModal} style={styles.modalCloseIcon}>
-                    <Ionicons name="close-circle" size={getResponsiveSize(30)} color="#FFD700" />
+                    <Ionicons name="close-circle" size={responsiveSize(30)} color="#FFD700" />
                   </TouchableOpacity>
                 </View>
 
@@ -1331,9 +1554,9 @@ export default function CalendarScreen({ navigation, route }) {
                       start={{ x: 0, y: 0 }}
                       end={{ x: 1, y: 1 }}
                     >
-                      <Ionicons name="musical-notes" size={getResponsiveSize(48)} color="white" />
-                      <Text style={styles.eventTypeOptionText}>Добавить концерт</Text>
-                      <Text style={styles.eventTypeOptionDescription}>
+                      <Ionicons name="musical-notes" size={responsiveSize(48)} color="white" />
+                      <Text style={[styles.eventTypeOptionText, { fontSize: responsiveFontSize(20) }]}>Добавить концерт</Text>
+                      <Text style={[styles.eventTypeOptionDescription, { fontSize: responsiveFontSize(13) }]}>
                         Создать новое концертное мероприятие
                       </Text>
                     </LinearGradient>
@@ -1350,9 +1573,9 @@ export default function CalendarScreen({ navigation, route }) {
                       start={{ x: 0, y: 0 }}
                       end={{ x: 1, y: 1 }}
                     >
-                      <Ionicons name="airplane" size={getResponsiveSize(48)} color="white" />
-                      <Text style={styles.eventTypeOptionText}>Добавить гастроли</Text>
-                      <Text style={styles.eventTypeOptionDescription}>
+                      <Ionicons name="airplane" size={responsiveSize(48)} color="white" />
+                      <Text style={[styles.eventTypeOptionText, { fontSize: responsiveFontSize(20) }]}>Добавить гастроли</Text>
+                      <Text style={[styles.eventTypeOptionDescription, { fontSize: responsiveFontSize(13) }]}>
                         Запланировать гастрольный тур
                       </Text>
                     </LinearGradient>
@@ -1369,9 +1592,9 @@ export default function CalendarScreen({ navigation, route }) {
                       start={{ x: 0, y: 0 }}
                       end={{ x: 1, y: 1 }}
                     >
-                      <Ionicons name="bus" size={getResponsiveSize(48)} color="white" />
-                      <Text style={styles.eventTypeOptionText}>Добавить переезд</Text>
-                      <Text style={styles.eventTypeOptionDescription}>
+                      <Ionicons name="bus" size={responsiveSize(48)} color="white" />
+                      <Text style={[styles.eventTypeOptionText, { fontSize: responsiveFontSize(20) }]}>Добавить переезд</Text>
+                      <Text style={[styles.eventTypeOptionDescription, { fontSize: responsiveFontSize(13) }]}>
                         Запланировать переезд между городами
                       </Text>
                     </LinearGradient>
@@ -1379,17 +1602,22 @@ export default function CalendarScreen({ navigation, route }) {
                 </View>
               </LinearGradient>
             </Animated.View>
-          </BlurView>
+          </View>
         </Modal>
 
-        {/* 🔓 МОДАЛЬНОЕ ОКНО ВЫХОДА */}
+        {/* ✅ МОДАЛЬНОЕ ОКНО ВЫХОДА (БЕЗ BLURVIEW) */}
         <Modal
           animationType="fade"
           transparent={true}
           visible={logoutModalVisible}
           onRequestClose={cancelLogout}
         >
-          <BlurView intensity={80} style={styles.modalOverlay} tint="dark">
+          <View style={styles.modalOverlay}>
+            <TouchableOpacity 
+              style={styles.modalBackdrop}
+              activeOpacity={1}
+              onPress={cancelLogout}
+            />
             <Animated.View 
               style={[
                 styles.logoutModalContainer,
@@ -1403,9 +1631,9 @@ export default function CalendarScreen({ navigation, route }) {
                 style={styles.logoutModalGradient}
               >
                 <View style={styles.logoutModalHeader}>
-                  <Ionicons name="log-out" size={getResponsiveSize(48)} color="#FF6B6B" />
-                  <Text style={styles.logoutModalTitle}>Выход из аккаунта</Text>
-                  <Text style={styles.logoutModalText}>
+                  <Ionicons name="log-out" size={responsiveSize(48)} color="#FF6B6B" />
+                  <Text style={[styles.logoutModalTitle, { fontSize: responsiveFontSize(22) }]}>Выход из аккаунта</Text>
+                  <Text style={[styles.logoutModalText, { fontSize: responsiveFontSize(15) }]}>
                     Вы уверены, что хотите выйти?
                   </Text>
                 </View>
@@ -1422,7 +1650,7 @@ export default function CalendarScreen({ navigation, route }) {
                       start={{ x: 0, y: 0 }}
                       end={{ x: 1, y: 1 }}
                     >
-                      <Text style={styles.logoutModalButtonText}>Отмена</Text>
+                      <Text style={[styles.logoutModalButtonText, { fontSize: responsiveFontSize(16) }]}>Отмена</Text>
                     </LinearGradient>
                   </TouchableOpacity>
 
@@ -1437,20 +1665,29 @@ export default function CalendarScreen({ navigation, route }) {
                       start={{ x: 0, y: 0 }}
                       end={{ x: 1, y: 1 }}
                     >
-                      <Text style={styles.logoutModalButtonText}>Выйти</Text>
+                      <Text style={[styles.logoutModalButtonText, { fontSize: responsiveFontSize(16) }]}>Выйти</Text>
                     </LinearGradient>
                   </TouchableOpacity>
                 </View>
               </LinearGradient>
             </Animated.View>
-          </BlurView>
+          </View>
         </Modal>
+
+        {/* ✅ CUSTOM ALERT COMPONENT */}
+        <CustomAlert
+          visible={alertConfig.visible}
+          title={alertConfig.title}
+          message={alertConfig.message}
+          buttons={alertConfig.buttons}
+          onClose={closeAlert}
+        />
       </LinearGradient>
     </View>
   );
 }
 
-// ✅ ОБНОВЛЕННЫЕ СТИЛИ С НОВОЙ СТРУКТУРОЙ СТАТИСТИКИ
+// ✅ СТИЛИ (БАЗОВЫЕ РАЗМЕРЫ, БЕЗ ДИНАМИЧЕСКИХ)
 const styles = StyleSheet.create({
   container: {
     flex: 1,
@@ -1463,13 +1700,39 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   
-  // 🌙 ХЕДЕР С ПРАВИЛЬНЫМИ ОТСТУПАМИ
+  // ✅ КНОПКА ОБНОВЛЕНИЯ
+  refreshButtonContainer: {
+    paddingHorizontal: 15,
+    paddingTop: 15,
+  },
+  refreshButton: {
+    borderRadius: 12,
+    overflow: 'hidden',
+    shadowColor: '#FFD700',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  refreshButtonGradient: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 10,
+    paddingHorizontal: 15,
+  },
+  refreshButtonText: {
+    color: '#1a1a1a',
+    fontWeight: '600',
+    marginLeft: 8,
+  },
+  
+  // ХЕДЕР
   header: {
-    paddingHorizontal: getResponsiveSize(20),
-    paddingTop: Platform.OS === 'ios' ? getResponsiveSize(50) : getResponsiveSize(30),
-    paddingBottom: getResponsiveSize(24),
-    borderBottomLeftRadius: getResponsiveSize(30),
-    borderBottomRightRadius: getResponsiveSize(30),
+    paddingHorizontal: 20,
+    paddingBottom: 24,
+    borderBottomLeftRadius: 30,
+    borderBottomRightRadius: 30,
     shadowColor: '#FFD700',
     shadowOffset: { width: 0, height: 8 },
     shadowOpacity: 0.3,
@@ -1494,25 +1757,25 @@ const styles = StyleSheet.create({
     opacity: 0.05,
   },
   decorCircle1: {
-    width: getResponsiveSize(200),
-    height: getResponsiveSize(200),
+    width: 200,
+    height: 200,
     backgroundColor: '#FFD700',
-    top: -getResponsiveSize(80),
-    right: -getResponsiveSize(50),
+    top: -80,
+    right: -50,
   },
   decorCircle2: {
-    width: getResponsiveSize(150),
-    height: getResponsiveSize(150),
+    width: 150,
+    height: 150,
     backgroundColor: '#FFA500',
-    bottom: -getResponsiveSize(60),
-    left: -getResponsiveSize(40),
+    bottom: -60,
+    left: -40,
   },
   decorCircle3: {
-    width: getResponsiveSize(100),
-    height: getResponsiveSize(100),
+    width: 100,
+    height: 100,
     backgroundColor: '#DAA520',
-    top: getResponsiveSize(40),
-    left: getResponsiveSize(30),
+    top: 40,
+    left: 30,
   },
   
   headerContent: {
@@ -1524,20 +1787,18 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: getResponsiveSize(20),
+    marginBottom: 20,
   },
   
   greetingSection: {
     flex: 1,
   },
   greetingText: {
-    fontSize: getResponsiveFontSize(13),
     color: '#999',
     fontWeight: '500',
-    marginBottom: getResponsiveSize(2),
+    marginBottom: 2,
   },
   userName: {
-    fontSize: getResponsiveFontSize(18),
     color: '#E0E0E0',
     fontWeight: '700',
     letterSpacing: 0.3,
@@ -1546,11 +1807,11 @@ const styles = StyleSheet.create({
   actionButtons: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: getResponsiveSize(10),
+    gap: 10,
   },
   
   roleButton: {
-    borderRadius: getResponsiveSize(20),
+    borderRadius: 20,
     overflow: 'hidden',
     shadowColor: '#FFD700',
     shadowOffset: { width: 0, height: 2 },
@@ -1561,18 +1822,17 @@ const styles = StyleSheet.create({
   roleButtonGradient: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: getResponsiveSize(12),
-    paddingVertical: getResponsiveSize(8),
-    gap: getResponsiveSize(6),
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    gap: 6,
   },
   roleButtonText: {
-    fontSize: getResponsiveFontSize(12),
     color: '#1a1a1a',
     fontWeight: '700',
   },
   
   logoutButton: {
-    borderRadius: getResponsiveSize(22),
+    borderRadius: 22,
     overflow: 'hidden',
     shadowColor: '#FF6B6B',
     shadowOffset: { width: 0, height: 2 },
@@ -1581,8 +1841,8 @@ const styles = StyleSheet.create({
     elevation: 3,
   },
   logoutButtonGradient: {
-    width: getResponsiveSize(44),
-    height: getResponsiveSize(44),
+    width: 44,
+    height: 44,
     justifyContent: 'center',
     alignItems: 'center',
   },
@@ -1590,22 +1850,22 @@ const styles = StyleSheet.create({
   titleSection: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: getResponsiveSize(20),
+    marginBottom: 20,
     backgroundColor: 'rgba(42, 42, 42, 0.6)',
-    paddingHorizontal: getResponsiveSize(16),
-    paddingVertical: getResponsiveSize(14),
-    borderRadius: getResponsiveSize(16),
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    borderRadius: 16,
     borderWidth: 1,
     borderColor: 'rgba(255, 215, 0, 0.2)',
   },
   
   titleIconContainer: {
-    marginRight: getResponsiveSize(14),
+    marginRight: 14,
   },
   titleIconGradient: {
-    width: getResponsiveSize(56),
-    height: getResponsiveSize(56),
-    borderRadius: getResponsiveSize(16),
+    width: 56,
+    height: 56,
+    borderRadius: 16,
     justifyContent: 'center',
     alignItems: 'center',
     shadowColor: '#FFD700',
@@ -1619,23 +1879,20 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   mainTitle: {
-    fontSize: getResponsiveFontSize(20),
     fontWeight: '800',
     color: '#E0E0E0',
     letterSpacing: 0.3,
-    marginBottom: getResponsiveSize(2),
+    marginBottom: 2,
   },
   subtitle: {
-    fontSize: getResponsiveFontSize(13),
     color: '#999',
     fontWeight: '500',
   },
   
-  // ✅ ОБНОВЛЕНО: Стили для статистики текущего месяца
   statsContainer: {
     backgroundColor: 'rgba(42, 42, 42, 0.6)',
-    borderRadius: getResponsiveSize(16),
-    padding: getResponsiveSize(16),
+    borderRadius: 16,
+    padding: 16,
     borderWidth: 1,
     borderColor: 'rgba(255, 215, 0, 0.2)',
     shadowColor: '#FFD700',
@@ -1646,11 +1903,10 @@ const styles = StyleSheet.create({
   },
   
   monthStatsHeader: {
-    marginBottom: getResponsiveSize(12),
+    marginBottom: 12,
   },
   
   monthStatsTitle: {
-    fontSize: getResponsiveFontSize(14),
     fontWeight: '700',
     color: '#FFD700',
     textAlign: 'center',
@@ -1665,13 +1921,13 @@ const styles = StyleSheet.create({
     flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: getResponsiveSize(10),
+    gap: 10,
   },
   
   statIconWrapper: {
-    width: getResponsiveSize(40),
-    height: getResponsiveSize(40),
-    borderRadius: getResponsiveSize(12),
+    width: 40,
+    height: 40,
+    borderRadius: 12,
     backgroundColor: 'rgba(255, 215, 0, 0.15)',
     justifyContent: 'center',
     alignItems: 'center',
@@ -1682,33 +1938,31 @@ const styles = StyleSheet.create({
   },
   
   statValue: {
-    fontSize: getResponsiveFontSize(20),
     fontWeight: '800',
     color: '#E0E0E0',
     letterSpacing: 0.3,
   },
   
   statLabel: {
-    fontSize: getResponsiveFontSize(10),
     color: '#999',
     fontWeight: '600',
-    marginTop: getResponsiveSize(2),
+    marginTop: 2,
   },
   
   statDivider: {
     width: 1,
     height: '100%',
     backgroundColor: 'rgba(255, 215, 0, 0.2)',
-    marginHorizontal: getResponsiveSize(8),
+    marginHorizontal: 8,
   },
   
-  // 🌙 КАЛЕНДАРЬ
+  // КАЛЕНДАРЬ
   calendarWrapper: {
-    margin: getResponsiveSize(15),
+    margin: 15,
   },
   calendarContainer: {
-    borderRadius: getResponsiveSize(20),
-    padding: getResponsiveSize(12),
+    borderRadius: 20,
+    padding: 12,
     shadowColor: '#FFD700',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.2,
@@ -1718,27 +1972,26 @@ const styles = StyleSheet.create({
     borderColor: 'rgba(255, 215, 0, 0.2)',
   },
   calendar: {
-    borderRadius: getResponsiveSize(15),
+    borderRadius: 15,
   },
   dayContainer: {
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    padding: getResponsiveSize(3),
+    padding: 3,
     position: 'relative',
-    height: getResponsiveSize(44),
+    height: 44,
   },
   dayBase: {
-    width: getResponsiveSize(38),
-    height: getResponsiveSize(38),
-    borderRadius: getResponsiveSize(19),
+    width: 38,
+    height: 38,
+    borderRadius: 19,
     alignItems: 'center',
     justifyContent: 'center',
     overflow: 'hidden',
     position: 'relative',
   },
   dayText: {
-    fontSize: getResponsiveFontSize(14),
     fontWeight: '600',
     color: '#E0E0E0',
   },
@@ -1794,16 +2047,16 @@ const styles = StyleSheet.create({
   },
   tourUnderline: {
     position: 'absolute',
-    bottom: getResponsiveSize(8),
-    width: getResponsiveSize(24),
+    bottom: 8,
+    width: 24,
     height: 2,
     backgroundColor: '#FFFFFF',
     borderRadius: 1,
   },
   moveLine: {
     position: 'absolute',
-    top: getResponsiveSize(8),
-    width: getResponsiveSize(24),
+    top: 8,
+    width: 24,
     height: 2,
     backgroundColor: '#FFFFFF',
     borderRadius: 1,
@@ -1832,13 +2085,13 @@ const styles = StyleSheet.create({
     color: '#E0E0E0',
   },
 
-  // 🌙 БЫСТРЫЕ ДЕЙСТВИЯ
+  // БЫСТРЫЕ ДЕЙСТВИЯ
   quickActionsContainer: {
-    marginHorizontal: getResponsiveSize(15),
-    marginBottom: getResponsiveSize(20),
+    marginHorizontal: 15,
+    marginBottom: 20,
     backgroundColor: 'rgba(26, 26, 26, 0.8)',
-    borderRadius: getResponsiveSize(20),
-    padding: getResponsiveSize(20),
+    borderRadius: 20,
+    padding: 20,
     borderWidth: 1,
     borderColor: 'rgba(255, 215, 0, 0.2)',
   },
@@ -1846,20 +2099,20 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: getResponsiveSize(20),
-    paddingBottom: getResponsiveSize(15),
+    marginBottom: 20,
+    paddingBottom: 15,
     borderBottomWidth: 1,
     borderBottomColor: 'rgba(255, 215, 0, 0.15)',
   },
   quickActionsTitleWrapper: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: getResponsiveSize(10),
+    gap: 10,
   },
   quickActionsTitleIcon: {
-    width: getResponsiveSize(36),
-    height: getResponsiveSize(36),
-    borderRadius: getResponsiveSize(10),
+    width: 36,
+    height: 36,
+    borderRadius: 10,
     justifyContent: 'center',
     alignItems: 'center',
     shadowColor: '#FFD700',
@@ -1869,9 +2122,9 @@ const styles = StyleSheet.create({
     elevation: 3,
   },
   quickActionsMore: {
-    width: getResponsiveSize(36),
-    height: getResponsiveSize(36),
-    borderRadius: getResponsiveSize(18),
+    width: 36,
+    height: 36,
+    borderRadius: 18,
     backgroundColor: 'rgba(42, 42, 42, 0.8)',
     justifyContent: 'center',
     alignItems: 'center',
@@ -1879,7 +2132,6 @@ const styles = StyleSheet.create({
     borderColor: 'rgba(255, 215, 0, 0.2)',
   },
   quickActionsTitle: {
-    fontSize: getResponsiveFontSize(18),
     fontWeight: '700',
     color: '#E0E0E0',
     letterSpacing: 0.3,
@@ -1888,20 +2140,20 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     flexWrap: 'wrap',
     justifyContent: 'flex-start',
-    gap: getResponsiveSize(8),
+    gap: 8,
   },
   quickActionCard: {
     width: '22%',
     alignItems: 'center',
-    marginBottom: getResponsiveSize(15),
+    marginBottom: 15,
   },
   quickActionIconContainer: {
-    width: getResponsiveSize(64),
-    height: getResponsiveSize(64),
-    borderRadius: getResponsiveSize(32),
+    width: 64,
+    height: 64,
+    borderRadius: 32,
     justifyContent: 'center',
     alignItems: 'center',
-    marginBottom: getResponsiveSize(8),
+    marginBottom: 8,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 3 },
     shadowOpacity: 0.3,
@@ -1909,27 +2161,34 @@ const styles = StyleSheet.create({
     elevation: 4,
   },
   quickActionText: {
-    fontSize: getResponsiveFontSize(11),
     fontWeight: '500',
     color: '#E0E0E0',
     textAlign: 'center',
-    lineHeight: getResponsiveFontSize(14),
+    lineHeight: 14,
   },
 
-  // 🌙 МОДАЛЬНЫЕ ОКНА
+  // ✅ МОДАЛЬНЫЕ ОКНА (БЕЗ BLURVIEW)
   modalOverlay: {
     flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.85)',
     justifyContent: 'center',
     alignItems: 'center',
   },
+  modalBackdrop: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+  },
   modalContainer: {
     width: '95%',
-    maxWidth: getResponsiveSize(450),
+    maxWidth: 450,
     maxHeight: '85%',
   },
   modalGradient: {
-    borderRadius: getResponsiveSize(30),
-    padding: getResponsiveSize(25),
+    borderRadius: 30,
+    padding: 25,
     shadowColor: '#FFD700',
     shadowOffset: { width: 0, height: 8 },
     shadowOpacity: 0.3,
@@ -1942,64 +2201,60 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: getResponsiveSize(12),
+    marginBottom: 12,
   },
   modalTitle: {
-    fontSize: getResponsiveFontSize(24),
     fontWeight: '900',
     color: '#E0E0E0',
     letterSpacing: 0.3,
   },
   modalCloseIcon: {
-    padding: getResponsiveSize(6),
+    padding: 6,
   },
   modalDateContainer: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: 'rgba(255, 215, 0, 0.2)',
-    paddingVertical: getResponsiveSize(12),
-    paddingHorizontal: getResponsiveSize(18),
-    borderRadius: getResponsiveSize(18),
-    marginBottom: getResponsiveSize(18),
+    paddingVertical: 12,
+    paddingHorizontal: 18,
+    borderRadius: 18,
+    marginBottom: 18,
     borderWidth: 1,
     borderColor: 'rgba(255, 215, 0, 0.4)',
   },
   modalDate: {
-    fontSize: getResponsiveFontSize(18),
     color: '#E0E0E0',
     fontWeight: '700',
-    marginLeft: getResponsiveSize(10),
+    marginLeft: 10,
   },
   concertsList: {
-    maxHeight: getResponsiveSize(400),
-    marginBottom: getResponsiveSize(20),
+    maxHeight: 400,
+    marginBottom: 20,
   },
   noConcerts: {
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: getResponsiveSize(30),
+    paddingVertical: 30,
   },
   noConcertsText: {
-    fontSize: getResponsiveFontSize(16),
     color: '#888',
-    marginTop: getResponsiveSize(12),
+    marginTop: 12,
     textAlign: 'center',
   },
 
   sectionContainer: {
-    marginBottom: getResponsiveSize(20),
+    marginBottom: 20,
   },
   sectionTitle: {
-    fontSize: getResponsiveFontSize(18),
     fontWeight: '800',
     color: '#E0E0E0',
-    marginBottom: getResponsiveSize(12),
+    marginBottom: 12,
   },
 
   concertItem: {
-    marginBottom: getResponsiveSize(15),
-    borderRadius: getResponsiveSize(16),
+    marginBottom: 15,
+    borderRadius: 16,
     overflow: 'hidden',
     shadowColor: '#FFD700',
     shadowOffset: { width: 0, height: 3 },
@@ -2008,8 +2263,8 @@ const styles = StyleSheet.create({
     elevation: 6,
   },
   concertGradient: {
-    padding: getResponsiveSize(18),
-    borderRadius: getResponsiveSize(16),
+    padding: 18,
+    borderRadius: 16,
     borderWidth: 1,
     borderColor: 'rgba(255, 215, 0, 0.2)',
   },
@@ -2017,60 +2272,55 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: getResponsiveSize(10),
+    marginBottom: 10,
   },
   concertType: {
-    fontSize: getResponsiveFontSize(16),
     fontWeight: 'bold',
     color: '#FFD700',
     flex: 1,
   },
   deleteButton: {
-    padding: getResponsiveSize(6),
+    padding: 6,
   },
   concertDescription: {
-    fontSize: getResponsiveFontSize(14),
     fontWeight: '600',
     color: '#E0E0E0',
-    marginBottom: getResponsiveSize(8),
-    lineHeight: getResponsiveFontSize(18),
+    marginBottom: 8,
+    lineHeight: 18,
   },
   concertAddress: {
-    fontSize: getResponsiveFontSize(13),
     color: '#999',
-    marginBottom: getResponsiveSize(10),
-    lineHeight: getResponsiveFontSize(16),
+    marginBottom: 10,
+    lineHeight: 16,
   },
   concertInfo: {
     borderTopWidth: 1,
     borderTopColor: 'rgba(255, 215, 0, 0.2)',
-    paddingTop: getResponsiveSize(10),
-    marginBottom: getResponsiveSize(10),
+    paddingTop: 10,
+    marginBottom: 10,
   },
   infoItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: getResponsiveSize(6),
+    marginBottom: 6,
   },
   infoText: {
-    fontSize: getResponsiveFontSize(12),
     color: '#999',
-    marginLeft: getResponsiveSize(8),
+    marginLeft: 8,
   },
   concertTime: {
     flexDirection: 'row',
     alignItems: 'center',
   },
   concertTimeText: {
-    fontSize: getResponsiveFontSize(13),
     color: '#FFD700',
-    marginLeft: getResponsiveSize(6),
+    marginLeft: 6,
     fontWeight: '600',
   },
 
   tourItem: {
-    marginBottom: getResponsiveSize(15),
-    borderRadius: getResponsiveSize(16),
+    marginBottom: 15,
+    borderRadius: 16,
     overflow: 'hidden',
     shadowColor: '#4A90E2',
     shadowOffset: { width: 0, height: 3 },
@@ -2079,8 +2329,8 @@ const styles = StyleSheet.create({
     elevation: 6,
   },
   tourGradient: {
-    padding: getResponsiveSize(18),
-    borderRadius: getResponsiveSize(16),
+    padding: 18,
+    borderRadius: 16,
     borderWidth: 1,
     borderColor: 'rgba(74, 144, 226, 0.2)',
   },
@@ -2088,35 +2338,32 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: getResponsiveSize(10),
+    marginBottom: 10,
   },
   tourTitle: {
-    fontSize: getResponsiveFontSize(16),
     fontWeight: 'bold',
     color: '#4A90E2',
     flex: 1,
   },
   tourDescription: {
-    fontSize: getResponsiveFontSize(14),
     fontWeight: '600',
     color: '#E0E0E0',
-    marginBottom: getResponsiveSize(10),
-    lineHeight: getResponsiveFontSize(18),
+    marginBottom: 10,
+    lineHeight: 18,
   },
   tourDates: {
     flexDirection: 'row',
     alignItems: 'center',
   },
   tourDatesText: {
-    fontSize: getResponsiveFontSize(13),
     color: '#4A90E2',
-    marginLeft: getResponsiveSize(6),
+    marginLeft: 6,
     fontWeight: '600',
   },
 
   moveItem: {
-    marginBottom: getResponsiveSize(15),
-    borderRadius: getResponsiveSize(16),
+    marginBottom: 15,
+    borderRadius: 16,
     overflow: 'hidden',
     shadowColor: '#34C759',
     shadowOffset: { width: 0, height: 3 },
@@ -2125,8 +2372,8 @@ const styles = StyleSheet.create({
     elevation: 6,
   },
   moveGradient: {
-    padding: getResponsiveSize(18),
-    borderRadius: getResponsiveSize(16),
+    padding: 18,
+    borderRadius: 16,
     borderWidth: 1,
     borderColor: 'rgba(52, 199, 89, 0.2)',
   },
@@ -2134,42 +2381,38 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: getResponsiveSize(10),
+    marginBottom: 10,
   },
   moveTitle: {
-    fontSize: getResponsiveFontSize(16),
     fontWeight: 'bold',
     color: '#34C759',
     flex: 1,
   },
   moveHotel: {
-    fontSize: getResponsiveFontSize(14),
     color: '#34C759',
-    marginBottom: getResponsiveSize(8),
+    marginBottom: 8,
     fontWeight: '600',
   },
   moveDetails: {
-    marginBottom: getResponsiveSize(10),
+    marginBottom: 10,
   },
   detailItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: getResponsiveSize(6),
+    marginBottom: 6,
   },
   detailText: {
-    fontSize: getResponsiveFontSize(12),
     color: '#34C759',
-    marginLeft: getResponsiveSize(8),
+    marginLeft: 8,
   },
   moveNote: {
-    fontSize: getResponsiveFontSize(12),
     color: '#999',
-    marginBottom: getResponsiveSize(4),
-    lineHeight: getResponsiveFontSize(16),
+    marginBottom: 4,
+    lineHeight: 16,
   },
 
   addButtonWrapper: {
-    borderRadius: getResponsiveSize(18),
+    borderRadius: 18,
     overflow: 'hidden',
     shadowColor: '#FFD700',
     shadowOffset: { width: 0, height: 5 },
@@ -2181,23 +2424,22 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: getResponsiveSize(16),
-    paddingHorizontal: getResponsiveSize(25),
+    paddingVertical: 16,
+    paddingHorizontal: 25,
   },
   addButtonText: {
     color: '#1a1a1a',
-    fontSize: getResponsiveFontSize(16),
     fontWeight: 'bold',
-    marginLeft: getResponsiveSize(8),
+    marginLeft: 8,
   },
 
   eventTypeModalContainer: {
     width: '90%',
-    maxWidth: getResponsiveSize(400),
+    maxWidth: 400,
   },
   eventTypeModalGradient: {
-    borderRadius: getResponsiveSize(30),
-    padding: getResponsiveSize(25),
+    borderRadius: 30,
+    padding: 25,
     shadowColor: '#FFD700',
     shadowOffset: { width: 0, height: 8 },
     shadowOpacity: 0.3,
@@ -2210,19 +2452,18 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: getResponsiveSize(25),
+    marginBottom: 25,
   },
   eventTypeTitle: {
-    fontSize: getResponsiveFontSize(22),
     fontWeight: '900',
     color: '#E0E0E0',
     letterSpacing: 0.3,
   },
   eventTypeOptions: {
-    gap: getResponsiveSize(15),
+    gap: 15,
   },
   eventTypeOption: {
-    borderRadius: getResponsiveSize(20),
+    borderRadius: 20,
     overflow: 'hidden',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 4 },
@@ -2231,33 +2472,30 @@ const styles = StyleSheet.create({
     elevation: 5,
   },
   eventTypeOptionGradient: {
-    padding: getResponsiveSize(25),
+    padding: 25,
     alignItems: 'center',
     justifyContent: 'center',
-    minHeight: getResponsiveSize(150),
+    minHeight: 150,
   },
   eventTypeOptionText: {
-    fontSize: getResponsiveFontSize(20),
     fontWeight: '800',
     color: 'white',
-    marginTop: getResponsiveSize(15),
-    marginBottom: getResponsiveSize(8),
+    marginTop: 15,
+    marginBottom: 8,
   },
   eventTypeOptionDescription: {
-    fontSize: getResponsiveFontSize(13),
     color: 'rgba(255, 255, 255, 0.9)',
     textAlign: 'center',
     fontWeight: '500',
   },
 
-  // 🔓 СТИЛИ МОДАЛЬНОГО ОКНА ВЫХОДА
   logoutModalContainer: {
     width: '85%',
-    maxWidth: getResponsiveSize(350),
+    maxWidth: 350,
   },
   logoutModalGradient: {
-    borderRadius: getResponsiveSize(25),
-    padding: getResponsiveSize(30),
+    borderRadius: 25,
+    padding: 30,
     shadowColor: '#FF6B6B',
     shadowOffset: { width: 0, height: 8 },
     shadowOpacity: 0.3,
@@ -2268,29 +2506,27 @@ const styles = StyleSheet.create({
   },
   logoutModalHeader: {
     alignItems: 'center',
-    marginBottom: getResponsiveSize(25),
+    marginBottom: 25,
   },
   logoutModalTitle: {
-    fontSize: getResponsiveFontSize(22),
     fontWeight: '800',
     color: '#E0E0E0',
-    marginTop: getResponsiveSize(15),
-    marginBottom: getResponsiveSize(10),
+    marginTop: 15,
+    marginBottom: 10,
     textAlign: 'center',
   },
   logoutModalText: {
-    fontSize: getResponsiveFontSize(15),
     color: '#999',
     textAlign: 'center',
-    lineHeight: getResponsiveFontSize(20),
+    lineHeight: 20,
   },
   logoutModalButtons: {
     flexDirection: 'row',
-    gap: getResponsiveSize(12),
+    gap: 12,
   },
   logoutModalButton: {
     flex: 1,
-    borderRadius: getResponsiveSize(15),
+    borderRadius: 15,
     overflow: 'hidden',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 4 },
@@ -2299,13 +2535,80 @@ const styles = StyleSheet.create({
     elevation: 4,
   },
   logoutModalButtonGradient: {
-    paddingVertical: getResponsiveSize(14),
+    paddingVertical: 14,
     alignItems: 'center',
     justifyContent: 'center',
   },
   logoutModalButtonText: {
-    fontSize: getResponsiveFontSize(16),
     fontWeight: '700',
+    color: 'white',
+  },
+
+  // ✅ CUSTOM ALERT STYLES
+  customAlertOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.85)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  customAlertContainer: {
+    width: '100%',
+    maxWidth: 350,
+  },
+  customAlertGradient: {
+    borderRadius: 25,
+    padding: 25,
+    shadowColor: '#FFD700',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.3,
+    shadowRadius: 12,
+    elevation: 8,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 215, 0, 0.3)',
+  },
+  customAlertTitle: {
+    fontSize: 20,
+    fontWeight: '800',
+    color: '#E0E0E0',
+    marginBottom: 12,
+    textAlign: 'center',
+  },
+  customAlertMessage: {
+    fontSize: 14,
+    color: '#999',
+    marginBottom: 20,
+    textAlign: 'center',
+    lineHeight: 20,
+  },
+  customAlertButtons: {
+    flexDirection: 'row',
+    gap: 10,
+  },
+  customAlertButton: {
+    flex: 1,
+    borderRadius: 12,
+    overflow: 'hidden',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.3,
+    shadowRadius: 5,
+    elevation: 3,
+  },
+  customAlertButtonDestructive: {
+    // Дополнительные стили для кнопки удаления
+  },
+  customAlertButtonCancel: {
+    // Дополнительные стили для кнопки отмены
+  },
+  customAlertButtonGradient: {
+    paddingVertical: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  customAlertButtonText: {
+    fontSize: 14,
+    fontWeight: '600',
     color: 'white',
   },
 });

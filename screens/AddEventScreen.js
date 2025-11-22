@@ -2,10 +2,8 @@ import { Ionicons } from '@expo/vector-icons';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { LinearGradient } from 'expo-linear-gradient';
 import { addDoc, collection, doc, updateDoc } from 'firebase/firestore';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
-  Alert,
-  BackHandler,
   Dimensions,
   KeyboardAvoidingView,
   Modal,
@@ -19,19 +17,167 @@ import {
 } from 'react-native';
 import { db } from '../firebaseConfig';
 
-const { width, height } = Dimensions.get('window');
-const isSmallDevice = width < 375;
-const isLargeDevice = width > 414;
+// ✅ АДАПТИВНЫЕ РАЗМЕРЫ С RESIZE LISTENER
+const getWindowDimensions = () => {
+  if (Platform.OS === 'web') {
+    return {
+      width: window.innerWidth,
+      height: window.innerHeight
+    };
+  }
+  return Dimensions.get('window');
+};
 
-const getResponsiveSize = (size) => {
+const useWindowDimensions = () => {
+  const [dimensions, setDimensions] = useState(getWindowDimensions());
+
+  useEffect(() => {
+    if (Platform.OS === 'web') {
+      const handleResize = () => {
+        setDimensions(getWindowDimensions());
+      };
+      window.addEventListener('resize', handleResize);
+      return () => window.removeEventListener('resize', handleResize);
+    }
+  }, []);
+
+  return dimensions;
+};
+
+const getResponsiveSize = (size, windowWidth) => {
+  const isSmallDevice = windowWidth < 375;
+  const isLargeDevice = windowWidth > 414;
   if (isSmallDevice) return size * 0.85;
   if (isLargeDevice) return size * 1.15;
   return size;
 };
 
-const getResponsiveFontSize = (size) => {
-  const baseSize = getResponsiveSize(size);
+const getResponsiveFontSize = (size, windowWidth) => {
+  const baseSize = getResponsiveSize(size, windowWidth);
   return Math.round(baseSize);
+};
+
+// ✅ КОМПОНЕНТ CUSTOM ALERT
+const CustomAlert = ({ visible, title, message, buttons, onClose }) => {
+  if (!visible) return null;
+
+  return (
+    <Modal
+      visible={visible}
+      transparent={true}
+      animationType="fade"
+      onRequestClose={onClose}
+    >
+      <View style={styles.customAlertOverlay}>
+        <View style={styles.customAlertContainer}>
+          <LinearGradient
+            colors={['rgba(26, 26, 26, 0.98)', 'rgba(35, 35, 35, 0.95)']}
+            style={styles.customAlertGradient}
+          >
+            <Text style={styles.customAlertTitle}>{title}</Text>
+            <Text style={styles.customAlertMessage}>{message}</Text>
+            
+            <View style={styles.customAlertButtons}>
+              {buttons.map((button, index) => (
+                <TouchableOpacity
+                  key={index}
+                  style={[
+                    styles.customAlertButton,
+                    button.style === 'destructive' && styles.customAlertButtonDestructive,
+                    button.style === 'cancel' && styles.customAlertButtonCancel
+                  ]}
+                  onPress={() => {
+                    button.onPress && button.onPress();
+                    onClose();
+                  }}
+                >
+                  <LinearGradient
+                    colors={
+                      button.style === 'destructive' 
+                        ? ['#FF6B6B', '#EE5A52']
+                        : button.style === 'cancel'
+                        ? ['#555', '#444']
+                        : ['#FFD700', '#FFA500']
+                    }
+                    style={styles.customAlertButtonGradient}
+                  >
+                    <Text style={styles.customAlertButtonText}>{button.text}</Text>
+                  </LinearGradient>
+                </TouchableOpacity>
+              ))}
+            </View>
+          </LinearGradient>
+        </View>
+      </View>
+    </Modal>
+  );
+};
+
+// ✅ КОМПОНЕНТ HTML5 TIME PICKER ДЛЯ WEB
+const WebTimePicker = ({ value, onChange, label, placeholder }) => {
+  const [timeValue, setTimeValue] = useState(value || '');
+
+  const handleChange = (text) => {
+    // Автоформатирование при вводе
+    let cleaned = text.replace(/\D/g, '');
+    
+    if (cleaned.length >= 2) {
+      let hours = parseInt(cleaned.substring(0, 2));
+      hours = Math.min(hours, 23);
+      cleaned = String(hours).padStart(2, '0') + cleaned.substring(2);
+    }
+    
+    if (cleaned.length >= 4) {
+      let minutes = parseInt(cleaned.substring(2, 4));
+      minutes = Math.min(minutes, 59);
+      const formatted = `${cleaned.substring(0, 2)}:${String(minutes).padStart(2, '0')}`;
+      setTimeValue(formatted);
+      onChange(formatted);
+    } else if (cleaned.length >= 2) {
+      const formatted = `${cleaned.substring(0, 2)}:`;
+      setTimeValue(formatted);
+    } else {
+      setTimeValue(cleaned);
+    }
+  };
+
+  const handleNativeChange = (e) => {
+    const newValue = e.target.value;
+    setTimeValue(newValue);
+    onChange(newValue);
+  };
+
+  if (Platform.OS === 'web') {
+    return (
+      <View style={styles.timeInputCard}>
+        <Text style={styles.label}>{label} *</Text>
+        <View style={styles.webTimeContainer}>
+          <View style={styles.timeInputWrapper}>
+            <Ionicons name="time-outline" size={20} color="#FFD700" />
+            <input
+              type="time"
+              value={timeValue}
+              onChange={handleNativeChange}
+              placeholder={placeholder}
+              style={{
+                flex: 1,
+                marginLeft: 10,
+                fontSize: 14,
+                color: '#E0E0E0',
+                backgroundColor: 'transparent',
+                border: 'none',
+                outline: 'none',
+                fontFamily: 'System',
+                fontWeight: '500',
+              }}
+            />
+          </View>
+        </View>
+      </View>
+    );
+  }
+
+  return null;
 };
 
 // Категории участников
@@ -44,16 +190,15 @@ const PARTICIPANT_CATEGORIES = [
 ];
 
 export default function AddEvent({ navigation, route }) {
+  const dimensions = useWindowDimensions();
   const { date, userRole, concert, isEditing } = route.params || {};
   
-  // ✅ СОСТОЯНИЯ С УЧЕТОМ РЕДАКТИРОВАНИЯ
   const [concertType, setConcertType] = useState(concert?.concertType || 'GENERAL');
   const [description, setDescription] = useState(concert?.description || '');
   const [address, setAddress] = useState(concert?.address || '');
   const [departureTime, setDepartureTime] = useState(concert?.departureTime || '');
   const [startTime, setStartTime] = useState(concert?.startTime || '');
   
-  // ✅ НОВАЯ СТРУКТУРА УЧАСТНИКОВ ПО КАТЕГОРИЯМ
   const [participants, setParticipants] = useState(
     concert?.participants || {
       femaleChoir: [],
@@ -80,7 +225,6 @@ export default function AddEvent({ navigation, route }) {
   const [departureDate, setDepartureDate] = useState(new Date());
   const [startDate, setStartDate] = useState(new Date());
   
-  // Состояния для концертной программы
   const [showProgramModal, setShowProgramModal] = useState(false);
   const [programTitle, setProgramTitle] = useState(concert?.program?.title || '');
   const [songs, setSongs] = useState(concert?.program?.songs || []);
@@ -90,9 +234,26 @@ export default function AddEvent({ navigation, route }) {
   });
   const [editingSongIndex, setEditingSongIndex] = useState(null);
 
-  // Рефы для управления модальными окнами
-  const participantModalRef = useRef(null);
-  const programModalRef = useRef(null);
+  // ✅ CUSTOM ALERT STATE
+  const [alertConfig, setAlertConfig] = useState({
+    visible: false,
+    title: '',
+    message: '',
+    buttons: []
+  });
+
+  const showAlert = (title, message, buttons = [{ text: 'OK' }]) => {
+    setAlertConfig({
+      visible: true,
+      title,
+      message,
+      buttons
+    });
+  };
+
+  const closeAlert = () => {
+    setAlertConfig({ ...alertConfig, visible: false });
+  };
 
   const concertTypes = [
     { value: 'GENERAL', label: 'Общий концерт' },
@@ -110,67 +271,62 @@ export default function AddEvent({ navigation, route }) {
     }
   }, [isEditing, navigation]);
 
-  // ✅ ИСПРАВЛЕННАЯ НАВИГАЦИЯ ДЛЯ PWA
+  // ✅ BROWSER HISTORY API
   useEffect(() => {
-    if (Platform.OS !== 'web') {
-      const backHandler = BackHandler.addEventListener('hardwareBackPress', handleBackPress);
-      return () => backHandler.remove();
+    if (Platform.OS === 'web') {
+      if (showParticipantModal || showProgramModal) {
+        window.history.pushState({ modal: true }, '');
+      }
+
+      const handlePopState = () => {
+        if (showProgramModal) {
+          setShowProgramModal(false);
+          return;
+        }
+        if (showParticipantModal) {
+          setShowParticipantModal(false);
+          return;
+        }
+      };
+
+      window.addEventListener('popstate', handlePopState);
+      return () => window.removeEventListener('popstate', handlePopState);
     }
-  }, []);
+  }, [showParticipantModal, showProgramModal]);
+
+  // ✅ ESC KEY HANDLER
+  useEffect(() => {
+    if (Platform.OS === 'web') {
+      const handleKeyPress = (e) => {
+        if (e.key === 'Escape') {
+          if (showProgramModal) {
+            setShowProgramModal(false);
+          } else if (showParticipantModal) {
+            setShowParticipantModal(false);
+          }
+        }
+      };
+
+      document.addEventListener('keydown', handleKeyPress);
+      return () => document.removeEventListener('keydown', handleKeyPress);
+    }
+  }, [showParticipantModal, showProgramModal]);
 
   const handleBackPress = () => {
     if (showParticipantModal) {
       setShowParticipantModal(false);
-      return true;
+      return;
     }
     if (showProgramModal) {
       setShowProgramModal(false);
-      return true;
+      return;
     }
     navigation.goBack();
-    return true;
   };
 
-  // ✅ УЛУЧШЕННЫЙ ФОРМАТ ВРЕМЕНИ ДЛЯ PWA
-  const formatTimeInput = (text) => {
-    // Удаляем все нецифровые символы
-    const cleaned = text.replace(/\D/g, '');
-    
-    if (cleaned.length === 0) return '';
-    if (cleaned.length <= 2) {
-      const hours = parseInt(cleaned);
-      if (hours > 23) return '23';
-      return cleaned;
-    }
-    
-    const hours = parseInt(cleaned.substring(0, 2));
-    const minutes = cleaned.substring(2, 4);
-    
-    const validHours = hours > 23 ? 23 : hours;
-    const validMinutes = minutes ? (parseInt(minutes) > 59 ? 59 : parseInt(minutes)) : 0;
-    
-    return `${String(validHours).padStart(2, '0')}:${String(validMinutes).padStart(2, '0')}`;
-  };
-
-  // ✅ УЛУЧШЕННЫЙ TIME PICKER ДЛЯ PWA
+  // ✅ TIME PICKER ДЛЯ НАТИВНЫХ ПЛАТФОРМ
   const handleTimePicker = (type) => {
-    if (Platform.OS === 'web') {
-      // Для PWA используем простой выбор времени
-      const currentTime = type === 'departure' ? departureTime : startTime;
-      const newTime = prompt(`Введите время ${type === 'departure' ? 'выезда' : 'начала'} (ЧЧ:ММ):`, currentTime || '00:00');
-      
-      if (newTime) {
-        const formattedTime = formatTimeInput(newTime);
-        if (formattedTime) {
-          if (type === 'departure') {
-            setDepartureTime(formattedTime);
-          } else {
-            setStartTime(formattedTime);
-          }
-        }
-      }
-    } else {
-      // Для нативных платформ используем стандартный пикер
+    if (Platform.OS !== 'web') {
       if (type === 'departure') {
         setShowDepartureTimePicker(true);
       } else {
@@ -179,17 +335,6 @@ export default function AddEvent({ navigation, route }) {
     }
   };
 
-  const handleDepartureTimeChange = (text) => {
-    const formatted = formatTimeInput(text);
-    setDepartureTime(formatted);
-  };
-
-  const handleStartTimeChange = (text) => {
-    const formatted = formatTimeInput(text);
-    setStartTime(formatted);
-  };
-
-  // Для нативных платформ
   const onDepartureTimeChange = (event, selectedDate) => {
     setShowDepartureTimePicker(false);
     if (selectedDate) {
@@ -208,10 +353,7 @@ export default function AddEvent({ navigation, route }) {
     }
   };
 
-  // ========================================
-  // 👥 ФУНКЦИИ ДЛЯ УЧАСТНИКОВ ПО КАТЕГОРИЯМ
-  // ========================================
-
+  // ФУНКЦИИ ДЛЯ УЧАСТНИКОВ
   const toggleCategory = (categoryKey) => {
     setExpandedCategories(prev => ({
       ...prev,
@@ -227,12 +369,12 @@ export default function AddEvent({ navigation, route }) {
 
   const addParticipant = () => {
     if (!newParticipant.trim()) {
-      Alert.alert('Ошибка', 'Введите ФИО участника');
+      showAlert('Ошибка', 'Введите ФИО участника');
       return;
     }
 
     if (participants[selectedCategory].includes(newParticipant.trim())) {
-      Alert.alert('Ошибка', 'Этот участник уже добавлен в эту категорию');
+      showAlert('Ошибка', 'Этот участник уже добавлен в эту категорию');
       return;
     }
 
@@ -256,13 +398,10 @@ export default function AddEvent({ navigation, route }) {
     return Object.values(participants).reduce((sum, arr) => sum + arr.length, 0);
   };
 
-  // ========================================
-  // 🎵 ФУНКЦИИ ДЛЯ КОНЦЕРТНОЙ ПРОГРАММЫ
-  // ========================================
-
+  // ФУНКЦИИ ДЛЯ КОНЦЕРТНОЙ ПРОГРАММЫ
   const addOrUpdateSong = () => {
     if (!newSong.title.trim()) {
-      Alert.alert('Ошибка', 'Введите название произведения');
+      showAlert('Ошибка', 'Введите название произведения');
       return;
     }
 
@@ -299,20 +438,16 @@ export default function AddEvent({ navigation, route }) {
     setEditingSongIndex(null);
   };
 
-  // ========================================
-  // 💾 СОХРАНЕНИЕ КОНЦЕРТА
-  // ========================================
-
+  // СОХРАНЕНИЕ КОНЦЕРТА
   const handleSubmit = async () => {
     if (!description.trim() || !address.trim() || !departureTime || !startTime) {
-      Alert.alert('Ошибка', 'Пожалуйста, заполните все обязательные поля');
+      showAlert('Ошибка', 'Пожалуйста, заполните все обязательные поля');
       return;
     }
 
-    // Проверка формата времени
     const timeRegex = /^([01]?[0-9]|2[0-3]):[0-5][0-9]$/;
     if (!timeRegex.test(departureTime) || !timeRegex.test(startTime)) {
-      Alert.alert('Ошибка', 'Неверный формат времени. Используйте HH:MM (например, 14:30)');
+      showAlert('Ошибка', 'Неверный формат времени. Используйте HH:MM (например, 14:30)');
       return;
     }
 
@@ -343,57 +478,45 @@ export default function AddEvent({ navigation, route }) {
         message = 'Концерт успешно добавлен';
       }
 
-      Alert.alert(
+      showAlert(
         'Успех',
         message,
         [{ text: 'OK', onPress: () => navigation.goBack() }]
       );
     } catch (error) {
       console.error('Ошибка при сохранении концерта:', error);
-      Alert.alert('Ошибка', 'Не удалось сохранить концерт');
+      showAlert('Ошибка', 'Не удалось сохранить концерт');
     }
   };
 
-  // ✅ ИСПРАВЛЕННЫЙ РЕНДЕР ДЛЯ PWA И МОБИЛЬНЫХ УСТРОЙСТВ
+  // ✅ ВЫЧИСЛЯЕМ RESPONSIVE SIZES
+  const responsiveSize = (size) => getResponsiveSize(size, dimensions.width);
+  const responsiveFontSize = (size) => getResponsiveFontSize(size, dimensions.width);
+
+  // ✅ РЕНДЕР TIME INPUT
   const renderTimeInput = (type, value, placeholder, label) => {
     if (Platform.OS === 'web') {
-      // Для PWA - улучшенный ввод с кнопкой выбора
       return (
-        <View style={styles.timeInputCard}>
-          <Text style={styles.label}>{label} *</Text>
-          <View style={styles.webTimeContainer}>
-            <View style={styles.timeInput}>
-              <Ionicons name="time-outline" size={getResponsiveSize(20)} color="#FFD700" />
-              <TextInput
-                style={styles.timeTextInput}
-                value={value}
-                onChangeText={type === 'departure' ? handleDepartureTimeChange : handleStartTimeChange}
-                placeholder={placeholder}
-                placeholderTextColor="#666"
-                keyboardType="numeric"
-                maxLength={5}
-              />
-            </View>
-            <TouchableOpacity 
-              style={styles.timePickerButton}
-              onPress={() => handleTimePicker(type)}
-            >
-              <Ionicons name="time" size={getResponsiveSize(16)} color="#1a1a1a" />
-            </TouchableOpacity>
-          </View>
-        </View>
+        <WebTimePicker
+          value={value}
+          onChange={type === 'departure' ? setDepartureTime : setStartTime}
+          label={label}
+          placeholder={placeholder}
+        />
       );
     } else {
-      // Для нативных платформ
       return (
         <View style={styles.timeInputCard}>
-          <Text style={styles.label}>{label} *</Text>
+          <Text style={[styles.label, { fontSize: responsiveFontSize(14) }]}>{label} *</Text>
           <TouchableOpacity 
             style={styles.timeInput}
             onPress={() => handleTimePicker(type)}
           >
-            <Ionicons name="time-outline" size={getResponsiveSize(20)} color="#FFD700" />
-            <Text style={value ? styles.timeText : styles.timePlaceholder}>
+            <Ionicons name="time-outline" size={responsiveSize(20)} color="#FFD700" />
+            <Text style={[
+              value ? styles.timeText : styles.timePlaceholder,
+              { fontSize: responsiveFontSize(14) }
+            ]}>
               {value || placeholder}
             </Text>
           </TouchableOpacity>
@@ -402,19 +525,21 @@ export default function AddEvent({ navigation, route }) {
     }
   };
 
+  const KeyboardAvoidComponent = Platform.OS === 'web' ? View : KeyboardAvoidingView;
+
   return (
     <LinearGradient
       colors={['#0a0a0a', '#1a1a1a', '#2a2a2a']}
       style={styles.container}
     >
-      <KeyboardAvoidingView 
+      <KeyboardAvoidComponent 
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         style={styles.keyboardAvoid}
       >
-        {/* 🌙 ТЕМНЫЙ ХЕДЕР */}
+        {/* ХЕДЕР */}
         <LinearGradient
           colors={['rgba(26, 26, 26, 0.98)', 'rgba(35, 35, 35, 0.95)']}
-          style={styles.header}
+          style={[styles.header, { paddingTop: Platform.OS === 'ios' ? responsiveSize(50) : responsiveSize(30) }]}
         >
           <View style={styles.headerContent}>
             <TouchableOpacity 
@@ -425,15 +550,15 @@ export default function AddEvent({ navigation, route }) {
                 colors={['#FFD700', '#FFA500']}
                 style={styles.backButtonGradient}
               >
-                <Ionicons name="arrow-back" size={getResponsiveSize(20)} color="#1a1a1a" />
+                <Ionicons name="arrow-back" size={responsiveSize(20)} color="#1a1a1a" />
               </LinearGradient>
             </TouchableOpacity>
             
             <View style={styles.titleContainer}>
-              <Text style={styles.headerTitle}>
+              <Text style={[styles.headerTitle, { fontSize: responsiveFontSize(18) }]}>
                 {isEditing ? 'Редактировать концерт' : 'Добавить концерт'}
               </Text>
-              <Text style={styles.headerSubtitle}>
+              <Text style={[styles.headerSubtitle, { fontSize: responsiveFontSize(12) }]}>
                 {isEditing ? 'Обновление информации' : 'Создание нового мероприятия'}
               </Text>
             </View>
@@ -448,17 +573,17 @@ export default function AddEvent({ navigation, route }) {
           contentContainerStyle={styles.scrollContent}
         >
           <View style={styles.contentContainer}>
-            {/* 🌙 КАРТОЧКА С ДАТОЙ */}
+            {/* КАРТОЧКА С ДАТОЙ */}
             <View style={styles.dateCard}>
               <LinearGradient
                 colors={['rgba(255, 215, 0, 0.15)', 'rgba(255, 165, 0, 0.1)']}
                 style={styles.dateGradient}
               >
                 <View style={styles.dateContent}>
-                  <Ionicons name="calendar" size={getResponsiveSize(24)} color="#FFD700" />
+                  <Ionicons name="calendar" size={responsiveSize(24)} color="#FFD700" />
                   <View style={styles.dateTextContainer}>
-                    <Text style={styles.dateLabel}>Дата концерта</Text>
-                    <Text style={styles.dateValue}>
+                    <Text style={[styles.dateLabel, { fontSize: responsiveFontSize(12) }]}>Дата концерта</Text>
+                    <Text style={[styles.dateValue, { fontSize: responsiveFontSize(16) }]}>
                       {new Date(isEditing ? concert.date : date).toLocaleDateString('ru-RU', {
                         day: 'numeric',
                         month: 'long',
@@ -469,15 +594,15 @@ export default function AddEvent({ navigation, route }) {
                 </View>
                 {isEditing && (
                   <View style={styles.editingBadge}>
-                    <Text style={styles.editingBadgeText}>РЕДАКТИРОВАНИЕ</Text>
+                    <Text style={[styles.editingBadgeText, { fontSize: responsiveFontSize(10) }]}>РЕДАКТИРОВАНИЕ</Text>
                   </View>
                 )}
               </LinearGradient>
             </View>
 
-            {/* 🌙 ТИП КОНЦЕРТА */}
+            {/* ТИП КОНЦЕРТА */}
             <View style={styles.section}>
-              <Text style={styles.sectionTitle}>🎵 Тип концерта</Text>
+              <Text style={[styles.sectionTitle, { fontSize: responsiveFontSize(16) }]}>🎵 Тип концерта</Text>
               <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.typeScroll}>
                 <View style={styles.typeContainer}>
                   {concertTypes.map((type) => (
@@ -497,6 +622,7 @@ export default function AddEvent({ navigation, route }) {
                       >
                         <Text style={[
                           styles.typeButtonText,
+                          { fontSize: responsiveFontSize(12) },
                           concertType === type.value && styles.typeButtonTextActive
                         ]}>
                           {type.label}
@@ -508,14 +634,14 @@ export default function AddEvent({ navigation, route }) {
               </ScrollView>
             </View>
 
-            {/* 🌙 ОСНОВНАЯ ИНФОРМАЦИЯ */}
+            {/* ОСНОВНАЯ ИНФОРМАЦИЯ */}
             <View style={styles.section}>
-              <Text style={styles.sectionTitle}>📝 Основная информация</Text>
+              <Text style={[styles.sectionTitle, { fontSize: responsiveFontSize(16) }]}>📝 Основная информация</Text>
               
               <View style={styles.inputCard}>
-                <Text style={styles.label}>Описание концерта *</Text>
+                <Text style={[styles.label, { fontSize: responsiveFontSize(14) }]}>Описание концерта *</Text>
                 <TextInput
-                  style={styles.textInput}
+                  style={[styles.textInput, { fontSize: responsiveFontSize(14) }]}
                   value={description}
                   onChangeText={setDescription}
                   placeholder="Введите описание концерта..."
@@ -526,9 +652,9 @@ export default function AddEvent({ navigation, route }) {
               </View>
 
               <View style={styles.inputCard}>
-                <Text style={styles.label}>Адрес проведения *</Text>
+                <Text style={[styles.label, { fontSize: responsiveFontSize(14) }]}>Адрес проведения *</Text>
                 <TextInput
-                  style={styles.textInput}
+                  style={[styles.textInput, { fontSize: responsiveFontSize(14) }]}
                   value={address}
                   onChangeText={setAddress}
                   placeholder="Введите адрес..."
@@ -537,24 +663,24 @@ export default function AddEvent({ navigation, route }) {
               </View>
             </View>
 
-            {/* ⏰ ВРЕМЯ (ИСПРАВЛЕНО ДЛЯ PWA И МОБИЛЬНЫХ) */}
+            {/* ВРЕМЯ */}
             <View style={styles.section}>
-              <Text style={styles.sectionTitle}>⏰ Время</Text>
+              <Text style={[styles.sectionTitle, { fontSize: responsiveFontSize(16) }]}>⏰ Время</Text>
               
               <View style={styles.timeContainer}>
                 {renderTimeInput('departure', departureTime, '00:00', 'Время выезда')}
                 {renderTimeInput('start', startTime, '00:00', 'Время начала')}
               </View>
               
-              {Platform.OS === 'web' && (
-                <Text style={styles.timeHint}>💡 Формат времени: ЧЧ:ММ (например, 14:30)</Text>
-              )}
+              <Text style={[styles.timeHint, { fontSize: responsiveFontSize(11) }]}>
+                💡 Формат времени: ЧЧ:ММ (например, 14:30)
+              </Text>
             </View>
 
-            {/* 🌙 КОНЦЕРТНАЯ ПРОГРАММА */}
+            {/* КОНЦЕРТНАЯ ПРОГРАММА */}
             <View style={styles.section}>
               <View style={styles.sectionHeader}>
-                <Text style={styles.sectionTitle}>🎼 Концертная программа</Text>
+                <Text style={[styles.sectionTitle, { fontSize: responsiveFontSize(16) }]}>🎼 Концертная программа</Text>
                 <TouchableOpacity 
                   style={styles.programButton}
                   onPress={() => setShowProgramModal(true)}
@@ -563,8 +689,8 @@ export default function AddEvent({ navigation, route }) {
                     colors={['#9B59B6', '#8E44AD']}
                     style={styles.programButtonGradient}
                   >
-                    <Ionicons name="musical-notes" size={getResponsiveSize(16)} color="white" />
-                    <Text style={styles.programButtonText}>
+                    <Ionicons name="musical-notes" size={responsiveSize(16)} color="white" />
+                    <Text style={[styles.programButtonText, { fontSize: responsiveFontSize(12) }]}>
                       {songs.length > 0 ? `Программа (${songs.length})` : 'Добавить'}
                     </Text>
                   </LinearGradient>
@@ -573,25 +699,23 @@ export default function AddEvent({ navigation, route }) {
               
               {songs.length > 0 && (
                 <View style={styles.programPreview}>
-                  <Text style={styles.programPreviewText}>
+                  <Text style={[styles.programPreviewText, { fontSize: responsiveFontSize(13) }]}>
                     {songs.length} произведений в программе
                   </Text>
                 </View>
               )}
             </View>
 
-            {/* 👥 УЧАСТНИКИ ПО КАТЕГОРИЯМ (АККОРДЕОН) */}
+            {/* УЧАСТНИКИ ПО КАТЕГОРИЯМ */}
             <View style={styles.section}>
               <View style={styles.sectionHeader}>
-                <Text style={styles.sectionTitle}>
+                <Text style={[styles.sectionTitle, { fontSize: responsiveFontSize(16) }]}>
                   👥 Участники ({getTotalParticipantsCount()})
                 </Text>
               </View>
 
-              {/* Категории участников */}
               {PARTICIPANT_CATEGORIES.map((category) => (
                 <View key={category.key} style={styles.categoryCard}>
-                  {/* Заголовок категории */}
                   <TouchableOpacity 
                     style={styles.categoryHeader}
                     onPress={() => toggleCategory(category.key)}
@@ -605,12 +729,12 @@ export default function AddEvent({ navigation, route }) {
                       <View style={styles.categoryTitleContainer}>
                         <Ionicons 
                           name={category.icon} 
-                          size={getResponsiveSize(20)} 
+                          size={responsiveSize(20)} 
                           color={category.color} 
                         />
                         <View style={styles.categoryTitleTextContainer}>
-                          <Text style={styles.categoryTitle}>{category.label}</Text>
-                          <Text style={styles.categoryCount}>
+                          <Text style={[styles.categoryTitle, { fontSize: responsiveFontSize(14) }]}>{category.label}</Text>
+                          <Text style={[styles.categoryCount, { fontSize: responsiveFontSize(11) }]}>
                             {participants[category.key].length} участников
                           </Text>
                         </View>
@@ -624,24 +748,25 @@ export default function AddEvent({ navigation, route }) {
                             openAddParticipant(category.key);
                           }}
                         >
-                          <Ionicons name="add-circle" size={getResponsiveSize(24)} color={category.color} />
+                          <Ionicons name="add-circle" size={responsiveSize(24)} color={category.color} />
                         </TouchableOpacity>
                         <Ionicons 
                           name={expandedCategories[category.key] ? 'chevron-up' : 'chevron-down'} 
-                          size={getResponsiveSize(20)} 
+                          size={responsiveSize(20)} 
                           color="#999" 
                         />
                       </View>
                     </LinearGradient>
                   </TouchableOpacity>
 
-                  {/* Список участников категории (сворачиваемый) */}
                   {expandedCategories[category.key] && (
                     <View style={styles.categoryContent}>
                       {participants[category.key].length === 0 ? (
                         <View style={styles.categoryEmptyState}>
-                          <Ionicons name="people-outline" size={getResponsiveSize(24)} color="#555" />
-                          <Text style={styles.categoryEmptyText}>Участники не добавлены</Text>
+                          <Ionicons name="people-outline" size={responsiveSize(24)} color="#555" />
+                          <Text style={[styles.categoryEmptyText, { fontSize: responsiveFontSize(12) }]}>
+                            Участники не добавлены
+                          </Text>
                         </View>
                       ) : (
                         <View style={styles.participantsList}>
@@ -652,14 +777,18 @@ export default function AddEvent({ navigation, route }) {
                                 style={styles.participantItemGradient}
                               >
                                 <View style={styles.participantInfo}>
-                                  <Text style={styles.participantNumber}>{index + 1}.</Text>
-                                  <Text style={styles.participantName}>{participant}</Text>
+                                  <Text style={[styles.participantNumber, { fontSize: responsiveFontSize(12) }]}>
+                                    {index + 1}.
+                                  </Text>
+                                  <Text style={[styles.participantName, { fontSize: responsiveFontSize(13) }]}>
+                                    {participant}
+                                  </Text>
                                 </View>
                                 <TouchableOpacity 
                                   onPress={() => removeParticipant(category.key, index)}
                                   style={styles.removeParticipantButton}
                                 >
-                                  <Ionicons name="close-circle" size={getResponsiveSize(20)} color="#FF6B6B" />
+                                  <Ionicons name="close-circle" size={responsiveSize(20)} color="#FF6B6B" />
                                 </TouchableOpacity>
                               </LinearGradient>
                             </View>
@@ -672,7 +801,7 @@ export default function AddEvent({ navigation, route }) {
               ))}
             </View>
 
-            {/* 🌙 КНОПКА СОХРАНЕНИЯ */}
+            {/* КНОПКА СОХРАНЕНИЯ */}
             <TouchableOpacity 
               style={styles.submitButton}
               onPress={handleSubmit}
@@ -683,8 +812,8 @@ export default function AddEvent({ navigation, route }) {
                 start={{ x: 0, y: 0 }}
                 end={{ x: 1, y: 1 }}
               >
-                <Ionicons name="save-outline" size={getResponsiveSize(20)} color="#1a1a1a" />
-                <Text style={styles.submitText}>
+                <Ionicons name="save-outline" size={responsiveSize(20)} color="#1a1a1a" />
+                <Text style={[styles.submitText, { fontSize: responsiveFontSize(16) }]}>
                   {isEditing ? 'Обновить концерт' : 'Сохранить концерт'}
                 </Text>
               </LinearGradient>
@@ -692,237 +821,250 @@ export default function AddEvent({ navigation, route }) {
           </View>
         </ScrollView>
 
-        {/* 🌙 МОДАЛЬНОЕ ОКНО УЧАСТНИКОВ */}
+        {/* ✅ МОДАЛЬНОЕ ОКНО УЧАСТНИКОВ */}
         <Modal
           visible={showParticipantModal}
           transparent={true}
           animationType="slide"
           onRequestClose={() => setShowParticipantModal(false)}
         >
-          <TouchableOpacity 
-            style={styles.modalOverlay}
-            activeOpacity={1}
-            onPress={() => setShowParticipantModal(false)}
-          >
+          <View style={styles.modalOverlay}>
             <TouchableOpacity 
-              style={styles.modalContent}
+              style={styles.modalBackdrop}
               activeOpacity={1}
-              onPress={(e) => e.stopPropagation()}
-            >
-              <View style={styles.modalHeader}>
-                <Text style={styles.modalTitle}>
-                  Добавить участника
-                  {selectedCategory && (
-                    <Text style={styles.modalSubtitle}>
-                      {'\n'}
-                      {PARTICIPANT_CATEGORIES.find(c => c.key === selectedCategory)?.label}
-                    </Text>
-                  )}
-                </Text>
-                <TouchableOpacity 
-                  onPress={() => setShowParticipantModal(false)}
-                  style={styles.modalCloseButton}
-                >
-                  <Ionicons name="close-circle" size={getResponsiveSize(28)} color="#FFD700" />
-                </TouchableOpacity>
-              </View>
-              
-              <TextInput
-                style={styles.modalInput}
-                value={newParticipant}
-                onChangeText={setNewParticipant}
-                placeholder="ФИО участника"
-                placeholderTextColor="#666"
-                autoFocus={Platform.OS !== 'web'} // Автофокус на мобильных, в вебе может быть проблемы
-                onSubmitEditing={addParticipant}
-                returnKeyType="done"
-              />
-
-              <View style={styles.modalButtons}>
-                <TouchableOpacity 
-                  style={styles.cancelButton}
-                  onPress={() => setShowParticipantModal(false)}
-                >
-                  <Text style={styles.cancelButtonText}>Отмена</Text>
-                </TouchableOpacity>
-                
-                <TouchableOpacity 
-                  style={styles.confirmButton}
-                  onPress={addParticipant}
-                >
-                  <LinearGradient
-                    colors={selectedCategory ? [
-                      PARTICIPANT_CATEGORIES.find(c => c.key === selectedCategory)?.color || '#4A90E2',
-                      PARTICIPANT_CATEGORIES.find(c => c.key === selectedCategory)?.color || '#357ABD'
-                    ] : ['#4A90E2', '#357ABD']}
-                    style={styles.confirmButtonGradient}
+              onPress={() => setShowParticipantModal(false)}
+            />
+            <View style={styles.modalContent}>
+              <LinearGradient
+                colors={['rgba(26, 26, 26, 0.98)', 'rgba(35, 35, 35, 0.95)']}
+                style={styles.modalContentGradient}
+              >
+                <View style={styles.modalHeader}>
+                  <Text style={[styles.modalTitle, { fontSize: responsiveFontSize(18) }]}>
+                    Добавить участника
+                    {selectedCategory && (
+                      <Text style={[styles.modalSubtitle, { fontSize: responsiveFontSize(13) }]}>
+                        {'\n'}
+                        {PARTICIPANT_CATEGORIES.find(c => c.key === selectedCategory)?.label}
+                      </Text>
+                    )}
+                  </Text>
+                  <TouchableOpacity 
+                    onPress={() => setShowParticipantModal(false)}
+                    style={styles.modalCloseButton}
                   >
-                    <Text style={styles.confirmButtonText}>Добавить</Text>
-                  </LinearGradient>
-                </TouchableOpacity>
-              </View>
-            </TouchableOpacity>
-          </TouchableOpacity>
+                    <Ionicons name="close-circle" size={responsiveSize(28)} color="#FFD700" />
+                  </TouchableOpacity>
+                </View>
+                
+                <TextInput
+                  style={[styles.modalInput, { fontSize: responsiveFontSize(14) }]}
+                  value={newParticipant}
+                  onChangeText={setNewParticipant}
+                  placeholder="ФИО участника"
+                  placeholderTextColor="#666"
+                  autoFocus={Platform.OS !== 'web'}
+                  onSubmitEditing={addParticipant}
+                  returnKeyType="done"
+                />
+
+                <View style={styles.modalButtons}>
+                  <TouchableOpacity 
+                    style={styles.cancelButton}
+                    onPress={() => setShowParticipantModal(false)}
+                  >
+                    <Text style={[styles.cancelButtonText, { fontSize: responsiveFontSize(14) }]}>Отмена</Text>
+                  </TouchableOpacity>
+                  
+                  <TouchableOpacity 
+                    style={styles.confirmButton}
+                    onPress={addParticipant}
+                  >
+                    <LinearGradient
+                      colors={selectedCategory ? [
+                        PARTICIPANT_CATEGORIES.find(c => c.key === selectedCategory)?.color || '#4A90E2',
+                        PARTICIPANT_CATEGORIES.find(c => c.key === selectedCategory)?.color || '#357ABD'
+                      ] : ['#4A90E2', '#357ABD']}
+                      style={styles.confirmButtonGradient}
+                    >
+                      <Text style={[styles.confirmButtonText, { fontSize: responsiveFontSize(14) }]}>Добавить</Text>
+                    </LinearGradient>
+                  </TouchableOpacity>
+                </View>
+              </LinearGradient>
+            </View>
+          </View>
         </Modal>
 
-        {/* 🌙 МОДАЛЬНОЕ ОКНО ПРОГРАММЫ */}
+        {/* ✅ МОДАЛЬНОЕ ОКНО ПРОГРАММЫ */}
         <Modal
           visible={showProgramModal}
           transparent={true}
           animationType="slide"
           onRequestClose={() => setShowProgramModal(false)}
         >
-          <TouchableOpacity 
-            style={styles.modalOverlay}
-            activeOpacity={1}
-            onPress={() => setShowProgramModal(false)}
-          >
+          <View style={styles.modalOverlay}>
             <TouchableOpacity 
-              style={styles.programModalContent}
+              style={styles.modalBackdrop}
               activeOpacity={1}
-              onPress={(e) => e.stopPropagation()}
-            >
-              <View style={styles.programModalHeader}>
-                <View style={styles.programTitleContainer}>
-                  <Ionicons name="musical-notes" size={getResponsiveSize(24)} color="#FFD700" />
-                  <Text style={styles.programModalTitle}>Концертная программа</Text>
-                </View>
-                <TouchableOpacity 
-                  onPress={() => setShowProgramModal(false)}
-                  style={styles.programModalClose}
-                >
-                  <Ionicons name="close-circle" size={getResponsiveSize(28)} color="#FFD700" />
-                </TouchableOpacity>
-              </View>
-
-              <ScrollView style={styles.programScroll}>
-                {/* Название программы */}
-                <View style={styles.inputCard}>
-                  <Text style={styles.label}>Название программы</Text>
-                  <TextInput
-                    style={styles.textInput}
-                    value={programTitle}
-                    onChangeText={setProgramTitle}
-                    placeholder="Введите название программы..."
-                    placeholderTextColor="#666"
-                  />
+              onPress={() => setShowProgramModal(false)}
+            />
+            <View style={styles.programModalContent}>
+              <LinearGradient
+                colors={['rgba(26, 26, 26, 0.98)', 'rgba(35, 35, 35, 0.95)']}
+                style={styles.programModalGradient}
+              >
+                <View style={styles.programModalHeader}>
+                  <View style={styles.programTitleContainer}>
+                    <Ionicons name="musical-notes" size={responsiveSize(24)} color="#FFD700" />
+                    <Text style={[styles.programModalTitle, { fontSize: responsiveFontSize(18) }]}>
+                      Концертная программа
+                    </Text>
+                  </View>
+                  <TouchableOpacity 
+                    onPress={() => setShowProgramModal(false)}
+                    style={styles.programModalClose}
+                  >
+                    <Ionicons name="close-circle" size={responsiveSize(28)} color="#FFD700" />
+                  </TouchableOpacity>
                 </View>
 
-                {/* Форма добавления/редактирования произведения */}
-                <View style={styles.songFormCard}>
-                  <Text style={styles.sectionTitle}>
-                    {editingSongIndex !== null ? '✏️ Редактировать произведение' : '🎵 Добавить произведение'}
-                  </Text>
-                  
-                  <TextInput
-                    style={styles.textInput}
-                    value={newSong.title}
-                    onChangeText={(text) => setNewSong({...newSong, title: text})}
-                    placeholder="Название произведения *"
-                    placeholderTextColor="#666"
-                  />
-                  
-                  <TextInput
-                    style={styles.textInput}
-                    value={newSong.soloists}
-                    onChangeText={(text) => setNewSong({...newSong, soloists: text})}
-                    placeholder="Солисты (через запятую)"
-                    placeholderTextColor="#666"
-                  />
-                  
-                  <View style={styles.songFormButtons}>
-                    {editingSongIndex !== null && (
+                <ScrollView style={styles.programScroll}>
+                  <View style={styles.inputCard}>
+                    <Text style={[styles.label, { fontSize: responsiveFontSize(14) }]}>Название программы</Text>
+                    <TextInput
+                      style={[styles.textInput, { fontSize: responsiveFontSize(14) }]}
+                      value={programTitle}
+                      onChangeText={setProgramTitle}
+                      placeholder="Введите название программы..."
+                      placeholderTextColor="#666"
+                    />
+                  </View>
+
+                  <View style={styles.songFormCard}>
+                    <Text style={[styles.sectionTitle, { fontSize: responsiveFontSize(16) }]}>
+                      {editingSongIndex !== null ? '✏️ Редактировать произведение' : '🎵 Добавить произведение'}
+                    </Text>
+                    
+                    <TextInput
+                      style={[styles.textInput, { fontSize: responsiveFontSize(14) }]}
+                      value={newSong.title}
+                      onChangeText={(text) => setNewSong({...newSong, title: text})}
+                      placeholder="Название произведения *"
+                      placeholderTextColor="#666"
+                    />
+                    
+                    <TextInput
+                      style={[styles.textInput, { fontSize: responsiveFontSize(14) }]}
+                      value={newSong.soloists}
+                      onChangeText={(text) => setNewSong({...newSong, soloists: text})}
+                      placeholder="Солисты (через запятую)"
+                      placeholderTextColor="#666"
+                    />
+                    
+                    <View style={styles.songFormButtons}>
+                      {editingSongIndex !== null && (
+                        <TouchableOpacity 
+                          style={styles.cancelEditButton}
+                          onPress={() => {
+                            setNewSong({ title: '', soloists: '' });
+                            setEditingSongIndex(null);
+                          }}
+                        >
+                          <Text style={[styles.cancelEditText, { fontSize: responsiveFontSize(12) }]}>Отмена</Text>
+                        </TouchableOpacity>
+                      )}
                       <TouchableOpacity 
-                        style={styles.cancelEditButton}
-                        onPress={() => {
-                          setNewSong({ title: '', soloists: '' });
-                          setEditingSongIndex(null);
-                        }}
+                        style={styles.addSongButton}
+                        onPress={addOrUpdateSong}
                       >
-                        <Text style={styles.cancelEditText}>Отмена</Text>
+                        <LinearGradient
+                          colors={['#9B59B6', '#8E44AD']}
+                          style={styles.addSongGradient}
+                        >
+                          <Text style={[styles.addSongText, { fontSize: responsiveFontSize(12) }]}>
+                            {editingSongIndex !== null ? 'Обновить' : 'Добавить'}
+                          </Text>
+                        </LinearGradient>
+                      </TouchableOpacity>
+                    </View>
+                  </View>
+
+                  <View style={styles.songsSection}>
+                    <Text style={[styles.sectionTitle, { fontSize: responsiveFontSize(16) }]}>
+                      📋 Список произведений {songs.length > 0 && `(${songs.length})`}
+                    </Text>
+                    
+                    {songs.length === 0 ? (
+                      <View style={styles.emptyState}>
+                        <Ionicons name="musical-notes" size={responsiveSize(40)} color="#555" />
+                        <Text style={[styles.emptyStateText, { fontSize: responsiveFontSize(14) }]}>
+                          Произведения не добавлены
+                        </Text>
+                      </View>
+                    ) : (
+                      <View style={styles.songsList}>
+                        {songs.map((song, index) => (
+                          <View key={index} style={styles.songItem}>
+                            <LinearGradient
+                              colors={['rgba(155, 89, 182, 0.2)', 'rgba(142, 68, 173, 0.2)']}
+                              style={styles.songItemGradient}
+                            >
+                              <View style={styles.songContent}>
+                                <Text style={[styles.songNumber, { fontSize: responsiveFontSize(12) }]}>
+                                  {index + 1}.
+                                </Text>
+                                <View style={styles.songDetails}>
+                                  <Text style={[styles.songTitle, { fontSize: responsiveFontSize(13) }]}>
+                                    {song.title}
+                                  </Text>
+                                  {song.soloists && (
+                                    <Text style={[styles.songSoloists, { fontSize: responsiveFontSize(11) }]}>
+                                      Солисты: {song.soloists}
+                                    </Text>
+                                  )}
+                                </View>
+                              </View>
+                              <View style={styles.songActions}>
+                                <TouchableOpacity 
+                                  onPress={() => editSong(index)}
+                                  style={styles.songActionButton}
+                                >
+                                  <Ionicons name="create-outline" size={responsiveSize(18)} color="#FFD700" />
+                                </TouchableOpacity>
+                                <TouchableOpacity 
+                                  onPress={() => removeSong(index)}
+                                  style={styles.songActionButton}
+                                >
+                                  <Ionicons name="trash-outline" size={responsiveSize(18)} color="#FF6B6B" />
+                                </TouchableOpacity>
+                              </View>
+                            </LinearGradient>
+                          </View>
+                        ))}
+                      </View>
+                    )}
+
+                    {songs.length > 0 && (
+                      <TouchableOpacity 
+                        style={styles.clearProgramButton}
+                        onPress={clearProgram}
+                      >
+                        <LinearGradient
+                          colors={['#FF6B6B', '#EE5A52']}
+                          style={styles.clearProgramGradient}
+                        >
+                          <Text style={[styles.clearProgramText, { fontSize: responsiveFontSize(14) }]}>
+                            Очистить программу
+                          </Text>
+                        </LinearGradient>
                       </TouchableOpacity>
                     )}
-                    <TouchableOpacity 
-                      style={styles.addSongButton}
-                      onPress={addOrUpdateSong}
-                    >
-                      <LinearGradient
-                        colors={['#9B59B6', '#8E44AD']}
-                        style={styles.addSongGradient}
-                      >
-                        <Text style={styles.addSongText}>
-                          {editingSongIndex !== null ? 'Обновить' : 'Добавить'}
-                        </Text>
-                      </LinearGradient>
-                    </TouchableOpacity>
                   </View>
-                </View>
-
-                {/* Список произведений */}
-                <View style={styles.songsSection}>
-                  <Text style={styles.sectionTitle}>
-                    📋 Список произведений {songs.length > 0 && `(${songs.length})`}
-                  </Text>
-                  
-                  {songs.length === 0 ? (
-                    <View style={styles.emptyState}>
-                      <Ionicons name="musical-notes" size={getResponsiveSize(40)} color="#555" />
-                      <Text style={styles.emptyStateText}>Произведения не добавлены</Text>
-                    </View>
-                  ) : (
-                    <View style={styles.songsList}>
-                      {songs.map((song, index) => (
-                        <View key={index} style={styles.songItem}>
-                          <LinearGradient
-                            colors={['rgba(155, 89, 182, 0.2)', 'rgba(142, 68, 173, 0.2)']}
-                            style={styles.songItemGradient}
-                          >
-                            <View style={styles.songContent}>
-                              <Text style={styles.songNumber}>{index + 1}.</Text>
-                              <View style={styles.songDetails}>
-                                <Text style={styles.songTitle}>{song.title}</Text>
-                                {song.soloists && (
-                                  <Text style={styles.songSoloists}>Солисты: {song.soloists}</Text>
-                                )}
-                              </View>
-                            </View>
-                            <View style={styles.songActions}>
-                              <TouchableOpacity 
-                                onPress={() => editSong(index)}
-                                style={styles.songActionButton}
-                              >
-                                <Ionicons name="create-outline" size={getResponsiveSize(18)} color="#FFD700" />
-                              </TouchableOpacity>
-                              <TouchableOpacity 
-                                onPress={() => removeSong(index)}
-                                style={styles.songActionButton}
-                              >
-                                <Ionicons name="trash-outline" size={getResponsiveSize(18)} color="#FF6B6B" />
-                              </TouchableOpacity>
-                            </View>
-                          </LinearGradient>
-                        </View>
-                      ))}
-                    </View>
-                  )}
-
-                  {songs.length > 0 && (
-                    <TouchableOpacity 
-                      style={styles.clearProgramButton}
-                      onPress={clearProgram}
-                    >
-                      <LinearGradient
-                        colors={['#FF6B6B', '#EE5A52']}
-                        style={styles.clearProgramGradient}
-                      >
-                        <Text style={styles.clearProgramText}>Очистить программу</Text>
-                      </LinearGradient>
-                    </TouchableOpacity>
-                  )}
-                </View>
-              </ScrollView>
-            </TouchableOpacity>
-          </TouchableOpacity>
+                </ScrollView>
+              </LinearGradient>
+            </View>
+          </View>
         </Modal>
 
         {/* Time Pickers для нативных платформ */}
@@ -943,12 +1085,21 @@ export default function AddEvent({ navigation, route }) {
             onChange={onStartTimeChange}
           />
         )}
-      </KeyboardAvoidingView>
+
+        {/* ✅ CUSTOM ALERT COMPONENT */}
+        <CustomAlert
+          visible={alertConfig.visible}
+          title={alertConfig.title}
+          message={alertConfig.message}
+          buttons={alertConfig.buttons}
+          onClose={closeAlert}
+        />
+      </KeyboardAvoidComponent>
     </LinearGradient>
   );
 }
 
-// 🌙 ТЕМНЫЕ СТИЛИ С ИСПРАВЛЕНИЯМИ ДЛЯ PWA
+// ✅ СТИЛИ
 const styles = StyleSheet.create({
   container: {
     flex: 1,
@@ -963,11 +1114,10 @@ const styles = StyleSheet.create({
     flexGrow: 1,
   },
   header: {
-    paddingHorizontal: getResponsiveSize(20),
-    paddingTop: Platform.OS === 'ios' ? getResponsiveSize(50) : getResponsiveSize(30),
-    paddingBottom: getResponsiveSize(20),
-    borderBottomLeftRadius: getResponsiveSize(25),
-    borderBottomRightRadius: getResponsiveSize(25),
+    paddingHorizontal: 20,
+    paddingBottom: 20,
+    borderBottomLeftRadius: 25,
+    borderBottomRightRadius: 25,
     shadowColor: '#FFD700',
     shadowOffset: { width: 0, height: 8 },
     shadowOpacity: 0.3,
@@ -980,45 +1130,43 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
   },
   backButton: {
-    borderRadius: getResponsiveSize(20),
+    borderRadius: 20,
     overflow: 'hidden',
   },
   backButtonGradient: {
-    width: getResponsiveSize(44),
-    height: getResponsiveSize(44),
+    width: 44,
+    height: 44,
     justifyContent: 'center',
     alignItems: 'center',
-    borderRadius: getResponsiveSize(20),
+    borderRadius: 20,
   },
   titleContainer: {
     flex: 1,
     alignItems: 'center',
   },
   headerTitle: {
-    fontSize: getResponsiveFontSize(18),
     fontWeight: '800',
     color: '#E0E0E0',
     textAlign: 'center',
   },
   headerSubtitle: {
-    fontSize: getResponsiveFontSize(12),
     color: '#999',
-    marginTop: getResponsiveSize(4),
+    marginTop: 4,
     textAlign: 'center',
   },
   headerSpacer: {
-    width: getResponsiveSize(44),
+    width: 44,
   },
   contentContainer: {
-    padding: getResponsiveSize(20),
-    paddingBottom: getResponsiveSize(40),
+    padding: 20,
+    paddingBottom: 40,
   },
   dateCard: {
-    marginBottom: getResponsiveSize(25),
+    marginBottom: 25,
   },
   dateGradient: {
-    borderRadius: getResponsiveSize(16),
-    padding: getResponsiveSize(20),
+    borderRadius: 16,
+    padding: 20,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
@@ -1030,57 +1178,53 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   dateTextContainer: {
-    marginLeft: getResponsiveSize(12),
+    marginLeft: 12,
   },
   dateLabel: {
-    fontSize: getResponsiveFontSize(12),
     color: '#999',
     fontWeight: '600',
   },
   dateValue: {
-    fontSize: getResponsiveFontSize(16),
     color: '#E0E0E0',
     fontWeight: '700',
-    marginTop: getResponsiveSize(2),
+    marginTop: 2,
   },
   editingBadge: {
     backgroundColor: 'rgba(255, 107, 107, 0.2)',
-    paddingHorizontal: getResponsiveSize(10),
-    paddingVertical: getResponsiveSize(6),
-    borderRadius: getResponsiveSize(12),
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 12,
     borderWidth: 1,
     borderColor: 'rgba(255, 107, 107, 0.4)',
   },
   editingBadgeText: {
-    fontSize: getResponsiveFontSize(10),
     color: '#FF6B6B',
     fontWeight: '800',
   },
   section: {
-    marginBottom: getResponsiveSize(25),
+    marginBottom: 25,
   },
   sectionHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: getResponsiveSize(15),
+    marginBottom: 15,
   },
   sectionTitle: {
-    fontSize: getResponsiveFontSize(16),
     fontWeight: '700',
     color: '#E0E0E0',
   },
   typeScroll: {
-    marginHorizontal: getResponsiveSize(-5),
+    marginHorizontal: -5,
   },
   typeContainer: {
     flexDirection: 'row',
-    paddingHorizontal: getResponsiveSize(5),
+    paddingHorizontal: 5,
   },
   typeButton: {
-    borderRadius: getResponsiveSize(20),
+    borderRadius: 20,
     overflow: 'hidden',
-    marginHorizontal: getResponsiveSize(5),
+    marginHorizontal: 5,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.3,
@@ -1088,12 +1232,11 @@ const styles = StyleSheet.create({
     elevation: 3,
   },
   typeButtonGradient: {
-    paddingHorizontal: getResponsiveSize(16),
-    paddingVertical: getResponsiveSize(10),
-    borderRadius: getResponsiveSize(20),
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 20,
   },
   typeButtonText: {
-    fontSize: getResponsiveFontSize(12),
     color: '#999',
     fontWeight: '600',
   },
@@ -1102,20 +1245,18 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
   inputCard: {
-    marginBottom: getResponsiveSize(15),
+    marginBottom: 15,
   },
   label: {
-    fontSize: getResponsiveFontSize(14),
     fontWeight: '600',
     color: '#E0E0E0',
-    marginBottom: getResponsiveSize(8),
+    marginBottom: 8,
   },
   textInput: {
     backgroundColor: 'rgba(42, 42, 42, 0.8)',
-    borderRadius: getResponsiveSize(12),
-    paddingHorizontal: getResponsiveSize(15),
-    paddingVertical: getResponsiveSize(12),
-    fontSize: getResponsiveFontSize(14),
+    borderRadius: 12,
+    paddingHorizontal: 15,
+    paddingVertical: 12,
     color: '#E0E0E0',
     borderWidth: 1,
     borderColor: 'rgba(255, 255, 255, 0.1)',
@@ -1127,103 +1268,92 @@ const styles = StyleSheet.create({
   },
   timeInputCard: {
     flex: 1,
-    marginHorizontal: getResponsiveSize(5),
-    marginBottom: Platform.OS === 'web' ? getResponsiveSize(15) : 0,
+    marginHorizontal: 5,
+    marginBottom: Platform.OS === 'web' ? 15 : 0,
   },
   webTimeContainer: {
     flexDirection: 'row',
     alignItems: 'center',
   },
-  timeInput: {
+  timeInputWrapper: {
     backgroundColor: 'rgba(42, 42, 42, 0.8)',
-    borderRadius: getResponsiveSize(12),
-    paddingHorizontal: getResponsiveSize(15),
-    paddingVertical: getResponsiveSize(12),
+    borderRadius: 12,
+    paddingHorizontal: 15,
+    paddingVertical: 12,
     borderWidth: 1,
     borderColor: 'rgba(255, 255, 255, 0.1)',
     flexDirection: 'row',
     alignItems: 'center',
     flex: 1,
   },
-  timePickerButton: {
-    backgroundColor: '#FFD700',
-    borderRadius: getResponsiveSize(12),
-    padding: getResponsiveSize(12),
-    marginLeft: getResponsiveSize(10),
-    justifyContent: 'center',
+  timeInput: {
+    backgroundColor: 'rgba(42, 42, 42, 0.8)',
+    borderRadius: 12,
+    paddingHorizontal: 15,
+    paddingVertical: 12,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.1)',
+    flexDirection: 'row',
     alignItems: 'center',
   },
-  timeTextInput: {
-    flex: 1,
-    marginLeft: getResponsiveSize(10),
-    fontSize: getResponsiveFontSize(14),
-    color: '#E0E0E0',
-    fontWeight: '500',
-  },
   timeText: {
-    fontSize: getResponsiveFontSize(14),
     color: '#E0E0E0',
-    marginLeft: getResponsiveSize(10),
+    marginLeft: 10,
     fontWeight: '500',
   },
   timePlaceholder: {
-    fontSize: getResponsiveFontSize(14),
     color: '#666',
-    marginLeft: getResponsiveSize(10),
+    marginLeft: 10,
   },
   timeHint: {
-    fontSize: getResponsiveFontSize(11),
     color: '#999',
-    marginTop: getResponsiveSize(8),
+    marginTop: 8,
     textAlign: 'center',
     fontStyle: 'italic',
   },
   programButton: {
-    borderRadius: getResponsiveSize(20),
+    borderRadius: 20,
     overflow: 'hidden',
   },
   programButtonGradient: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: getResponsiveSize(15),
-    paddingVertical: getResponsiveSize(8),
-    borderRadius: getResponsiveSize(20),
+    paddingHorizontal: 15,
+    paddingVertical: 8,
+    borderRadius: 20,
   },
   programButtonText: {
     color: 'white',
-    fontSize: getResponsiveFontSize(12),
     fontWeight: '600',
-    marginLeft: getResponsiveSize(6),
+    marginLeft: 6,
   },
   programPreview: {
     backgroundColor: 'rgba(155, 89, 182, 0.1)',
-    padding: getResponsiveSize(12),
-    borderRadius: getResponsiveSize(12),
+    padding: 12,
+    borderRadius: 12,
     borderWidth: 1,
     borderColor: 'rgba(155, 89, 182, 0.3)',
   },
   programPreviewText: {
-    fontSize: getResponsiveFontSize(13),
     color: '#9B59B6',
     fontWeight: '500',
     textAlign: 'center',
   },
-  // СТИЛИ КАТЕГОРИЙ УЧАСТНИКОВ
   categoryCard: {
-    marginBottom: getResponsiveSize(12),
-    borderRadius: getResponsiveSize(12),
+    marginBottom: 12,
+    borderRadius: 12,
     overflow: 'hidden',
   },
   categoryHeader: {
-    borderRadius: getResponsiveSize(12),
+    borderRadius: 12,
     overflow: 'hidden',
   },
   categoryHeaderGradient: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    padding: getResponsiveSize(16),
-    borderRadius: getResponsiveSize(12),
+    padding: 16,
+    borderRadius: 12,
     borderWidth: 1,
     borderColor: 'rgba(255, 255, 255, 0.1)',
   },
@@ -1233,54 +1363,51 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   categoryTitleTextContainer: {
-    marginLeft: getResponsiveSize(12),
+    marginLeft: 12,
   },
   categoryTitle: {
-    fontSize: getResponsiveFontSize(14),
     fontWeight: '700',
     color: '#E0E0E0',
   },
   categoryCount: {
-    fontSize: getResponsiveFontSize(11),
     color: '#999',
-    marginTop: getResponsiveSize(2),
+    marginTop: 2,
   },
   categoryActions: {
     flexDirection: 'row',
     alignItems: 'center',
   },
   addCategoryButton: {
-    padding: getResponsiveSize(5),
-    marginRight: getResponsiveSize(10),
+    padding: 5,
+    marginRight: 10,
   },
   categoryContent: {
-    paddingHorizontal: getResponsiveSize(16),
-    paddingBottom: getResponsiveSize(16),
+    paddingHorizontal: 16,
+    paddingBottom: 16,
     backgroundColor: 'rgba(20, 20, 20, 0.5)',
   },
   categoryEmptyState: {
     alignItems: 'center',
-    paddingVertical: getResponsiveSize(20),
+    paddingVertical: 20,
   },
   categoryEmptyText: {
-    fontSize: getResponsiveFontSize(12),
     color: '#666',
-    marginTop: getResponsiveSize(8),
+    marginTop: 8,
   },
   participantsList: {
-    paddingTop: getResponsiveSize(8),
+    paddingTop: 8,
   },
   participantItem: {
-    marginBottom: getResponsiveSize(8),
-    borderRadius: getResponsiveSize(8),
+    marginBottom: 8,
+    borderRadius: 8,
     overflow: 'hidden',
   },
   participantItemGradient: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    padding: getResponsiveSize(10),
-    borderRadius: getResponsiveSize(8),
+    padding: 10,
+    borderRadius: 8,
   },
   participantInfo: {
     flexDirection: 'row',
@@ -1288,34 +1415,31 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   participantNumber: {
-    fontSize: getResponsiveFontSize(12),
     color: '#999',
     fontWeight: '600',
-    marginRight: getResponsiveSize(8),
+    marginRight: 8,
   },
   participantName: {
-    fontSize: getResponsiveFontSize(13),
     color: '#E0E0E0',
     fontWeight: '500',
   },
   removeParticipantButton: {
-    padding: getResponsiveSize(5),
+    padding: 5,
   },
   emptyState: {
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: getResponsiveSize(30),
+    paddingVertical: 30,
   },
   emptyStateText: {
-    fontSize: getResponsiveFontSize(14),
     color: '#666',
-    marginTop: getResponsiveSize(8),
+    marginTop: 8,
     textAlign: 'center',
   },
   submitButton: {
-    marginTop: getResponsiveSize(10),
-    marginBottom: getResponsiveSize(30),
-    borderRadius: getResponsiveSize(15),
+    marginTop: 10,
+    marginBottom: 30,
+    borderRadius: 15,
     overflow: 'hidden',
     shadowColor: '#FFD700',
     shadowOffset: { width: 0, height: 4 },
@@ -1327,62 +1451,69 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: getResponsiveSize(16),
-    paddingHorizontal: getResponsiveSize(20),
-    borderRadius: getResponsiveSize(15),
+    paddingVertical: 16,
+    paddingHorizontal: 20,
+    borderRadius: 15,
   },
   submitText: {
     color: '#1a1a1a',
-    fontSize: getResponsiveFontSize(16),
     fontWeight: '700',
-    marginLeft: getResponsiveSize(8),
+    marginLeft: 8,
   },
+  
+  // ✅ МОДАЛЬНЫЕ ОКНА
   modalOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.8)',
+    backgroundColor: 'rgba(0, 0, 0, 0.85)',
     justifyContent: 'center',
     alignItems: 'center',
-    padding: getResponsiveSize(20),
+    padding: 20,
+  },
+  modalBackdrop: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
   },
   modalContent: {
-    borderRadius: getResponsiveSize(25),
-    padding: getResponsiveSize(25),
+    borderRadius: 25,
     width: '100%',
-    maxWidth: getResponsiveSize(400),
+    maxWidth: 400,
     borderWidth: 1,
     borderColor: 'rgba(255, 215, 0, 0.3)',
-    backgroundColor: 'rgba(26, 26, 26, 0.98)',
+  },
+  modalContentGradient: {
+    borderRadius: 25,
+    padding: 25,
   },
   modalHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'flex-start',
-    marginBottom: getResponsiveSize(20),
+    marginBottom: 20,
   },
   modalTitle: {
-    fontSize: getResponsiveFontSize(18),
     fontWeight: '700',
     color: '#E0E0E0',
     flex: 1,
   },
   modalSubtitle: {
-    fontSize: getResponsiveFontSize(13),
     color: '#FFD700',
     fontWeight: '600',
   },
   modalCloseButton: {
-    padding: getResponsiveSize(5),
+    padding: 5,
   },
   modalInput: {
     backgroundColor: 'rgba(42, 42, 42, 0.8)',
-    borderRadius: getResponsiveSize(12),
-    paddingHorizontal: getResponsiveSize(15),
-    paddingVertical: getResponsiveSize(12),
-    fontSize: getResponsiveFontSize(14),
+    borderRadius: 12,
+    paddingHorizontal: 15,
+    paddingVertical: 12,
     color: '#E0E0E0',
     borderWidth: 1,
     borderColor: 'rgba(255, 255, 255, 0.1)',
-    marginBottom: getResponsiveSize(20),
+    marginBottom: 20,
   },
   modalButtons: {
     flexDirection: 'row',
@@ -1390,50 +1521,51 @@ const styles = StyleSheet.create({
   },
   cancelButton: {
     flex: 1,
-    paddingVertical: getResponsiveSize(12),
-    borderRadius: getResponsiveSize(12),
+    paddingVertical: 12,
+    borderRadius: 12,
     alignItems: 'center',
-    marginRight: getResponsiveSize(10),
+    marginRight: 10,
     backgroundColor: 'rgba(42, 42, 42, 0.8)',
     borderWidth: 1,
     borderColor: 'rgba(255, 255, 255, 0.1)',
   },
   cancelButtonText: {
-    fontSize: getResponsiveFontSize(14),
     color: '#E0E0E0',
     fontWeight: '600',
   },
   confirmButton: {
     flex: 1,
-    borderRadius: getResponsiveSize(12),
+    borderRadius: 12,
     overflow: 'hidden',
   },
   confirmButtonGradient: {
-    paddingVertical: getResponsiveSize(12),
+    paddingVertical: 12,
     alignItems: 'center',
-    borderRadius: getResponsiveSize(12),
+    borderRadius: 12,
   },
   confirmButtonText: {
-    fontSize: getResponsiveFontSize(14),
     color: 'white',
     fontWeight: '600',
   },
   programModalContent: {
-    borderRadius: getResponsiveSize(25),
-    padding: getResponsiveSize(25),
-    margin: getResponsiveSize(20),
+    borderRadius: 25,
+    margin: 20,
     flex: 1,
     borderWidth: 1,
     borderColor: 'rgba(255, 215, 0, 0.3)',
-    backgroundColor: 'rgba(26, 26, 26, 0.98)',
-    maxHeight: Platform.OS === 'web' ? '80vh' : undefined,
+    maxHeight: Platform.OS === 'web' ? '85vh' : '85%',
+  },
+  programModalGradient: {
+    borderRadius: 25,
+    padding: 25,
+    flex: 1,
   },
   programModalHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: getResponsiveSize(20),
-    paddingBottom: getResponsiveSize(15),
+    marginBottom: 20,
+    paddingBottom: 15,
     borderBottomWidth: 1,
     borderBottomColor: 'rgba(255, 255, 255, 0.1)',
   },
@@ -1442,75 +1574,72 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   programModalTitle: {
-    fontSize: getResponsiveFontSize(18),
     fontWeight: '700',
     color: '#E0E0E0',
-    marginLeft: getResponsiveSize(10),
+    marginLeft: 10,
   },
   programModalClose: {
-    padding: getResponsiveSize(5),
+    padding: 5,
   },
   programScroll: {
     flex: 1,
   },
   songFormCard: {
     backgroundColor: 'rgba(42, 42, 42, 0.6)',
-    borderRadius: getResponsiveSize(12),
-    padding: getResponsiveSize(15),
-    marginBottom: getResponsiveSize(20),
+    borderRadius: 12,
+    padding: 15,
+    marginBottom: 20,
     borderWidth: 1,
     borderColor: 'rgba(255, 255, 255, 0.1)',
   },
   songFormButtons: {
     flexDirection: 'row',
     justifyContent: 'flex-end',
-    marginTop: getResponsiveSize(10),
+    marginTop: 10,
   },
   cancelEditButton: {
-    paddingHorizontal: getResponsiveSize(16),
-    paddingVertical: getResponsiveSize(8),
-    borderRadius: getResponsiveSize(8),
-    marginRight: getResponsiveSize(10),
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 8,
+    marginRight: 10,
     backgroundColor: 'rgba(42, 42, 42, 0.8)',
     borderWidth: 1,
     borderColor: 'rgba(255, 255, 255, 0.1)',
   },
   cancelEditText: {
-    fontSize: getResponsiveFontSize(12),
     color: '#E0E0E0',
     fontWeight: '500',
   },
   addSongButton: {
-    borderRadius: getResponsiveSize(8),
+    borderRadius: 8,
     overflow: 'hidden',
   },
   addSongGradient: {
-    paddingHorizontal: getResponsiveSize(16),
-    paddingVertical: getResponsiveSize(8),
-    borderRadius: getResponsiveSize(8),
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 8,
   },
   addSongText: {
-    fontSize: getResponsiveFontSize(12),
     color: 'white',
     fontWeight: '600',
   },
   songsSection: {
-    marginBottom: getResponsiveSize(20),
+    marginBottom: 20,
   },
   songsList: {
-    marginBottom: getResponsiveSize(20),
+    marginBottom: 20,
   },
   songItem: {
-    marginBottom: getResponsiveSize(8),
-    borderRadius: getResponsiveSize(12),
+    marginBottom: 8,
+    borderRadius: 12,
     overflow: 'hidden',
   },
   songItemGradient: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    padding: getResponsiveSize(12),
-    borderRadius: getResponsiveSize(12),
+    padding: 12,
+    borderRadius: 12,
   },
   songContent: {
     flexDirection: 'row',
@@ -1518,23 +1647,20 @@ const styles = StyleSheet.create({
     alignItems: 'flex-start',
   },
   songNumber: {
-    fontSize: getResponsiveFontSize(12),
     color: '#9B59B6',
     fontWeight: 'bold',
-    marginRight: getResponsiveSize(8),
-    marginTop: getResponsiveSize(2),
+    marginRight: 8,
+    marginTop: 2,
   },
   songDetails: {
     flex: 1,
   },
   songTitle: {
-    fontSize: getResponsiveFontSize(13),
     color: '#E0E0E0',
     fontWeight: '600',
-    marginBottom: getResponsiveSize(4),
+    marginBottom: 4,
   },
   songSoloists: {
-    fontSize: getResponsiveFontSize(11),
     color: '#999',
     fontStyle: 'italic',
   },
@@ -1542,22 +1668,83 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
   },
   songActionButton: {
-    padding: getResponsiveSize(5),
-    marginLeft: getResponsiveSize(8),
+    padding: 5,
+    marginLeft: 8,
   },
   clearProgramButton: {
-    borderRadius: getResponsiveSize(12),
+    borderRadius: 12,
     overflow: 'hidden',
-    marginTop: getResponsiveSize(10),
+    marginTop: 10,
   },
   clearProgramGradient: {
-    paddingVertical: getResponsiveSize(12),
+    paddingVertical: 12,
     alignItems: 'center',
-    borderRadius: getResponsiveSize(12),
+    borderRadius: 12,
   },
   clearProgramText: {
     color: 'white',
-    fontSize: getResponsiveFontSize(14),
     fontWeight: '600',
+  },
+
+  // ✅ CUSTOM ALERT STYLES
+  customAlertOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.85)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  customAlertContainer: {
+    width: '100%',
+    maxWidth: 350,
+  },
+  customAlertGradient: {
+    borderRadius: 25,
+    padding: 25,
+    shadowColor: '#FFD700',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.3,
+    shadowRadius: 12,
+    elevation: 8,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 215, 0, 0.3)',
+  },
+  customAlertTitle: {
+    fontSize: 20,
+    fontWeight: '800',
+    color: '#E0E0E0',
+    marginBottom: 12,
+    textAlign: 'center',
+  },
+  customAlertMessage: {
+    fontSize: 14,
+    color: '#999',
+    marginBottom: 20,
+    textAlign: 'center',
+    lineHeight: 20,
+  },
+  customAlertButtons: {
+    flexDirection: 'row',
+    gap: 10,
+  },
+  customAlertButton: {
+    flex: 1,
+    borderRadius: 12,
+    overflow: 'hidden',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.3,
+    shadowRadius: 5,
+    elevation: 3,
+  },
+  customAlertButtonGradient: {
+    paddingVertical: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  customAlertButtonText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: 'white',
   },
 });
