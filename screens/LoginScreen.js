@@ -14,9 +14,12 @@ import {
   Alert,
   Animated,
   Dimensions,
+  Image,
   KeyboardAvoidingView,
+  Modal,
   Platform,
   ScrollView,
+  StatusBar,
   StyleSheet,
   Text,
   TextInput,
@@ -41,7 +44,7 @@ const getResponsiveFontSize = (size) => {
 };
 
 // ========================================
-// 🔒 ВАЛИДАЦИЯ (без изменений)
+// 🔒 ВАЛИДАЦИЯ
 // ========================================
 
 const validateEmail = (email) => {
@@ -78,7 +81,7 @@ const validateFullName = (name) => {
 };
 
 // ========================================
-// 🔔 PUSH-УВЕДОМЛЕНИЯ (без изменений)
+// 🔔 PUSH-УВЕДОМЛЕНИЯ
 // ========================================
 
 async function registerForPushNotificationsAsync() {
@@ -154,7 +157,7 @@ async function registerForPushNotificationsAsync() {
 }
 
 // ========================================
-// 🔐 RATE LIMITING (без изменений)
+// 🔐 RATE LIMITING
 // ========================================
 
 class RateLimiter {
@@ -191,7 +194,7 @@ class RateLimiter {
 const rateLimiter = new RateLimiter();
 
 // ========================================
-// 📱 ФОРМАТИРОВАНИЕ ТЕЛЕФОНА (без изменений)
+// 📱 ФОРМАТИРОВАНИЕ ТЕЛЕФОНА
 // ========================================
 
 const formatPhone = (text) => {
@@ -222,21 +225,29 @@ const formatPhone = (text) => {
 };
 
 // ========================================
-// 🎨 КОМПОНЕНТ LoginScreen (ОБНОВЛЕННЫЙ ДИЗАЙН)
+// 🎨 КОМПОНЕНТ LoginScreen
 // ========================================
 
 export default function LoginScreen({ navigation }) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
   const [fullName, setFullName] = useState('');
   const [phone, setPhone] = useState('+7');
   const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [isRegistering, setIsRegistering] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  
+  // Модальное окно для восстановления пароля
+  const [resetModalVisible, setResetModalVisible] = useState(false);
+  const [resetEmail, setResetEmail] = useState('');
+  const [resetLoading, setResetLoading] = useState(false);
   
   // Фокус состояния
   const [emailFocused, setEmailFocused] = useState(false);
   const [passwordFocused, setPasswordFocused] = useState(false);
+  const [confirmPasswordFocused, setConfirmPasswordFocused] = useState(false);
   const [fullNameFocused, setFullNameFocused] = useState(false);
   const [phoneFocused, setPhoneFocused] = useState(false);
   
@@ -257,13 +268,14 @@ export default function LoginScreen({ navigation }) {
     setIsRegistering(!isRegistering);
     setEmail('');
     setPassword('');
+    setConfirmPassword('');
     setFullName('');
     setPhone('+7');
     setErrors({});
   };
 
   // ========================================
-  // 💾 СОЗДАНИЕ/ОБНОВЛЕНИЕ ДОКУМЕНТА ПОЛЬЗОВАТЕЛЯ (без изменений)
+  // 💾 СОЗДАНИЕ/ОБНОВЛЕНИЕ ДОКУМЕНТА ПОЛЬЗОВАТЕЛЯ
   // ========================================
 
   const createUserDocument = async (user, additionalData = {}) => {
@@ -304,7 +316,7 @@ export default function LoginScreen({ navigation }) {
   };
 
   // ========================================
-  // 🔑 ВХОД В СИСТЕМУ (без изменений)
+  // 🔑 ВХОД В СИСТЕМУ
   // ========================================
 
   const handleLogin = async () => {
@@ -338,7 +350,7 @@ export default function LoginScreen({ navigation }) {
     try {
       const userCredential = await signInWithEmailAndPassword(auth, email, password);
       await createUserDocument(userCredential.user);
-      Alert.alert('Успех!', 'Добро пожаловать!');
+      // Навигация происходит автоматически через onAuthStateChanged
     } catch (error) {
       console.error(error);
       
@@ -374,7 +386,7 @@ export default function LoginScreen({ navigation }) {
   };
 
   // ========================================
-  // 📝 РЕГИСТРАЦИЯ (без изменений)
+  // 📝 РЕГИСТРАЦИЯ
   // ========================================
 
   const handleRegister = async () => {
@@ -386,17 +398,23 @@ export default function LoginScreen({ navigation }) {
     const passwordError = validatePassword(password);
     const fullNameError = validateFullName(fullName);
     const phoneError = validatePhone(phone);
+    
+    let confirmPasswordError = null;
+    if (password !== confirmPassword) {
+      confirmPasswordError = 'Пароли не совпадают';
+    }
 
-    if (emailError || passwordError || fullNameError || phoneError) {
+    if (emailError || passwordError || fullNameError || phoneError || confirmPasswordError) {
       setErrors({
         email: emailError,
         password: passwordError,
+        confirmPassword: confirmPasswordError,
         fullName: fullNameError,
         phone: phoneError
       });
       
       // Показываем первую ошибку
-      const firstError = emailError || passwordError || fullNameError || phoneError;
+      const firstError = emailError || passwordError || confirmPasswordError || fullNameError || phoneError;
       Alert.alert('Ошибка валидации', firstError);
       return;
     }
@@ -421,6 +439,11 @@ export default function LoginScreen({ navigation }) {
         phone: phone
       });
       
+      Alert.alert(
+        'Успех! 🎉',
+        'Аккаунт создан. Добро пожаловать!',
+        [{ text: 'OK' }]
+      );
       
     } catch (error) {
       console.error(error);
@@ -451,28 +474,41 @@ export default function LoginScreen({ navigation }) {
   };
 
   // ========================================
-  // 🔄 ВОССТАНОВЛЕНИЕ ПАРОЛЯ (без изменений)
+  // 🔄 ВОССТАНОВЛЕНИЕ ПАРОЛЯ
   // ========================================
 
   const handleForgotPassword = async () => {
-    const emailError = validateEmail(email);
+    const emailToReset = resetModalVisible ? resetEmail : email;
+    const emailError = validateEmail(emailToReset);
     
     if (emailError) {
       Alert.alert(
         'Введите email',
-        'Пожалуйста, введите ваш email в поле выше для восстановления пароля'
+        resetModalVisible 
+          ? 'Пожалуйста, введите корректный email'
+          : 'Пожалуйста, введите ваш email в поле выше для восстановления пароля'
       );
       return;
     }
 
-    setIsLoading(true);
+    setResetLoading(true);
 
     try {
-      await sendPasswordResetEmail(auth, email);
+      await sendPasswordResetEmail(auth, emailToReset);
       Alert.alert(
-        'Письмо отправлено',
-        `Ссылка для восстановления пароля отправлена на ${email}. Проверьте почту.`,
-        [{ text: 'OK' }]
+        'Письмо отправлено ✉️',
+        `Ссылка для восстановления пароля отправлена на ${emailToReset}. Проверьте почту.`,
+        [
+          { 
+            text: 'OK',
+            onPress: () => {
+              if (resetModalVisible) {
+                setResetModalVisible(false);
+                setResetEmail('');
+              }
+            }
+          }
+        ]
       );
     } catch (error) {
       console.error(error);
@@ -495,12 +531,12 @@ export default function LoginScreen({ navigation }) {
       
       Alert.alert('Ошибка', errorMessage);
     } finally {
-      setIsLoading(false);
+      setResetLoading(false);
     }
   };
 
   // ========================================
-  // 📱 ОБРАБОТКА ТЕЛЕФОНА (без изменений)
+  // 📱 ОБРАБОТКА ТЕЛЕФОНА
   // ========================================
 
   const handlePhoneChange = (text) => {
@@ -521,7 +557,7 @@ export default function LoginScreen({ navigation }) {
   };
 
   // ========================================
-  // 🎨 RENDER (ОБНОВЛЕННЫЙ ДИЗАЙН)
+  // 🎨 RENDER
   // ========================================
 
   return (
@@ -529,6 +565,10 @@ export default function LoginScreen({ navigation }) {
       style={styles.container}
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
     >
+       <StatusBar 
+      barStyle="light-content" 
+      backgroundColor="#0a0a0a" 
+    />
       <LinearGradient
         colors={['#0a0a0a', '#1a1a1a', '#2a2a2a']}
         style={styles.gradientBackground}
@@ -541,7 +581,7 @@ export default function LoginScreen({ navigation }) {
             showsVerticalScrollIndicator={false}
             keyboardShouldPersistTaps="handled"
           >
-            {/* Декоративные элементы как в CalendarScreen */}
+            {/* Декоративные элементы */}
             <View style={styles.backgroundDecor}>
               <View style={[styles.decorCircle, styles.decorCircle1]} />
               <View style={[styles.decorCircle, styles.decorCircle2]} />
@@ -550,15 +590,14 @@ export default function LoginScreen({ navigation }) {
 
             {/* Логотип */}
             <View style={styles.logoContainer}>
-              <LinearGradient
-                colors={['#FFD700', '#FFA500']}
-                style={styles.logoGradient}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 1 }}
-              >
-                <Ionicons name="musical-notes" size={getResponsiveSize(60)} color="#1a1a1a" />
-              </LinearGradient>
-              <Text style={styles.appTitle}>Хоровой Календарь</Text>
+              <View style={styles.logoWrapper}>
+                <Image
+                  source={require('../assets/logo.png')}
+                  style={styles.logo}
+                  resizeMode="contain"
+                />
+              </View>
+              <Text style={styles.appTitle}>Воронежский Хор</Text>
               <Text style={styles.appSubtitle}>Управление концертами и гастролями</Text>
             </View>
 
@@ -723,7 +762,7 @@ export default function LoginScreen({ navigation }) {
                     <Ionicons name="lock-closed" size={20} color={passwordFocused ? "#FFD700" : "#888"} />
                     <TextInput
                       style={styles.input}
-                      placeholder="Введите пароль"
+                      placeholder={isRegistering ? "Минимум 8 символов" : "Введите пароль"}
                       placeholderTextColor="#666"
                       value={password}
                       onChangeText={(text) => {
@@ -733,7 +772,7 @@ export default function LoginScreen({ navigation }) {
                       secureTextEntry={!showPassword}
                       onFocus={() => setPasswordFocused(true)}
                       onBlur={() => setPasswordFocused(false)}
-                      returnKeyType="done"
+                      returnKeyType={isRegistering ? "next" : "done"}
                       editable={!isLoading}
                     />
                     <TouchableOpacity 
@@ -753,6 +792,55 @@ export default function LoginScreen({ navigation }) {
                 )}
               </View>
 
+              {/* Подтверждение пароля (только при регистрации) */}
+              {isRegistering && (
+                <View style={styles.inputSection}>
+                  <Text style={styles.inputLabel}>Подтвердите пароль *</Text>
+                  <LinearGradient
+                    colors={confirmPasswordFocused ? ['rgba(255, 215, 0, 0.3)', 'rgba(255, 165, 0, 0.2)'] : ['rgba(42, 42, 42, 0.8)', 'rgba(35, 35, 35, 0.9)']}
+                    style={[
+                      styles.inputContainer, 
+                      confirmPasswordFocused && styles.inputContainerFocused,
+                      errors.confirmPassword && styles.inputError
+                    ]}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 1 }}
+                  >
+                    <View style={styles.inputInnerContainer}>
+                      <Ionicons name="lock-closed" size={20} color={confirmPasswordFocused ? "#FFD700" : "#888"} />
+                      <TextInput
+                        style={styles.input}
+                        placeholder="Повторите пароль"
+                        placeholderTextColor="#666"
+                        value={confirmPassword}
+                        onChangeText={(text) => {
+                          setConfirmPassword(text);
+                          if (errors.confirmPassword) setErrors({ ...errors, confirmPassword: null });
+                        }}
+                        secureTextEntry={!showConfirmPassword}
+                        onFocus={() => setConfirmPasswordFocused(true)}
+                        onBlur={() => setConfirmPasswordFocused(false)}
+                        returnKeyType="done"
+                        editable={!isLoading}
+                      />
+                      <TouchableOpacity 
+                        onPress={() => setShowConfirmPassword(!showConfirmPassword)}
+                        disabled={isLoading}
+                      >
+                        <Ionicons 
+                          name={showConfirmPassword ? 'eye-off' : 'eye'} 
+                          size={20} 
+                          color={confirmPasswordFocused ? "#FFD700" : "#888"} 
+                        />
+                      </TouchableOpacity>
+                    </View>
+                  </LinearGradient>
+                  {errors.confirmPassword && (
+                    <Text style={styles.errorText}>{errors.confirmPassword}</Text>
+                  )}
+                </View>
+              )}
+
               {/* Подсказка для пароля при регистрации */}
               {isRegistering && (
                 <Text style={styles.passwordHint}>
@@ -763,7 +851,7 @@ export default function LoginScreen({ navigation }) {
               {/* Забыли пароль? */}
               {!isRegistering && (
                 <TouchableOpacity 
-                  onPress={handleForgotPassword}
+                  onPress={() => setResetModalVisible(true)}
                   disabled={isLoading}
                   style={styles.forgotButton}
                 >
@@ -826,12 +914,97 @@ export default function LoginScreen({ navigation }) {
           </ScrollView>
         </Animated.View>
       </LinearGradient>
+
+      {/* Модальное окно восстановления пароля */}
+      <Modal
+        animationType="slide"
+        transparent={true}
+        visible={resetModalVisible}
+        onRequestClose={() => setResetModalVisible(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <View style={styles.modalHeader}>
+              <View style={styles.modalTitleContainer}>
+                <LinearGradient
+                  colors={['#FFD700', '#FFA500']}
+                  style={styles.modalIconGradient}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 1 }}
+                >
+                  <Ionicons name="key" size={24} color="#1a1a1a" />
+                </LinearGradient>
+                <Text style={styles.modalTitle}>Восстановление пароля</Text>
+              </View>
+              <TouchableOpacity
+                onPress={() => {
+                  setResetModalVisible(false);
+                  setResetEmail('');
+                }}
+                style={styles.closeButton}
+              >
+                <Ionicons name="close" size={24} color="#E0E0E0" />
+              </TouchableOpacity>
+            </View>
+
+            <Text style={styles.modalDescription}>
+              Введите ваш email, и мы отправим вам ссылку для сброса пароля
+            </Text>
+
+            <View style={styles.inputSection}>
+              <Text style={styles.inputLabel}>Email *</Text>
+              <LinearGradient
+                colors={['rgba(42, 42, 42, 0.8)', 'rgba(35, 35, 35, 0.9)']}
+                style={styles.inputContainer}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+              >
+                <View style={styles.inputInnerContainer}>
+                  <Ionicons name="mail" size={20} color="#888" />
+                  <TextInput
+                    style={styles.input}
+                    placeholder="your@email.com"
+                    placeholderTextColor="#666"
+                    value={resetEmail}
+                    onChangeText={setResetEmail}
+                    keyboardType="email-address"
+                    autoCapitalize="none"
+                    editable={!resetLoading}
+                  />
+                </View>
+              </LinearGradient>
+            </View>
+
+            <TouchableOpacity
+              style={styles.mainButtonWrapper}
+              onPress={handleForgotPassword}
+              disabled={resetLoading}
+            >
+              <LinearGradient
+                colors={resetLoading ? ['#666', '#444'] : ['#FFD700', '#FFA500']}
+                style={styles.mainButtonGradient}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+              >
+                {resetLoading ? (
+                  <ActivityIndicator color="#1a1a1a" size="small" />
+                ) : (
+                  <View style={styles.buttonContent}>
+                    <Ionicons name="send" size={20} color="#1a1a1a" />
+                    <Text style={styles.buttonText}>Отправить</Text>
+                  </View>
+                )}
+              </LinearGradient>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
     </KeyboardAvoidingView>
   );
 }
 
 // ========================================
-// 🎨 СТИЛИ (ОБНОВЛЕННЫЕ ПОД ТЕМНУЮ ТЕМУ)
+// 🎨 СТИЛИ
 // ========================================
 
 const styles = StyleSheet.create({
@@ -885,9 +1058,9 @@ const styles = StyleSheet.create({
     paddingTop: getResponsiveSize(40),
     paddingBottom: getResponsiveSize(30),
   },
-  logoGradient: {
-    width: getResponsiveSize(80),
-    height: getResponsiveSize(80),
+  logoWrapper: {
+    width: getResponsiveSize(180),
+    height: getResponsiveSize(180),
     borderRadius: getResponsiveSize(20),
     justifyContent: 'center',
     alignItems: 'center',
@@ -895,8 +1068,15 @@ const styles = StyleSheet.create({
     shadowColor: '#FFD700',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.4,
-    shadowRadius: 8,
-    elevation: 5,
+    shadowRadius: 12,
+    elevation: 8,
+    backgroundColor: 'rgba(26, 26, 26, 0.8)',
+    borderWidth: 2,
+    borderColor: 'rgba(255, 215, 0, 0.3)',
+  },
+  logo: {
+    width: '90%',
+    height: '90%',
   },
   appTitle: {
     fontSize: getResponsiveFontSize(24),
@@ -1072,7 +1252,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   createButton: {
-
     flexDirection: 'row',
     alignItems: 'center',
     paddingVertical: getResponsiveSize(12),
@@ -1088,5 +1267,65 @@ const styles = StyleSheet.create({
     fontSize: getResponsiveFontSize(14),
     fontWeight: '700',
     textAlign: 'center',
+  },
+  // Стили модального окна
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.85)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  modalContent: {
+    backgroundColor: 'rgba(26, 26, 26, 0.98)',
+    borderRadius: getResponsiveSize(20),
+    padding: getResponsiveSize(25),
+    width: '100%',
+    maxWidth: 400,
+    shadowColor: '#FFD700',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.3,
+    shadowRadius: 12,
+    elevation: 10,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 215, 0, 0.3)',
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: getResponsiveSize(20),
+  },
+  modalTitleContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+  },
+  modalIconGradient: {
+    width: getResponsiveSize(40),
+    height: getResponsiveSize(40),
+    borderRadius: getResponsiveSize(10),
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: getResponsiveSize(12),
+    shadowColor: '#FFD700',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.4,
+    shadowRadius: 8,
+    elevation: 5,
+  },
+  modalTitle: {
+    fontSize: getResponsiveFontSize(18),
+    fontWeight: '700',
+    color: '#E0E0E0',
+  },
+  closeButton: {
+    padding: getResponsiveSize(5),
+  },
+  modalDescription: {
+    fontSize: getResponsiveFontSize(14),
+    color: '#999',
+    marginBottom: getResponsiveSize(20),
+    lineHeight: 20,
   },
 });
