@@ -17,6 +17,7 @@ import {
   TouchableOpacity,
   View
 } from 'react-native';
+import { db } from '../firebaseConfig';
 import { CONCERT_TYPE_LIST } from '../utils/concertTypes'; // ✅ ИМПОРТ УТИЛИТЫ
 
 // ✅ РЕГИОНЫ
@@ -174,7 +175,7 @@ const WebTimePicker = ({ value, onChange }) => {
 };
 
 // ✅ MAIN COMPONENT
-export default function AddEventScreen({ route, navigation, db }) {
+export default function AddEventScreen({ route, navigation}) {
   const dimensions = useWindowDimensions();
   const responsiveSize = (size) => getResponsiveSize(size, dimensions.width);
   const responsiveFontSize = (size) => getResponsiveFontSize(size, dimensions.width);
