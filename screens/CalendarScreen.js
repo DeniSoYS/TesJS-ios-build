@@ -8,6 +8,7 @@ import {
   Dimensions,
   Modal,
   Platform,
+  RefreshControl,
   ScrollView,
   StatusBar,
   StyleSheet,
@@ -17,7 +18,7 @@ import {
 } from 'react-native';
 import { Calendar, LocaleConfig } from 'react-native-calendars';
 import { auth, db } from '../firebaseConfig';
-import { getColorByRegion } from '../utils/statisticsUtils'; // ✅ ОСТАВИЛИ ТОЛЬКО ЭТО
+import { calculateStatistics, getColorByRegion, getCurrentMonthName, getCurrentQuarterText, getLast4MonthsText } from '../utils/statisticsUtils'; // ✅ НОВЫЙ ИМПОРТ
 
 // ✅ ФУНКЦИЯ КОНВЕРТАЦИИ ТИПОВ
 const toRussianType = (englishType) => {
@@ -70,6 +71,22 @@ const getResponsiveSize = (size, windowWidth) => {
 const getResponsiveFontSize = (size, windowWidth) => {
   const baseSize = getResponsiveSize(size, windowWidth);
   return Math.round(baseSize);
+};
+
+// ✅ КОМПОНЕНТ MODAL OVERLAY (ЗАМЕНА BLURVIEW)
+const ModalOverlay = ({ children, visible, onClose }) => {
+  if (!visible) return null;
+  
+  return (
+    <View style={styles.modalOverlay}>
+      <TouchableOpacity 
+        style={styles.modalBackdrop}
+        activeOpacity={1}
+        onPress={onClose}
+      />
+      {children}
+    </View>
+  );
 };
 
 // ✅ КОМПОНЕНТ CUSTOM ALERT
@@ -141,6 +158,36 @@ LocaleConfig.locales['ru'] = {
 };
 LocaleConfig.defaultLocale = 'ru';
 
+// ✅ КОМПОНЕНТ ПРОГРЕСС-БАР
+const ProgressBar = ({ voronezh, other, total, responsiveSize, responsiveFontSize }) => {
+  const voronejPercentage = total > 0 ? Math.round((voronezh / total) * 100) : 0;
+  const otherPercentage = total > 0 ? Math.round((other / total) * 100) : 0;
+
+  return (
+    <View style={styles.progressBarContainer}>
+      <View style={styles.progressBarRow}>
+        <View style={[styles.progressSegment, { width: `${voronejPercentage}%`, backgroundColor: '#4A90E2' }]} />
+        <View style={[styles.progressSegment, { width: `${otherPercentage}%`, backgroundColor: '#34C759' }]} />
+      </View>
+      
+      <View style={styles.progressLabelsRow}>
+        <View style={styles.progressLabel}>
+          <View style={[styles.progressLegend, { backgroundColor: '#4A90E2' }]} />
+          <Text style={[styles.progressLabelText, { fontSize: responsiveFontSize(11) }]}>
+            Воронеж: {voronezh} ({voronejPercentage}%)
+          </Text>
+        </View>
+        <View style={styles.progressLabel}>
+          <View style={[styles.progressLegend, { backgroundColor: '#34C759' }]} />
+          <Text style={[styles.progressLabelText, { fontSize: responsiveFontSize(11) }]}>
+            Прочие: {other} ({otherPercentage}%)
+          </Text>
+        </View>
+      </View>
+    </View>
+  );
+};
+
 export default function CalendarScreen({ navigation, route }) {
   const dimensions = useWindowDimensions();
   const userEmail = route.params?.email || 'Пользователь';
@@ -185,6 +232,22 @@ export default function CalendarScreen({ navigation, route }) {
     moves: 0
   });
 
+  // ✅ НОВОЕ: СТАТИСТИКА ПО РЕГИОНАМ И ВРЕМЕННЫМ ПЕРИОДАМ
+  const [statistics, setStatistics] = useState({
+    monthly: { voronezh: 0, other: 0, total: 0 },
+    quarterly: { voronezh: 0, other: 0, total: 0 },
+    last4Months: { voronezh: 0, other: 0, total: 0 },
+  });
+  const [activeStatTab, setActiveStatTab] = useState('monthly'); // 'monthly', 'quarterly', 'last4Months'
+
+  // ✅ УПРАВЛЕНИЕ ВИДИМОСТЬЮ ПАНЕЛЕЙ - ПРАВИЛЬНО!
+  const [showHeaderStats, setShowHeaderStats] = useState(true);
+  const [showRegionStats, setShowRegionStats] = useState(true);
+  
+  // Анимированные значения для высоты панелей
+  const headerStatsHeightAnim = useRef(new Animated.Value(1)).current;
+  const regionStatsHeightAnim = useRef(new Animated.Value(1)).current;
+
   // ✅ CUSTOM ALERT STATE
   const [alertConfig, setAlertConfig] = useState({
     visible: false,
@@ -205,6 +268,29 @@ export default function CalendarScreen({ navigation, route }) {
   const closeAlert = () => {
     setAlertConfig({ ...alertConfig, visible: false });
   };
+
+  // ✅ ФУНКЦИИ ПЕРЕКЛЮЧЕНИЯ ВИДИМОСТИ ПАНЕЛЕЙ - ПРАВИЛЬНО!
+  const toggleHeaderStats = () => {
+    const newState = !showHeaderStats;
+    setShowHeaderStats(newState);
+    
+    Animated.timing(headerStatsHeightAnim, {
+      toValue: newState ? 1 : 0,
+      duration: 300,
+      useNativeDriver: false,
+    }).start();
+  };
+
+  const toggleRegionStats = () => {
+    const newState = !showRegionStats;
+    setShowRegionStats(newState);
+    
+    Animated.timing(regionStatsHeightAnim, {
+      toValue: newState ? 1 : 0,
+      duration: 300,
+      useNativeDriver: false,
+    }).start();
+  };
   
   const pulseAnim = useRef(new Animated.Value(1)).current;
   const fadeAnim = useRef(new Animated.Value(0)).current;
@@ -214,6 +300,7 @@ export default function CalendarScreen({ navigation, route }) {
     let pulseAnimation;
     
     if (Platform.OS === 'web') {
+      // Для web - остановка анимации при неактивной вкладке
       const handleVisibilityChange = () => {
         if (document.hidden) {
           pulseAnimation && pulseAnimation.stop();
@@ -248,6 +335,7 @@ export default function CalendarScreen({ navigation, route }) {
         pulseAnimation && pulseAnimation.stop();
       };
     } else {
+      // Для нативных платформ
       pulseAnimation = Animated.loop(
         Animated.sequence([
           Animated.timing(pulseAnim, {
@@ -279,21 +367,16 @@ export default function CalendarScreen({ navigation, route }) {
     loadAllData();
   }, []);
 
-  // ✅ ПЕРЕЗАГРУЗКА ПОСЛЕ ОБНОВЛЕНИЯ КОНЦЕРТА
-  useEffect(() => {
-    if (route?.params?.refresh || route?.params?.updatedConcertId) {
-      console.log('🔄 Перезагружаем данные после обновления концерта...');
-      loadAllData();
-    }
-  }, [route?.params?.refresh, route?.params?.updatedConcertId]);
-
   useEffect(() => {
     updateMarkedDates(concerts, tours, moves);
+    // ✅ НОВОЕ: ОБНОВЛЯЕМ СТАТИСТИКУ ПРИ ИЗМЕНЕНИИ КОНЦЕРТОВ
+    updateStatistics(concerts);
   }, [concerts, tours, moves]);
 
   // ✅ BROWSER HISTORY API ДЛЯ BACK BUTTON
   useEffect(() => {
     if (Platform.OS === 'web') {
+      // Добавляем состояние в history при открытии модалки
       if (modalVisible || eventTypeModalVisible || logoutModalVisible) {
         window.history.pushState({ modal: true }, '');
       }
@@ -368,6 +451,12 @@ export default function CalendarScreen({ navigation, route }) {
     });
   };
 
+  // ✅ НОВОЕ: ФУНКЦИЯ ОБНОВЛЕНИЯ СТАТИСТИКИ
+  const updateStatistics = (concertsData) => {
+    const stats = calculateStatistics(concertsData);
+    setStatistics(stats);
+  };
+
   const loadAllData = async () => {
     setRefreshing(true);
     try {
@@ -384,6 +473,11 @@ export default function CalendarScreen({ navigation, route }) {
     } finally {
       setRefreshing(false);
     }
+  };
+
+  const onRefresh = async () => {
+    console.log('🔄 Инициировано обновление календаря...');
+    await loadAllData();
   };
 
   const loadConcerts = async () => {
@@ -468,11 +562,6 @@ export default function CalendarScreen({ navigation, route }) {
     }
   };
 
-  const onRefresh = async () => {
-    console.log('🔄 Инициировано обновление календаря...');
-    await loadAllData();
-  };
-
   const handleMonthChange = (month) => {
     const newMonth = {
       year: month.year,
@@ -515,9 +604,9 @@ export default function CalendarScreen({ navigation, route }) {
       },
     };
 
-    // ✅ РАСКРАСКА ПО РЕГИОНАМ
     concertsData.forEach(concert => {
-      const eventColor = getColorByRegion(concert.region);
+      // ✅ НОВОЕ: ИСПОЛЬЗУЕМ ЦВЕТ ПО РЕГИОНАМ
+      const concertColor = getColorByRegion(concert.region);
       
       if (concert.date === today) {
         newMarkedDates[concert.date] = {
@@ -525,7 +614,7 @@ export default function CalendarScreen({ navigation, route }) {
           marked: true,
           dots: [{
             key: 'concert',
-            color: eventColor,
+            color: concertColor,
             selectedDotColor: '#1a1a1a'
           }]
         };
@@ -534,7 +623,7 @@ export default function CalendarScreen({ navigation, route }) {
           marked: true,
           dots: [{
             key: 'concert',
-            color: eventColor,
+            color: concertColor,
             selectedDotColor: '#1a1a1a'
           }],
           customStyles: {
@@ -837,6 +926,12 @@ export default function CalendarScreen({ navigation, route }) {
     return `${parseInt(day)} ${months[parseInt(month) - 1]} ${year}`;
   };
 
+  const getCurrentMonthNameDisplay = () => {
+    const months = ['Январь', 'Февраль', 'Март', 'Апрель', 'Май', 'Июнь', 
+                   'Июль', 'Август', 'Сентябрь', 'Октябрь', 'Ноябрь', 'Декабрь'];
+    return months[currentMonth.month - 1];
+  };
+
   const getQuickActions = () => {
     const actions = [
       { 
@@ -877,6 +972,16 @@ export default function CalendarScreen({ navigation, route }) {
         label: 'Статистика по городам', 
         gradient: ['#9B59B6', '#8E44AD'],
         onPress: () => navigation.navigate('Statistics')
+      }
+    );
+
+    // ✅ ДОБАВЛЯЕМ КНОПКУ ГОРОДОВ И ОБЛАСТЕЙ (НОВОЕ!)
+    actions.push(
+      {
+        icon: 'pin',
+        label: 'Города и области',
+        gradient: ['#34C759', '#28A745'],
+        onPress: () => navigation.navigate('Cities'),
       }
     );
 
@@ -921,6 +1026,12 @@ export default function CalendarScreen({ navigation, route }) {
   // ✅ ВЫЧИСЛЯЕМ RESPONSIVE SIZES С АКТУАЛЬНЫМИ РАЗМЕРАМИ
   const responsiveSize = (size) => getResponsiveSize(size, dimensions.width);
   const responsiveFontSize = (size) => getResponsiveFontSize(size, dimensions.width);
+
+  // ✅ ПОЛУЧАЕМ ТЕКУЩУЮ СТАТИСТИКУ В ЗАВИСИМОСТИ ОТ ВКЛАДКИ
+  const currentStats = statistics[activeStatTab] || { voronezh: 0, other: 0, total: 0 };
+  const statPeriodText = activeStatTab === 'monthly' ? getCurrentMonthName() : 
+                         activeStatTab === 'quarterly' ? getCurrentQuarterText() : 
+                         getLast4MonthsText();
 
   return (
     <View style={styles.container}>
@@ -1017,39 +1128,203 @@ export default function CalendarScreen({ navigation, route }) {
                   <Text style={[styles.subtitle, { fontSize: responsiveFontSize(13) }]}>Управление мероприятиями</Text>
                 </View>
               </View>
+
+              {/* ✅ ПАНЕЛЬ 1: СТАТИСТИКА МЕСЯЦА */}
+              <View style={styles.statsContainer}>
+                <View style={styles.monthStatsHeaderContainer}>
+                  <View style={styles.monthStatsHeaderLeft}>
+                    <Text style={[styles.monthStatsTitle, { fontSize: responsiveFontSize(14) }]}>
+                      Статистика за {getCurrentMonthNameDisplay()} {currentMonth.year}
+                    </Text>
+                  </View>
+                  <TouchableOpacity 
+                    onPress={toggleHeaderStats}
+                    style={styles.collapseButton}
+                  >
+                    <Ionicons 
+                      name={showHeaderStats ? "chevron-up" : "chevron-down"} 
+                      size={responsiveSize(20)} 
+                      color="#FFD700" 
+                    />
+                  </TouchableOpacity>
+                </View>
+                
+                {/* СОДЕРЖИМОЕ ПАНЕЛИ - АНИМИРУЕТСЯ */}
+                <Animated.View 
+                  style={{
+                    maxHeight: headerStatsHeightAnim.interpolate({
+                      inputRange: [0, 1],
+                      outputRange: [0, 180],
+                    }),
+                    opacity: headerStatsHeightAnim,
+                    overflow: 'hidden',
+                  }}
+                >
+                  <View style={styles.statsRow}>
+                    <View style={styles.statCard}>
+                      <View style={styles.statIconWrapper}>
+                        <Ionicons name="musical-notes" size={responsiveSize(20)} color="#FFD700" />
+                      </View>
+                      <View style={styles.statTextContainer}>
+                        <Text style={[styles.statValue, { fontSize: responsiveFontSize(20) }]}>{currentMonthStats.concerts}</Text>
+                        <Text style={[styles.statLabel, { fontSize: responsiveFontSize(10) }]}>Концертов</Text>
+                      </View>
+                    </View>
+
+                    <View style={styles.statDivider} />
+
+                    <View style={styles.statCard}>
+                      <View style={styles.statIconWrapper}>
+                        <Ionicons name="airplane" size={responsiveSize(20)} color="#FFA500" />
+                      </View>
+                      <View style={styles.statTextContainer}>
+                        <Text style={[styles.statValue, { fontSize: responsiveFontSize(20) }]}>{currentMonthStats.tours}</Text>
+                        <Text style={[styles.statLabel, { fontSize: responsiveFontSize(10) }]}>Гастролей</Text>
+                      </View>
+                    </View>
+
+                    <View style={styles.statDivider} />
+
+                    <View style={styles.statCard}>
+                      <View style={styles.statIconWrapper}>
+                        <Ionicons name="bus" size={responsiveSize(20)} color="#34C759" />
+                      </View>
+                      <View style={styles.statTextContainer}>
+                        <Text style={[styles.statValue, { fontSize: responsiveFontSize(20) }]}>{currentMonthStats.moves}</Text>
+                        <Text style={[styles.statLabel, { fontSize: responsiveFontSize(10) }]}>Переездов</Text>
+                      </View>
+                    </View>
+                  </View>
+                </Animated.View>
+              </View>
             </View>
           </LinearGradient>
         </Animated.View>
 
-        {/* SCROLLVIEW С КНОПКОЙ ОБНОВЛЕНИЯ */}
+        {/* SCROLLVIEW С PULL-TO-REFRESH */}
         <ScrollView 
           showsVerticalScrollIndicator={false} 
           style={styles.scrollView}
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={onRefresh}
+              tintColor="#FFD700"
+              title="Потяни чтобы обновить"
+              titleColor="#FFD700"
+              colors={['#FFD700', '#FFA500', '#4A90E2']}
+            />
+          }
         >
-          {/* ✅ КНОПКА ОБНОВЛЕНИЯ (ЗАМЕНА REFRESHCONTROL) */}
-          {Platform.OS === 'web' && (
-            <View style={styles.refreshButtonContainer}>
-              <TouchableOpacity 
-                style={styles.refreshButton}
-                onPress={onRefresh}
-                disabled={refreshing}
-              >
+          {/* ✅ ПАНЕЛЬ 2: СТАТИСТИКА ПО РЕГИОНАМ */}
+          <View style={styles.statisticsSection}>
+            <View style={styles.statisticsSectionHeaderContainer}>
+              <View style={styles.statisticsTitleWrapper}>
                 <LinearGradient
-                  colors={['#FFD700', '#FFA500']}
-                  style={styles.refreshButtonGradient}
+                  colors={['#4A90E2', '#357ABD']}
+                  style={styles.statisticsIcon}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 1 }}
                 >
-                  <Ionicons 
-                    name={refreshing ? "hourglass" : "refresh"} 
-                    size={responsiveSize(16)} 
-                    color="#1a1a1a" 
-                  />
-                  <Text style={[styles.refreshButtonText, { fontSize: responsiveFontSize(12) }]}>
-                    {refreshing ? 'Обновление...' : 'Обновить календарь'}
-                  </Text>
+                  <Ionicons name="bar-chart" size={responsiveSize(18)} color="#FFF" />
                 </LinearGradient>
+                <Text style={[styles.statisticsTitle, { fontSize: responsiveFontSize(18) }]}>
+                  Статистика по регионам
+                </Text>
+              </View>
+              <TouchableOpacity 
+                onPress={toggleRegionStats}
+                style={styles.collapseButton}
+              >
+                <Ionicons 
+                  name={showRegionStats ? "chevron-up" : "chevron-down"} 
+                  size={responsiveSize(20)} 
+                  color="#4A90E2" 
+                />
               </TouchableOpacity>
             </View>
-          )}
+
+            {/* СОДЕРЖИМОЕ ПАНЕЛИ - АНИМИРУЕТСЯ */}
+            <Animated.View 
+              style={{
+                maxHeight: regionStatsHeightAnim.interpolate({
+                  inputRange: [0, 1],
+                  outputRange: [0, 800],
+                }),
+                opacity: regionStatsHeightAnim,
+                overflow: 'hidden',
+              }}
+            >
+              {/* ТАБЫ СТАТИСТИКИ */}
+              <View style={styles.statisticsTabsContainer}>
+                <TouchableOpacity
+                  style={[styles.statisticsTab, activeStatTab === 'monthly' && styles.statisticsTabActive]}
+                  onPress={() => setActiveStatTab('monthly')}
+                >
+                  <LinearGradient
+                    colors={activeStatTab === 'monthly' ? ['#FFD700', '#FFA500'] : ['rgba(100, 100, 100, 0.2)', 'rgba(100, 100, 100, 0.1)']}
+                    style={styles.statisticsTabGradient}
+                  >
+                    <Text style={[styles.statisticsTabText, { fontSize: responsiveFontSize(12) }, activeStatTab === 'monthly' && styles.statisticsTabTextActive]}>
+                      Месяц
+                    </Text>
+                  </LinearGradient>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={[styles.statisticsTab, activeStatTab === 'quarterly' && styles.statisticsTabActive]}
+                  onPress={() => setActiveStatTab('quarterly')}
+                >
+                  <LinearGradient
+                    colors={activeStatTab === 'quarterly' ? ['#4A90E2', '#357ABD'] : ['rgba(100, 100, 100, 0.2)', 'rgba(100, 100, 100, 0.1)']}
+                    style={styles.statisticsTabGradient}
+                  >
+                    <Text style={[styles.statisticsTabText, { fontSize: responsiveFontSize(12) }, activeStatTab === 'quarterly' && styles.statisticsTabTextActive]}>
+                      Квартал
+                    </Text>
+                  </LinearGradient>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={[styles.statisticsTab, activeStatTab === 'last4Months' && styles.statisticsTabActive]}
+                  onPress={() => setActiveStatTab('last4Months')}
+                >
+                  <LinearGradient
+                    colors={activeStatTab === 'last4Months' ? ['#34C759', '#28A745'] : ['rgba(100, 100, 100, 0.2)', 'rgba(100, 100, 100, 0.1)']}
+                    style={styles.statisticsTabGradient}
+                  >
+                    <Text style={[styles.statisticsTabText, { fontSize: responsiveFontSize(12) }, activeStatTab === 'last4Months' && styles.statisticsTabTextActive]}>
+                      4 месяца
+                    </Text>
+                  </LinearGradient>
+                </TouchableOpacity>
+              </View>
+
+              {/* ТЕКУЩАЯ СТАТИСТИКА И ПРОГРЕСС-БАР */}
+              <View style={styles.statisticsContent}>
+                <Text style={[styles.statisticsContentTitle, { fontSize: responsiveFontSize(14) }]}>
+                  {statPeriodText}
+                </Text>
+                
+                <ProgressBar 
+                  voronezh={currentStats.voronezh}
+                  other={currentStats.other}
+                  total={currentStats.total}
+                  responsiveSize={responsiveSize}
+                  responsiveFontSize={responsiveFontSize}
+                />
+
+                <View style={styles.statisticsTotal}>
+                  <Text style={[styles.statisticsTotalLabel, { fontSize: responsiveFontSize(12) }]}>
+                    Всего концертов:
+                  </Text>
+                  <Text style={[styles.statisticsTotalValue, { fontSize: responsiveFontSize(20) }]}>
+                    {currentStats.total}
+                  </Text>
+                </View>
+              </View>
+            </Animated.View>
+          </View>
 
           <View style={styles.calendarWrapper}>
             <LinearGradient
@@ -1219,7 +1494,7 @@ export default function CalendarScreen({ navigation, route }) {
           </View>
         </ScrollView>
 
-        {/* ✅ МОДАЛЬНОЕ ОКНО СОБЫТИЙ */}
+        {/* ✅ МОДАЛЬНОЕ ОКНО СОБЫТИЙ (БЕЗ BLURVIEW) */}
         <Modal
           animationType="fade"
           transparent={true}
@@ -1372,6 +1647,7 @@ export default function CalendarScreen({ navigation, route }) {
                       <Text style={[styles.sectionTitle, { fontSize: responsiveFontSize(18) }]}>🎵 Концерты</Text>
                       {selectedDateConcerts.map((concert) => {
                         const concertTypeRussian = toRussianType(concert.concertType);
+                        const concertColor = getColorByRegion(concert.region); // ✅ ИСПОЛЬЗУЕМ ЦВЕТ ПО РЕГИОНАМ
                         
                         return (
                           <TouchableOpacity
@@ -1380,11 +1656,11 @@ export default function CalendarScreen({ navigation, route }) {
                             onPress={() => handleViewConcert(concert)}
                           >
                             <LinearGradient
-                              colors={['rgba(255, 215, 0, 0.2)', 'rgba(255, 165, 0, 0.2)']}
+                              colors={[`${concertColor}33`, `${concertColor}22`]}
                               style={styles.concertGradient}
                             >
                               <View style={styles.concertHeader}>
-                                <Text style={[styles.concertType, { fontSize: responsiveFontSize(16) }]}>{concertTypeRussian}</Text>
+                                <Text style={[styles.concertType, { fontSize: responsiveFontSize(16), color: concertColor }]}>{concertTypeRussian}</Text>
                                 {userRole === 'admin' && (
                                   <TouchableOpacity 
                                     onPress={(e) => {
@@ -1400,10 +1676,14 @@ export default function CalendarScreen({ navigation, route }) {
                               <Text style={[styles.concertDescription, { fontSize: responsiveFontSize(14) }]}>{concert.description}</Text>
                               <Text style={[styles.concertAddress, { fontSize: responsiveFontSize(13) }]}>{concert.address}</Text>
                               
+                              {/* ✅ ПОКАЗЫВАЕМ РЕГИОН */}
                               {concert.region && (
-                                <Text style={[styles.concertRegion, { fontSize: responsiveFontSize(12) }]}>
-                                  📍 {concert.region}
-                                </Text>
+                                <View style={styles.regionBadge}>
+                                  <Ionicons name="location" size={responsiveSize(12)} color={concertColor} />
+                                  <Text style={[styles.regionBadgeText, { fontSize: responsiveFontSize(11), color: concertColor }]}>
+                                    {concert.region}
+                                  </Text>
+                                </View>
                               )}
                               
                               {(concert.program || concert.participants) && (
@@ -1417,11 +1697,11 @@ export default function CalendarScreen({ navigation, route }) {
                                     </View>
                                   )}
                                   
-                                  {concert.participants && Object.values(concert.participants).flat().length > 0 && (
+                                  {concert.participants && concert.participants.length > 0 && (
                                     <View style={styles.infoItem}>
                                       <Ionicons name="people" size={responsiveSize(14)} color="#FFD700" />
                                       <Text style={[styles.infoText, { fontSize: responsiveFontSize(12) }]}>
-                                        Участники: {Object.values(concert.participants).flat().length} человек
+                                        Участники: {concert.participants.length} человек
                                       </Text>
                                     </View>
                                   )}
@@ -1471,7 +1751,7 @@ export default function CalendarScreen({ navigation, route }) {
           </View>
         </Modal>
 
-        {/* ✅ МОДАЛЬНОЕ ОКНО ВЫБОРА ТИПА СОБЫТИЯ */}
+        {/* ✅ МОДАЛЬНОЕ ОКНО ВЫБОРА ТИПА СОБЫТИЯ (БЕЗ BLURVIEW) */}
         <Modal
           animationType="fade"
           transparent={true}
@@ -1566,7 +1846,7 @@ export default function CalendarScreen({ navigation, route }) {
           </View>
         </Modal>
 
-        {/* ✅ МОДАЛЬНОЕ ОКНО ВЫХОДА */}
+        {/* ✅ МОДАЛЬНОЕ ОКНО ВЫХОДА (БЕЗ BLURVIEW) */}
         <Modal
           animationType="fade"
           transparent={true}
@@ -1648,7 +1928,7 @@ export default function CalendarScreen({ navigation, route }) {
   );
 }
 
-// ✅ СТИЛИ (ВСЕ СОХРАНЕНЫ)
+// ✅ СТИЛИ (БАЗОВЫЕ РАЗМЕРЫ, БЕЗ ДИНАМИЧЕСКИХ)
 const styles = StyleSheet.create({
   container: {
     flex: 1,
@@ -1660,31 +1940,124 @@ const styles = StyleSheet.create({
   scrollView: {
     flex: 1,
   },
-  refreshButtonContainer: {
-    paddingHorizontal: 15,
-    paddingTop: 15,
+
+  // ✅ НОВОЕ: СТАТИСТИКА ПО РЕГИОНАМ
+  statisticsSection: {
+    marginHorizontal: 15,
+    marginTop: 15,
+    marginBottom: 15,
+    backgroundColor: 'rgba(26, 26, 26, 0.8)',
+    borderRadius: 20,
+    padding: 20,
+    borderWidth: 1,
+    borderColor: 'rgba(74, 144, 226, 0.2)',
   },
-  refreshButton: {
-    borderRadius: 12,
-    overflow: 'hidden',
-    shadowColor: '#FFD700',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.3,
-    shadowRadius: 4,
-    elevation: 3,
-  },
-  refreshButtonGradient: {
+  statisticsTitleWrapper: {
     flexDirection: 'row',
     alignItems: 'center',
+    gap: 12,
+  },
+  statisticsIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 12,
     justifyContent: 'center',
+    alignItems: 'center',
+  },
+  statisticsTitle: {
+    fontWeight: '700',
+    color: '#E0E0E0',
+  },
+  statisticsTabsContainer: {
+    flexDirection: 'row',
+    gap: 8,
+    marginBottom: 16,
+  },
+  statisticsTab: {
+    flex: 1,
+    borderRadius: 12,
+    overflow: 'hidden',
+  },
+  statisticsTabGradient: {
     paddingVertical: 10,
-    paddingHorizontal: 15,
+    paddingHorizontal: 12,
+    alignItems: 'center',
+    borderRadius: 12,
   },
-  refreshButtonText: {
-    color: '#1a1a1a',
+  statisticsTabActive: {},
+  statisticsTabText: {
     fontWeight: '600',
-    marginLeft: 8,
+    color: '#999',
   },
+  statisticsTabTextActive: {
+    color: '#1a1a1a',
+    fontWeight: '700',
+  },
+  statisticsContent: {
+    backgroundColor: 'rgba(42, 42, 42, 0.5)',
+    borderRadius: 14,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: 'rgba(74, 144, 226, 0.15)',
+  },
+  statisticsContentTitle: {
+    fontWeight: '600',
+    color: '#999',
+    marginBottom: 12,
+  },
+  progressBarContainer: {
+    marginBottom: 16,
+  },
+  progressBarRow: {
+    flexDirection: 'row',
+    height: 20,
+    borderRadius: 10,
+    overflow: 'hidden',
+    marginBottom: 12,
+    backgroundColor: 'rgba(0, 0, 0, 0.3)',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.1)',
+  },
+  progressSegment: {
+    height: '100%',
+  },
+  progressLabelsRow: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  progressLabel: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  progressLegend: {
+    width: 12,
+    height: 12,
+    borderRadius: 2,
+  },
+  progressLabelText: {
+    color: '#999',
+    fontWeight: '500',
+  },
+  statisticsTotal: {
+    paddingTop: 12,
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(74, 144, 226, 0.2)',
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  statisticsTotalLabel: {
+    color: '#999',
+    fontWeight: '600',
+  },
+  statisticsTotalValue: {
+    fontWeight: '700',
+    color: '#4A90E2',
+  },
+  
+  // ХЕДЕР
   header: {
     paddingHorizontal: 20,
     paddingBottom: 24,
@@ -1700,6 +2073,7 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: 'rgba(255, 215, 0, 0.3)',
   },
+  
   headerBackground: {
     position: 'absolute',
     top: 0,
@@ -1733,16 +2107,19 @@ const styles = StyleSheet.create({
     top: 40,
     left: 30,
   },
+  
   headerContent: {
     position: 'relative',
     zIndex: 2,
   },
+  
   topRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
     marginBottom: 20,
   },
+  
   greetingSection: {
     flex: 1,
   },
@@ -1756,11 +2133,13 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     letterSpacing: 0.3,
   },
+  
   actionButtons: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 10,
   },
+  
   roleButton: {
     borderRadius: 20,
     overflow: 'hidden',
@@ -1781,6 +2160,7 @@ const styles = StyleSheet.create({
     color: '#1a1a1a',
     fontWeight: '700',
   },
+  
   logoutButton: {
     borderRadius: 22,
     overflow: 'hidden',
@@ -1796,6 +2176,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
+  
   titleSection: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -1807,6 +2188,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: 'rgba(255, 215, 0, 0.2)',
   },
+  
   titleIconContainer: {
     marginRight: 14,
   },
@@ -1822,6 +2204,7 @@ const styles = StyleSheet.create({
     shadowRadius: 8,
     elevation: 5,
   },
+  
   titleTextContainer: {
     flex: 1,
   },
@@ -1835,6 +2218,95 @@ const styles = StyleSheet.create({
     color: '#999',
     fontWeight: '500',
   },
+  
+  statsContainer: {
+    backgroundColor: 'rgba(42, 42, 42, 0.6)',
+    borderRadius: 16,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 215, 0, 0.2)',
+    shadowColor: '#FFD700',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 6,
+    elevation: 3,
+  },
+
+  monthStatsHeaderContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 12,
+  },
+
+  monthStatsHeaderLeft: {
+    flex: 1,
+  },
+  
+  monthStatsTitle: {
+    fontWeight: '700',
+    color: '#FFD700',
+    textAlign: 'center',
+    letterSpacing: 0.3,
+  },
+
+  collapseButton: {
+    padding: 8,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+
+  statisticsSectionHeaderContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 18,
+  },
+  
+  statsRow: {
+    flexDirection: 'row',
+  },
+  
+  statCard: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  
+  statIconWrapper: {
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+    backgroundColor: 'rgba(255, 215, 0, 0.15)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  
+  statTextContainer: {
+    flex: 1,
+  },
+  
+  statValue: {
+    fontWeight: '800',
+    color: '#E0E0E0',
+    letterSpacing: 0.3,
+  },
+  
+  statLabel: {
+    color: '#999',
+    fontWeight: '600',
+    marginTop: 2,
+  },
+  
+  statDivider: {
+    width: 1,
+    height: '100%',
+    backgroundColor: 'rgba(255, 215, 0, 0.2)',
+    marginHorizontal: 8,
+  },
+  
+  // КАЛЕНДАРЬ
   calendarWrapper: {
     margin: 15,
   },
@@ -1962,6 +2434,8 @@ const styles = StyleSheet.create({
   normalText: {
     color: '#E0E0E0',
   },
+
+  // БЫСТРЫЕ ДЕЙСТВИЯ
   quickActionsContainer: {
     marginHorizontal: 15,
     marginBottom: 20,
@@ -2042,6 +2516,8 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     lineHeight: 14,
   },
+
+  // ✅ МОДАЛЬНЫЕ ОКНА (БЕЗ BLURVIEW)
   modalOverlay: {
     flex: 1,
     backgroundColor: 'rgba(0, 0, 0, 0.85)',
@@ -2116,6 +2592,7 @@ const styles = StyleSheet.create({
     marginTop: 12,
     textAlign: 'center',
   },
+
   sectionContainer: {
     marginBottom: 20,
   },
@@ -2124,6 +2601,7 @@ const styles = StyleSheet.create({
     color: '#E0E0E0',
     marginBottom: 12,
   },
+
   concertItem: {
     marginBottom: 15,
     borderRadius: 16,
@@ -2151,11 +2629,6 @@ const styles = StyleSheet.create({
     color: '#FFD700',
     flex: 1,
   },
-  concertRegion: {
-    color: '#34C759',
-    fontWeight: '500',
-    marginBottom: 8,
-  },
   deleteButton: {
     padding: 6,
   },
@@ -2169,6 +2642,20 @@ const styles = StyleSheet.create({
     color: '#999',
     marginBottom: 10,
     lineHeight: 16,
+  },
+  regionBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(0, 0, 0, 0.2)',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 8,
+    marginBottom: 10,
+    alignSelf: 'flex-start',
+  },
+  regionBadgeText: {
+    marginLeft: 6,
+    fontWeight: '600',
   },
   concertInfo: {
     borderTopWidth: 1,
@@ -2194,6 +2681,7 @@ const styles = StyleSheet.create({
     marginLeft: 6,
     fontWeight: '600',
   },
+
   tourItem: {
     marginBottom: 15,
     borderRadius: 16,
@@ -2236,6 +2724,7 @@ const styles = StyleSheet.create({
     marginLeft: 6,
     fontWeight: '600',
   },
+
   moveItem: {
     marginBottom: 15,
     borderRadius: 16,
@@ -2285,6 +2774,7 @@ const styles = StyleSheet.create({
     marginBottom: 4,
     lineHeight: 16,
   },
+
   addButtonWrapper: {
     borderRadius: 18,
     overflow: 'hidden',
@@ -2306,6 +2796,7 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     marginLeft: 8,
   },
+
   eventTypeModalContainer: {
     width: '90%',
     maxWidth: 400,
@@ -2361,6 +2852,7 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     fontWeight: '500',
   },
+
   logoutModalContainer: {
     width: '85%',
     maxWidth: 350,
@@ -2415,6 +2907,8 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: 'white',
   },
+
+  // ✅ CUSTOM ALERT STYLES
   customAlertOverlay: {
     flex: 1,
     backgroundColor: 'rgba(0, 0, 0, 0.85)',
@@ -2465,8 +2959,12 @@ const styles = StyleSheet.create({
     shadowRadius: 5,
     elevation: 3,
   },
-  customAlertButtonDestructive: {},
-  customAlertButtonCancel: {},
+  customAlertButtonDestructive: {
+    // Дополнительные стили для кнопки удаления
+  },
+  customAlertButtonCancel: {
+    // Дополнительные стили для кнопки отмены
+  },
   customAlertButtonGradient: {
     paddingVertical: 12,
     alignItems: 'center',

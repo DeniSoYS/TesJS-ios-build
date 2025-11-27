@@ -27,6 +27,7 @@ import TourDetailScreen from './screens/TourDetailScreen';
 import AddMoveScreen from './screens/AddMoveScreen';
 // ИМПОРТ SPLASH SCREEN
 import SplashScreen from './components/SplashScreen';
+import CitiesScreen from './screens/CitiesScreen';
 import HistoryStatisticsScreen from './screens/HistoryStatisticsScreen';
 
 // ✅ ВРЕМЕННЫЕ ПРОСТЫЕ КОМПОНЕНТЫ
@@ -143,6 +144,11 @@ useEffect(() => {
             <Stack.Screen
   name="HistoryStatistics"
   component={HistoryStatisticsScreen}
+  options={{ headerShown: false }}
+/>
+<Stack.Screen
+  name="Cities"
+  component={CitiesScreen}
   options={{ headerShown: false }}
 />
             {/* ✅ ИСПОЛЬЗУЕМ ПРОСТЫЕ КОМПОНЕНТЫ */}
