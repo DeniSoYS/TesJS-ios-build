@@ -21,6 +21,7 @@ import LoginScreen from './screens/LoginScreen';
 import MyEventsScreen from './screens/MyEventsScreen';
 import RemindersScreen from './screens/RemindersScreen';
 import SickLeaveScreen from './screens/SickLeaveScreen';
+import StatisticsScreen from './screens/StatisticsScreen';
 import TourDetailScreen from './screens/TourDetailScreen';
 // В разделе импортов добавьте:
 import AddMoveScreen from './screens/AddMoveScreen';
@@ -137,7 +138,8 @@ useEffect(() => {
             <Stack.Screen name="SickLeave" component={SickLeaveScreen} />
             <Stack.Screen name="AddSickLeave" component={AddSickLeaveScreen} />
             <Stack.Screen name="EmployeesList" component={EmployeesListScreen} />
-            
+            <Stack.Screen name="Statistics" component={StatisticsScreen} options={{ headerShown: false }}
+/>
             {/* ✅ ИСПОЛЬЗУЕМ ПРОСТЫЕ КОМПОНЕНТЫ */}
             <Stack.Screen name="AddTour" component={AddTourScreen} />
            <Stack.Screen name="AddMove" component={AddMoveScreen} />
