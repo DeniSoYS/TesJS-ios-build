@@ -4,26 +4,51 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { addDoc, collection, doc, updateDoc } from 'firebase/firestore';
 import { useEffect, useState } from 'react';
 import {
+  BackHandler,
   Dimensions,
-  KeyboardAvoidingView,
   Modal,
   Platform,
+  SafeAreaView,
   ScrollView,
+  StatusBar,
   StyleSheet,
   Text,
   TextInput,
   TouchableOpacity,
   View
 } from 'react-native';
-import { db } from '../firebaseConfig';
+import { CONCERT_TYPE_LIST } from '../utils/concertTypes'; // ✅ ИМПОРТ УТИЛИТЫ
 
-// ✅ АДАПТИВНЫЕ РАЗМЕРЫ С RESIZE LISTENER
+// ✅ РЕГИОНЫ
+const REGIONS = [
+  'Воронежская область',
+  'Белгородская область',
+  'Липецкая область',
+  'Тамбовская область',
+  'Курская область',
+  'Калужская область',
+  'Тульская область',
+  'Смоленская область',
+  'Брянская область',
+  'Орловская область',
+  'Московская область',
+  'Москва',
+  'Санкт-Петербург',
+];
+
+// ✅ КАТЕГОРИИ УЧАСТНИКОВ
+const PARTICIPANT_CATEGORIES = [
+  { id: 'femaleChoir', label: 'Жен. хор', color: '#FF6B9D' },
+  { id: 'maleChoir', label: 'Муж. хор', color: '#4ECDC4' },
+  { id: 'maleBallet', label: 'Муж. балет', color: '#95E1D3' },
+  { id: 'femaleBallet', label: 'Жен. балет', color: '#A8E6CF' },
+  { id: 'administration', label: 'Администрация', color: '#FFD700' },
+];
+
+// ✅ ФУНКЦИЯ АДАПТИВНОСТИ
 const getWindowDimensions = () => {
   if (Platform.OS === 'web') {
-    return {
-      width: window.innerWidth,
-      height: window.innerHeight
-    };
+    return { width: window.innerWidth, height: window.innerHeight };
   }
   return Dimensions.get('window');
 };
@@ -33,9 +58,7 @@ const useWindowDimensions = () => {
 
   useEffect(() => {
     if (Platform.OS === 'web') {
-      const handleResize = () => {
-        setDimensions(getWindowDimensions());
-      };
+      const handleResize = () => setDimensions(getWindowDimensions());
       window.addEventListener('resize', handleResize);
       return () => window.removeEventListener('resize', handleResize);
     }
@@ -53,55 +76,54 @@ const getResponsiveSize = (size, windowWidth) => {
 };
 
 const getResponsiveFontSize = (size, windowWidth) => {
-  const baseSize = getResponsiveSize(size, windowWidth);
-  return Math.round(baseSize);
+  const isSmallDevice = windowWidth < 375;
+  const isLargeDevice = windowWidth > 414;
+  if (isSmallDevice) return size * 0.9;
+  if (isLargeDevice) return size * 1.1;
+  return size;
 };
 
-// ✅ КОМПОНЕНТ CUSTOM ALERT
-const CustomAlert = ({ visible, title, message, buttons, onClose }) => {
+// ✅ CUSTOM ALERT COMPONENT
+const CustomAlert = ({ visible, title, message, buttons, onDismiss }) => {
   if (!visible) return null;
 
+  const getGradientColors = (type) => {
+    switch (type) {
+      case 'destructive':
+        return ['#FF6B6B', '#EE5A52'];
+      case 'cancel':
+        return ['#555', '#444'];
+      default:
+        return ['#4A90E2', '#357ABD'];
+    }
+  };
+
   return (
-    <Modal
-      visible={visible}
-      transparent={true}
-      animationType="fade"
-      onRequestClose={onClose}
-    >
-      <View style={styles.customAlertOverlay}>
-        <View style={styles.customAlertContainer}>
+    <Modal transparent visible={visible} animationType="fade" onRequestClose={onDismiss}>
+      <View style={styles.alertOverlay}>
+        <View style={styles.alertContent}>
           <LinearGradient
             colors={['rgba(26, 26, 26, 0.98)', 'rgba(35, 35, 35, 0.95)']}
-            style={styles.customAlertGradient}
+            style={styles.alertGradient}
           >
-            <Text style={styles.customAlertTitle}>{title}</Text>
-            <Text style={styles.customAlertMessage}>{message}</Text>
-            
-            <View style={styles.customAlertButtons}>
-              {buttons.map((button, index) => (
+            {title && <Text style={styles.alertTitle}>{title}</Text>}
+            {message && <Text style={styles.alertMessage}>{message}</Text>}
+
+            <View style={styles.alertButtonsContainer}>
+              {buttons?.map((btn, idx) => (
                 <TouchableOpacity
-                  key={index}
-                  style={[
-                    styles.customAlertButton,
-                    button.style === 'destructive' && styles.customAlertButtonDestructive,
-                    button.style === 'cancel' && styles.customAlertButtonCancel
-                  ]}
+                  key={idx}
+                  style={[styles.alertButton, { flex: buttons.length > 1 ? 1 : undefined }]}
                   onPress={() => {
-                    button.onPress && button.onPress();
-                    onClose();
+                    btn.onPress?.();
+                    onDismiss();
                   }}
                 >
                   <LinearGradient
-                    colors={
-                      button.style === 'destructive' 
-                        ? ['#FF6B6B', '#EE5A52']
-                        : button.style === 'cancel'
-                        ? ['#555', '#444']
-                        : ['#FFD700', '#FFA500']
-                    }
-                    style={styles.customAlertButtonGradient}
+                    colors={getGradientColors(btn.style)}
+                    style={styles.alertButtonGradient}
                   >
-                    <Text style={styles.customAlertButtonText}>{button.text}</Text>
+                    <Text style={styles.alertButtonText}>{btn.text}</Text>
                   </LinearGradient>
                 </TouchableOpacity>
               ))}
@@ -113,1144 +135,928 @@ const CustomAlert = ({ visible, title, message, buttons, onClose }) => {
   );
 };
 
-// ✅ КОМПОНЕНТ HTML5 TIME PICKER ДЛЯ WEB
-const WebTimePicker = ({ value, onChange, label, placeholder }) => {
+// ✅ WEB TIME PICKER COMPONENT
+const WebTimePicker = ({ value, onChange }) => {
   const [timeValue, setTimeValue] = useState(value || '');
 
   const handleChange = (text) => {
-    // Автоформатирование при вводе
     let cleaned = text.replace(/\D/g, '');
-    
+
     if (cleaned.length >= 2) {
       let hours = parseInt(cleaned.substring(0, 2));
       hours = Math.min(hours, 23);
       cleaned = String(hours).padStart(2, '0') + cleaned.substring(2);
     }
-    
+
     if (cleaned.length >= 4) {
       let minutes = parseInt(cleaned.substring(2, 4));
       minutes = Math.min(minutes, 59);
       const formatted = `${cleaned.substring(0, 2)}:${String(minutes).padStart(2, '0')}`;
       setTimeValue(formatted);
       onChange(formatted);
-    } else if (cleaned.length >= 2) {
-      const formatted = `${cleaned.substring(0, 2)}:`;
-      setTimeValue(formatted);
-    } else {
+    } else if (cleaned.length <= 2) {
       setTimeValue(cleaned);
+    } else {
+      setTimeValue(cleaned.substring(0, 2) + ':' + cleaned.substring(2, 4));
     }
   };
 
-  const handleNativeChange = (e) => {
-    const newValue = e.target.value;
-    setTimeValue(newValue);
-    onChange(newValue);
-  };
-
-  if (Platform.OS === 'web') {
-    return (
-      <View style={styles.timeInputCard}>
-        <Text style={styles.label}>{label} *</Text>
-        <View style={styles.webTimeContainer}>
-          <View style={styles.timeInputWrapper}>
-            <Ionicons name="time-outline" size={20} color="#FFD700" />
-            <input
-              type="time"
-              value={timeValue}
-              onChange={handleNativeChange}
-              placeholder={placeholder}
-              style={{
-                flex: 1,
-                marginLeft: 10,
-                fontSize: 14,
-                color: '#E0E0E0',
-                backgroundColor: 'transparent',
-                border: 'none',
-                outline: 'none',
-                fontFamily: 'System',
-                fontWeight: '500',
-              }}
-            />
-          </View>
-        </View>
-      </View>
-    );
-  }
-
-  return null;
+  return (
+    <TextInput
+      style={styles.timeInput}
+      placeholder="ЧЧ:MM"
+      value={timeValue}
+      onChangeText={handleChange}
+      maxLength={5}
+      keyboardType="numeric"
+    />
+  );
 };
 
-// Категории участников
-const PARTICIPANT_CATEGORIES = [
-  { key: 'femaleChoir', label: 'Женский состав хор', icon: 'woman', color: '#E91E63' },
-  { key: 'maleChoir', label: 'Мужской состав хор', icon: 'man', color: '#2196F3' },
-  { key: 'maleBallet', label: 'Мужской состав балет', icon: 'fitness', color: '#FF9800' },
-  { key: 'femaleBallet', label: 'Женский состав балет', icon: 'ribbon', color: '#9C27B0' },
-  { key: 'administration', label: 'Администрация', icon: 'briefcase', color: '#607D8B' },
-];
-
-export default function AddEvent({ navigation, route }) {
+// ✅ MAIN COMPONENT
+export default function AddEventScreen({ route, navigation, db }) {
   const dimensions = useWindowDimensions();
-  const { date, userRole, concert, isEditing } = route.params || {};
-  
+  const responsiveSize = (size) => getResponsiveSize(size, dimensions.width);
+  const responsiveFontSize = (size) => getResponsiveFontSize(size, dimensions.width);
+
+  const concert = route?.params?.concert;
+  const isEditing = !!concert;
+
+  // ✅ STATE
+  const [date, setDate] = useState(concert?.date || new Date().toISOString().split('T')[0]);
   const [concertType, setConcertType] = useState(concert?.concertType || 'GENERAL');
   const [description, setDescription] = useState(concert?.description || '');
   const [address, setAddress] = useState(concert?.address || '');
+  const [region, setRegion] = useState(concert?.region || 'Воронежская область');
   const [departureTime, setDepartureTime] = useState(concert?.departureTime || '');
   const [startTime, setStartTime] = useState(concert?.startTime || '');
-  
+  const [showDatePicker, setShowDatePicker] = useState(false);
+  const [showDepartureTimePicker, setShowDepartureTimePicker] = useState(false);
+  const [showStartTimePicker, setShowStartTimePicker] = useState(false);
+  const [showParticipantModal, setShowParticipantModal] = useState(false);
+  const [showProgramModal, setShowProgramModal] = useState(false);
+  const [showRegionModal, setShowRegionModal] = useState(false);
+  const [regionSearch, setRegionSearch] = useState('');
+
   const [participants, setParticipants] = useState(
     concert?.participants || {
       femaleChoir: [],
       maleChoir: [],
       maleBallet: [],
       femaleBallet: [],
-      administration: []
+      administration: [],
     }
   );
-  const [expandedCategories, setExpandedCategories] = useState({
-    femaleChoir: true,
-    maleChoir: false,
-    maleBallet: false,
-    femaleBallet: false,
-    administration: false,
-  });
-  
-  const [newParticipant, setNewParticipant] = useState('');
-  const [showParticipantModal, setShowParticipantModal] = useState(false);
-  const [selectedCategory, setSelectedCategory] = useState(null);
-  
-  const [showDepartureTimePicker, setShowDepartureTimePicker] = useState(false);
-  const [showStartTimePicker, setShowStartTimePicker] = useState(false);
-  const [departureDate, setDepartureDate] = useState(new Date());
-  const [startDate, setStartDate] = useState(new Date());
-  
-  const [showProgramModal, setShowProgramModal] = useState(false);
+
+  const [currentCategory, setCurrentCategory] = useState('femaleChoir');
+  const [participantName, setParticipantName] = useState('');
+
   const [programTitle, setProgramTitle] = useState(concert?.program?.title || '');
   const [songs, setSongs] = useState(concert?.program?.songs || []);
-  const [newSong, setNewSong] = useState({
-    title: '',
-    soloists: ''
-  });
-  const [editingSongIndex, setEditingSongIndex] = useState(null);
+  const [songTitle, setSongTitle] = useState('');
+  const [soloists, setSoloists] = useState('');
 
-  // ✅ CUSTOM ALERT STATE
-  const [alertConfig, setAlertConfig] = useState({
-    visible: false,
-    title: '',
-    message: '',
-    buttons: []
-  });
+  const [alertVisible, setAlertVisible] = useState(false);
+  const [alertConfig, setAlertConfig] = useState({ title: '', message: '' });
 
-  const showAlert = (title, message, buttons = [{ text: 'OK' }]) => {
+  // ✅ ALERT FUNCTION
+  const showAlert = (title, message, buttons = null) => {
     setAlertConfig({
-      visible: true,
       title,
       message,
-      buttons
+      buttons: buttons || [{ text: 'OK', onPress: () => {} }],
     });
+    setAlertVisible(true);
   };
 
-  const closeAlert = () => {
-    setAlertConfig({ ...alertConfig, visible: false });
-  };
+  // ✅ FILTERED REGIONS
+  const filteredRegions = regionSearch
+    ? REGIONS.filter((r) => r.toLowerCase().includes(regionSearch.toLowerCase()))
+    : REGIONS;
 
-  const concertTypes = [
-    { value: 'GENERAL', label: 'Общий концерт' },
-    { value: 'BRIGADE_1', label: 'Первая бригада' },
-    { value: 'BRIGADE_2', label: 'Вторая бригада' },
-    { value: 'BRIGADE_ENHANCED', label: 'Концерт усиленной бригады' },
-    { value: 'SOLOISTS_ORCHESTRA', label: 'Солисты оркестр' },
-  ];
-
+  // ✅ BROWSER HISTORY & BACK HANDLER
   useEffect(() => {
-    if (isEditing) {
-      navigation.setOptions({
-        title: 'Редактировать концерт'
-      });
-    }
-  }, [isEditing, navigation]);
-
-  // ✅ BROWSER HISTORY API
-  useEffect(() => {
-    if (Platform.OS === 'web') {
-      if (showParticipantModal || showProgramModal) {
+    if (showParticipantModal || showProgramModal || showRegionModal) {
+      if (Platform.OS === 'web') {
         window.history.pushState({ modal: true }, '');
       }
+    }
+  }, [showParticipantModal, showProgramModal, showRegionModal]);
 
-      const handlePopState = () => {
-        if (showProgramModal) {
-          setShowProgramModal(false);
-          return;
-        }
-        if (showParticipantModal) {
-          setShowParticipantModal(false);
-          return;
-        }
-      };
+  useEffect(() => {
+    const handlePopState = () => {
+      if (showProgramModal) setShowProgramModal(false);
+      else if (showRegionModal) setShowRegionModal(false);
+      else if (showParticipantModal) setShowParticipantModal(false);
+    };
 
+    if (Platform.OS === 'web') {
       window.addEventListener('popstate', handlePopState);
       return () => window.removeEventListener('popstate', handlePopState);
     }
-  }, [showParticipantModal, showProgramModal]);
+  }, [showParticipantModal, showProgramModal, showRegionModal]);
 
-  // ✅ ESC KEY HANDLER
   useEffect(() => {
-    if (Platform.OS === 'web') {
-      const handleKeyPress = (e) => {
-        if (e.key === 'Escape') {
-          if (showProgramModal) {
-            setShowProgramModal(false);
-          } else if (showParticipantModal) {
-            setShowParticipantModal(false);
-          }
-        }
-      };
-
-      document.addEventListener('keydown', handleKeyPress);
-      return () => document.removeEventListener('keydown', handleKeyPress);
-    }
-  }, [showParticipantModal, showProgramModal]);
-
-  const handleBackPress = () => {
-    if (showParticipantModal) {
-      setShowParticipantModal(false);
-      return;
-    }
-    if (showProgramModal) {
-      setShowProgramModal(false);
-      return;
-    }
-    navigation.goBack();
-  };
-
-  // ✅ TIME PICKER ДЛЯ НАТИВНЫХ ПЛАТФОРМ
-  const handleTimePicker = (type) => {
-    if (Platform.OS !== 'web') {
-      if (type === 'departure') {
-        setShowDepartureTimePicker(true);
-      } else {
-        setShowStartTimePicker(true);
+    const handleKeyDown = (e) => {
+      if (e.key === 'Escape') {
+        if (showProgramModal) setShowProgramModal(false);
+        else if (showRegionModal) setShowRegionModal(false);
+        else if (showParticipantModal) setShowParticipantModal(false);
       }
-    }
-  };
+    };
 
-  const onDepartureTimeChange = (event, selectedDate) => {
-    setShowDepartureTimePicker(false);
+    if (Platform.OS === 'web') {
+      window.addEventListener('keydown', handleKeyDown);
+      return () => window.removeEventListener('keydown', handleKeyDown);
+    }
+  }, [showParticipantModal, showProgramModal, showRegionModal]);
+
+  useEffect(() => {
+    const handleBackPress = () => {
+      if (showProgramModal) {
+        setShowProgramModal(false);
+        return true;
+      }
+      if (showRegionModal) {
+        setShowRegionModal(false);
+        return true;
+      }
+      if (showParticipantModal) {
+        setShowParticipantModal(false);
+        return true;
+      }
+      return false;
+    };
+
+    if (Platform.OS !== 'web') {
+      const backHandler = BackHandler.addEventListener('hardwareBackPress', handleBackPress);
+      return () => backHandler.remove();
+    }
+  }, [showParticipantModal, showProgramModal, showRegionModal]);
+
+  // ✅ DATE/TIME HANDLERS
+  const handleDateChange = (event, selectedDate) => {
+    if (Platform.OS !== 'web') {
+      setShowDatePicker(false);
+    }
     if (selectedDate) {
-      setDepartureDate(selectedDate);
-      const timeString = selectedDate.toTimeString().split(' ')[0].substring(0, 5);
-      setDepartureTime(timeString);
+      setDate(selectedDate.toISOString().split('T')[0]);
     }
   };
 
-  const onStartTimeChange = (event, selectedDate) => {
-    setShowStartTimePicker(false);
-    if (selectedDate) {
-      setStartDate(selectedDate);
-      const timeString = selectedDate.toTimeString().split(' ')[0].substring(0, 5);
-      setStartTime(timeString);
+  const handleDepartureTimeChange = (event, selectedTime) => {
+    if (Platform.OS !== 'web') {
+      setShowDepartureTimePicker(false);
+    }
+    if (selectedTime) {
+      const hours = String(selectedTime.getHours()).padStart(2, '0');
+      const minutes = String(selectedTime.getMinutes()).padStart(2, '0');
+      setDepartureTime(`${hours}:${minutes}`);
     }
   };
 
-  // ФУНКЦИИ ДЛЯ УЧАСТНИКОВ
-  const toggleCategory = (categoryKey) => {
-    setExpandedCategories(prev => ({
-      ...prev,
-      [categoryKey]: !prev[categoryKey]
-    }));
+  const handleStartTimeChange = (event, selectedTime) => {
+    if (Platform.OS !== 'web') {
+      setShowStartTimePicker(false);
+    }
+    if (selectedTime) {
+      const hours = String(selectedTime.getHours()).padStart(2, '0');
+      const minutes = String(selectedTime.getMinutes()).padStart(2, '0');
+      setStartTime(`${hours}:${minutes}`);
+    }
   };
 
-  const openAddParticipant = (categoryKey) => {
-    setSelectedCategory(categoryKey);
-    setNewParticipant('');
-    setShowParticipantModal(true);
-  };
-
+  // ✅ PARTICIPANT HANDLERS
   const addParticipant = () => {
-    if (!newParticipant.trim()) {
-      showAlert('Ошибка', 'Введите ФИО участника');
+    if (!participantName.trim()) {
+      showAlert('Ошибка', 'Введите имя участника');
       return;
     }
+    setParticipants({
+      ...participants,
+      [currentCategory]: [...participants[currentCategory], participantName],
+    });
+    setParticipantName('');
+  };
 
-    if (participants[selectedCategory].includes(newParticipant.trim())) {
-      showAlert('Ошибка', 'Этот участник уже добавлен в эту категорию');
+  const removeParticipant = (category, name) => {
+    setParticipants({
+      ...participants,
+      [category]: participants[category].filter((p) => p !== name),
+    });
+  };
+
+  // ✅ SONG HANDLERS
+  const addSong = () => {
+    if (!songTitle.trim()) {
+      showAlert('Ошибка', 'Введите название песни');
       return;
     }
-
-    setParticipants(prev => ({
-      ...prev,
-      [selectedCategory]: [...prev[selectedCategory], newParticipant.trim()]
-    }));
-
-    setNewParticipant('');
-    setShowParticipantModal(false);
-  };
-
-  const removeParticipant = (categoryKey, index) => {
-    setParticipants(prev => ({
-      ...prev,
-      [categoryKey]: prev[categoryKey].filter((_, i) => i !== index)
-    }));
-  };
-
-  const getTotalParticipantsCount = () => {
-    return Object.values(participants).reduce((sum, arr) => sum + arr.length, 0);
-  };
-
-  // ФУНКЦИИ ДЛЯ КОНЦЕРТНОЙ ПРОГРАММЫ
-  const addOrUpdateSong = () => {
-    if (!newSong.title.trim()) {
-      showAlert('Ошибка', 'Введите название произведения');
-      return;
-    }
-
-    if (editingSongIndex !== null) {
-      const updatedSongs = [...songs];
-      updatedSongs[editingSongIndex] = { ...newSong };
-      setSongs(updatedSongs);
-      setEditingSongIndex(null);
-    } else {
-      setSongs([...songs, { ...newSong }]);
-    }
-
-    setNewSong({ title: '', soloists: '' });
-  };
-
-  const editSong = (index) => {
-    setNewSong({ ...songs[index] });
-    setEditingSongIndex(index);
+    setSongs([...songs, { title: songTitle, soloists: soloists || '' }]);
+    setSongTitle('');
+    setSoloists('');
   };
 
   const removeSong = (index) => {
-    const updatedSongs = songs.filter((_, i) => i !== index);
-    setSongs(updatedSongs);
-    if (editingSongIndex === index) {
-      setEditingSongIndex(null);
-      setNewSong({ title: '', soloists: '' });
-    }
+    setSongs(songs.filter((_, i) => i !== index));
   };
 
-  const clearProgram = () => {
-    setProgramTitle('');
-    setSongs([]);
-    setNewSong({ title: '', soloists: '' });
-    setEditingSongIndex(null);
-  };
-
-  // СОХРАНЕНИЕ КОНЦЕРТА
+  // ✅ SUBMIT
   const handleSubmit = async () => {
-    if (!description.trim() || !address.trim() || !departureTime || !startTime) {
+    if (!description.trim() || !address.trim() || !departureTime || !startTime || !region.trim()) {
       showAlert('Ошибка', 'Пожалуйста, заполните все обязательные поля');
-      return;
-    }
-
-    const timeRegex = /^([01]?[0-9]|2[0-3]):[0-5][0-9]$/;
-    if (!timeRegex.test(departureTime) || !timeRegex.test(startTime)) {
-      showAlert('Ошибка', 'Неверный формат времени. Используйте HH:MM (например, 14:30)');
       return;
     }
 
     try {
       const concertData = {
-        date: isEditing ? concert.date : date,
-        concertType: concertType,
+        date,
+        concertType,
         description: description.trim(),
         address: address.trim(),
-        departureTime: departureTime,
-        startTime: startTime,
-        participants: participants,
-        program: {
-          title: programTitle,
-          songs: songs
-        },
+        region: region.trim(),
+        departureTime,
+        startTime,
+        participants,
+        program: { title: programTitle, songs },
         updatedAt: new Date(),
       };
 
-      let message;
-      
-      if (isEditing && concert) {
+      if (isEditing) {
         await updateDoc(doc(db, 'concerts', concert.id), concertData);
-        message = 'Концерт успешно обновлен';
+        showAlert('Успех', 'Концерт обновлён!', [
+          {
+            text: 'OK',
+            onPress: () => navigation.goBack(),
+          },
+        ]);
       } else {
-        concertData.createdAt = new Date();
-        await addDoc(collection(db, 'concerts'), concertData);
-        message = 'Концерт успешно добавлен';
+        await addDoc(collection(db, 'concerts'), {
+          ...concertData,
+          createdAt: new Date(),
+        });
+        showAlert('Успех', 'Концерт добавлен!', [
+          {
+            text: 'OK',
+            onPress: () => navigation.goBack(),
+          },
+        ]);
       }
-
-      showAlert(
-        'Успех',
-        message,
-        [{ text: 'OK', onPress: () => navigation.goBack() }]
-      );
     } catch (error) {
-      console.error('Ошибка при сохранении концерта:', error);
-      showAlert('Ошибка', 'Не удалось сохранить концерт');
+      showAlert('Ошибка', `Не удалось сохранить концерт: ${error.message}`);
     }
   };
 
-  // ✅ ВЫЧИСЛЯЕМ RESPONSIVE SIZES
-  const responsiveSize = (size) => getResponsiveSize(size, dimensions.width);
-  const responsiveFontSize = (size) => getResponsiveFontSize(size, dimensions.width);
-
-  // ✅ РЕНДЕР TIME INPUT
-  const renderTimeInput = (type, value, placeholder, label) => {
-    if (Platform.OS === 'web') {
-      return (
-        <WebTimePicker
-          value={value}
-          onChange={type === 'departure' ? setDepartureTime : setStartTime}
-          label={label}
-          placeholder={placeholder}
-        />
-      );
-    } else {
-      return (
-        <View style={styles.timeInputCard}>
-          <Text style={[styles.label, { fontSize: responsiveFontSize(14) }]}>{label} *</Text>
-          <TouchableOpacity 
-            style={styles.timeInput}
-            onPress={() => handleTimePicker(type)}
-          >
-            <Ionicons name="time-outline" size={responsiveSize(20)} color="#FFD700" />
-            <Text style={[
-              value ? styles.timeText : styles.timePlaceholder,
-              { fontSize: responsiveFontSize(14) }
-            ]}>
-              {value || placeholder}
-            </Text>
-          </TouchableOpacity>
-        </View>
-      );
-    }
-  };
-
-  const KeyboardAvoidComponent = Platform.OS === 'web' ? View : KeyboardAvoidingView;
-
+  // ✅ RENDER
   return (
-    <LinearGradient
-      colors={['#0a0a0a', '#1a1a1a', '#2a2a2a']}
-      style={styles.container}
-    >
-      <KeyboardAvoidComponent 
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        style={styles.keyboardAvoid}
-      >
-        {/* ХЕДЕР */}
-        <LinearGradient
-          colors={['rgba(26, 26, 26, 0.98)', 'rgba(35, 35, 35, 0.95)']}
-          style={[styles.header, { paddingTop: Platform.OS === 'ios' ? responsiveSize(50) : responsiveSize(30) }]}
-        >
-          <View style={styles.headerContent}>
-            <TouchableOpacity 
-              onPress={handleBackPress}
-              style={styles.backButton}
-            >
-              <LinearGradient
-                colors={['#FFD700', '#FFA500']}
-                style={styles.backButtonGradient}
-              >
-                <Ionicons name="arrow-back" size={responsiveSize(20)} color="#1a1a1a" />
-              </LinearGradient>
-            </TouchableOpacity>
-            
-            <View style={styles.titleContainer}>
-              <Text style={[styles.headerTitle, { fontSize: responsiveFontSize(18) }]}>
-                {isEditing ? 'Редактировать концерт' : 'Добавить концерт'}
-              </Text>
-              <Text style={[styles.headerSubtitle, { fontSize: responsiveFontSize(12) }]}>
-                {isEditing ? 'Обновление информации' : 'Создание нового мероприятия'}
-              </Text>
-            </View>
+    <SafeAreaView style={styles.container}>
+      <StatusBar barStyle="light-content" backgroundColor="#1a1a1a" />
 
-            <View style={styles.headerSpacer} />
-          </View>
+      <ScrollView
+        contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}
+      >
+        {/* ✅ HEADER */}
+        <LinearGradient
+          colors={['#2a2a2a', '#1a1a1a']}
+          style={styles.header}
+        >
+          <TouchableOpacity onPress={() => navigation.goBack()}>
+            <Ionicons name="chevron-back" size={responsiveSize(28)} color="#FFD700" />
+          </TouchableOpacity>
+          <Text style={[styles.headerTitle, { fontSize: responsiveFontSize(20) }]}>
+            {isEditing ? 'Редактировать' : 'Новый концерт'}
+          </Text>
+          <View style={{ width: responsiveSize(28) }} />
         </LinearGradient>
 
-        <ScrollView 
-          showsVerticalScrollIndicator={false} 
-          style={styles.scrollView}
-          contentContainerStyle={styles.scrollContent}
-        >
-          <View style={styles.contentContainer}>
-            {/* КАРТОЧКА С ДАТОЙ */}
-            <View style={styles.dateCard}>
-              <LinearGradient
-                colors={['rgba(255, 215, 0, 0.15)', 'rgba(255, 165, 0, 0.1)']}
-                style={styles.dateGradient}
-              >
-                <View style={styles.dateContent}>
-                  <Ionicons name="calendar" size={responsiveSize(24)} color="#FFD700" />
-                  <View style={styles.dateTextContainer}>
-                    <Text style={[styles.dateLabel, { fontSize: responsiveFontSize(12) }]}>Дата концерта</Text>
-                    <Text style={[styles.dateValue, { fontSize: responsiveFontSize(16) }]}>
-                      {new Date(isEditing ? concert.date : date).toLocaleDateString('ru-RU', {
-                        day: 'numeric',
-                        month: 'long',
-                        year: 'numeric'
-                      })}
-                    </Text>
-                  </View>
-                </View>
-                {isEditing && (
-                  <View style={styles.editingBadge}>
-                    <Text style={[styles.editingBadgeText, { fontSize: responsiveFontSize(10) }]}>РЕДАКТИРОВАНИЕ</Text>
-                  </View>
-                )}
-              </LinearGradient>
-            </View>
-
-            {/* ТИП КОНЦЕРТА */}
-            <View style={styles.section}>
-              <Text style={[styles.sectionTitle, { fontSize: responsiveFontSize(16) }]}>🎵 Тип концерта</Text>
-              <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.typeScroll}>
-                <View style={styles.typeContainer}>
-                  {concertTypes.map((type) => (
-                    <TouchableOpacity
-                      key={type.value}
-                      style={[
-                        styles.typeButton,
-                        concertType === type.value && styles.typeButtonActive
-                      ]}
-                      onPress={() => setConcertType(type.value)}
-                    >
-                      <LinearGradient
-                        colors={concertType === type.value ? 
-                          ['#FFD700', '#FFA500'] : 
-                          ['rgba(42, 42, 42, 0.8)', 'rgba(35, 35, 35, 0.8)']}
-                        style={styles.typeButtonGradient}
-                      >
-                        <Text style={[
-                          styles.typeButtonText,
-                          { fontSize: responsiveFontSize(12) },
-                          concertType === type.value && styles.typeButtonTextActive
-                        ]}>
-                          {type.label}
-                        </Text>
-                      </LinearGradient>
-                    </TouchableOpacity>
-                  ))}
-                </View>
-              </ScrollView>
-            </View>
-
-            {/* ОСНОВНАЯ ИНФОРМАЦИЯ */}
-            <View style={styles.section}>
-              <Text style={[styles.sectionTitle, { fontSize: responsiveFontSize(16) }]}>📝 Основная информация</Text>
-              
-              <View style={styles.inputCard}>
-                <Text style={[styles.label, { fontSize: responsiveFontSize(14) }]}>Описание концерта *</Text>
-                <TextInput
-                  style={[styles.textInput, { fontSize: responsiveFontSize(14) }]}
-                  value={description}
-                  onChangeText={setDescription}
-                  placeholder="Введите описание концерта..."
-                  placeholderTextColor="#666"
-                  multiline
-                  numberOfLines={3}
-                />
-              </View>
-
-              <View style={styles.inputCard}>
-                <Text style={[styles.label, { fontSize: responsiveFontSize(14) }]}>Адрес проведения *</Text>
-                <TextInput
-                  style={[styles.textInput, { fontSize: responsiveFontSize(14) }]}
-                  value={address}
-                  onChangeText={setAddress}
-                  placeholder="Введите адрес..."
-                  placeholderTextColor="#666"
-                />
-              </View>
-            </View>
-
-            {/* ВРЕМЯ */}
-            <View style={styles.section}>
-              <Text style={[styles.sectionTitle, { fontSize: responsiveFontSize(16) }]}>⏰ Время</Text>
-              
-              <View style={styles.timeContainer}>
-                {renderTimeInput('departure', departureTime, '00:00', 'Время выезда')}
-                {renderTimeInput('start', startTime, '00:00', 'Время начала')}
-              </View>
-              
-              <Text style={[styles.timeHint, { fontSize: responsiveFontSize(11) }]}>
-                💡 Формат времени: ЧЧ:ММ (например, 14:30)
+        {/* ✅ DATE CARD */}
+        <View style={styles.inputCard}>
+          <Text style={[styles.label, { fontSize: responsiveFontSize(14) }]}>Дата *</Text>
+          <TouchableOpacity
+            style={styles.dateButton}
+            onPress={() => setShowDatePicker(true)}
+          >
+            <LinearGradient
+              colors={['rgba(255, 215, 0, 0.15)', 'rgba(255, 215, 0, 0.05)']}
+              style={styles.dateButtonGradient}
+            >
+              <Ionicons name="calendar" size={responsiveSize(20)} color="#FFD700" />
+              <Text style={[styles.dateButtonText, { fontSize: responsiveFontSize(14) }]}>
+                {date}
               </Text>
-            </View>
+              {isEditing && (
+                <View style={styles.editingBadge}>
+                  <Text style={styles.editingBadgeText}>Редакт.</Text>
+                </View>
+              )}
+            </LinearGradient>
+          </TouchableOpacity>
+        </View>
 
-            {/* КОНЦЕРТНАЯ ПРОГРАММА */}
-            <View style={styles.section}>
-              <View style={styles.sectionHeader}>
-                <Text style={[styles.sectionTitle, { fontSize: responsiveFontSize(16) }]}>🎼 Концертная программа</Text>
-                <TouchableOpacity 
-                  style={styles.programButton}
-                  onPress={() => setShowProgramModal(true)}
+        {/* ✅ CONCERT TYPE */}
+        <View style={styles.inputCard}>
+          <Text style={[styles.label, { fontSize: responsiveFontSize(14) }]}>
+            Тип концерта *
+          </Text>
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            style={styles.concertTypeScroll}
+          >
+            {CONCERT_TYPE_LIST.map((type) => (
+              <TouchableOpacity
+                key={type.value}
+                style={[
+                  styles.concertTypeButton,
+                  concertType === type.value && styles.concertTypeButtonActive,
+                  { marginRight: responsiveSize(10) },
+                ]}
+                onPress={() => setConcertType(type.value)}
+              >
+                <LinearGradient
+                  colors={
+                    concertType === type.value
+                      ? ['rgba(255, 215, 0, 0.2)', 'rgba(255, 215, 0, 0.1)']
+                      : ['rgba(100, 100, 100, 0.15)', 'rgba(100, 100, 100, 0.05)']
+                  }
+                  style={styles.concertTypeGradient}
                 >
-                  <LinearGradient
-                    colors={['#9B59B6', '#8E44AD']}
-                    style={styles.programButtonGradient}
+                  <Text
+                    style={[
+                      styles.concertTypeText,
+                      { fontSize: responsiveFontSize(12) },
+                      concertType === type.value && styles.concertTypeTextActive,
+                    ]}
                   >
-                    <Ionicons name="musical-notes" size={responsiveSize(16)} color="white" />
-                    <Text style={[styles.programButtonText, { fontSize: responsiveFontSize(12) }]}>
-                      {songs.length > 0 ? `Программа (${songs.length})` : 'Добавить'}
-                    </Text>
+                    {type.label}
+                  </Text>
+                </LinearGradient>
+              </TouchableOpacity>
+            ))}
+          </ScrollView>
+        </View>
+
+        {/* ✅ DESCRIPTION */}
+        <View style={styles.inputCard}>
+          <Text style={[styles.label, { fontSize: responsiveFontSize(14) }]}>
+            Описание *
+          </Text>
+          <TextInput
+            style={[styles.textInput, { fontSize: responsiveFontSize(14) }]}
+            placeholder="Описание концерта..."
+            placeholderTextColor="#666"
+            value={description}
+            onChangeText={setDescription}
+            multiline
+            numberOfLines={3}
+          />
+        </View>
+
+        {/* ✅ ADDRESS */}
+        <View style={styles.inputCard}>
+          <Text style={[styles.label, { fontSize: responsiveFontSize(14) }]}>Адрес *</Text>
+          <TextInput
+            style={[styles.textInput, { fontSize: responsiveFontSize(14) }]}
+            placeholder="Адрес проведения..."
+            placeholderTextColor="#666"
+            value={address}
+            onChangeText={setAddress}
+          />
+        </View>
+
+        {/* ✅ REGION */}
+        <View style={styles.inputCard}>
+          <Text style={[styles.label, { fontSize: responsiveFontSize(14) }]}>
+            Область проведения *
+          </Text>
+          <TouchableOpacity
+            style={styles.regionButton}
+            onPress={() => setShowRegionModal(true)}
+          >
+            <LinearGradient
+              colors={['rgba(52, 199, 89, 0.2)', 'rgba(34, 197, 94, 0.1)']}
+              style={styles.regionButtonGradient}
+            >
+              <Ionicons name="location" size={responsiveSize(20)} color="#34C759" />
+              <Text style={[styles.regionButtonText, { fontSize: responsiveFontSize(14) }]}>
+                {region}
+              </Text>
+              <Ionicons name="chevron-forward" size={responsiveSize(20)} color="#34C759" />
+            </LinearGradient>
+          </TouchableOpacity>
+        </View>
+
+        {/* ✅ TIMES */}
+        <View style={styles.timesRow}>
+          <View style={[styles.inputCard, { flex: 1 }]}>
+            <Text style={[styles.label, { fontSize: responsiveFontSize(14) }]}>
+              Время отправки *
+            </Text>
+            {Platform.OS === 'web' ? (
+              <WebTimePicker value={departureTime} onChange={setDepartureTime} />
+            ) : (
+              <TouchableOpacity
+                style={styles.timeButton}
+                onPress={() => setShowDepartureTimePicker(true)}
+              >
+                <Text style={[styles.timeButtonText, { fontSize: responsiveFontSize(14) }]}>
+                  {departureTime || 'Выберите время'}
+                </Text>
+              </TouchableOpacity>
+            )}
+          </View>
+
+          <View style={[styles.inputCard, { flex: 1, marginLeft: responsiveSize(10) }]}>
+            <Text style={[styles.label, { fontSize: responsiveFontSize(14) }]}>
+              Начало концерта *
+            </Text>
+            {Platform.OS === 'web' ? (
+              <WebTimePicker value={startTime} onChange={setStartTime} />
+            ) : (
+              <TouchableOpacity
+                style={styles.timeButton}
+                onPress={() => setShowStartTimePicker(true)}
+              >
+                <Text style={[styles.timeButtonText, { fontSize: responsiveFontSize(14) }]}>
+                  {startTime || 'Выберите время'}
+                </Text>
+              </TouchableOpacity>
+            )}
+          </View>
+        </View>
+
+        {/* ✅ PARTICIPANTS */}
+        <TouchableOpacity
+          style={styles.sectionButton}
+          onPress={() => setShowParticipantModal(true)}
+        >
+          <LinearGradient colors={['#4A90E2', '#357ABD']} style={styles.sectionButtonGradient}>
+            <Ionicons name="people" size={responsiveSize(20)} color="#FFF" />
+            <Text style={[styles.sectionButtonText, { fontSize: responsiveFontSize(14) }]}>
+              Участники ({Object.values(participants).flat().length})
+            </Text>
+            <Ionicons name="chevron-forward" size={responsiveSize(20)} color="#FFF" />
+          </LinearGradient>
+        </TouchableOpacity>
+
+        {/* ✅ PROGRAM */}
+        <TouchableOpacity
+          style={styles.sectionButton}
+          onPress={() => setShowProgramModal(true)}
+        >
+          <LinearGradient colors={['#FF6B6B', '#EE5A52']} style={styles.sectionButtonGradient}>
+            <Ionicons name="musical-notes" size={responsiveSize(20)} color="#FFF" />
+            <Text style={[styles.sectionButtonText, { fontSize: responsiveFontSize(14) }]}>
+              Программа ({songs.length})
+            </Text>
+            <Ionicons name="chevron-forward" size={responsiveSize(20)} color="#FFF" />
+          </LinearGradient>
+        </TouchableOpacity>
+
+        {/* ✅ SUBMIT BUTTON */}
+        <TouchableOpacity style={styles.submitButton} onPress={handleSubmit}>
+          <LinearGradient
+            colors={['#34C759', '#30B350']}
+            style={styles.submitButtonGradient}
+          >
+            <Ionicons name="checkmark-done" size={responsiveSize(20)} color="#FFF" />
+            <Text style={[styles.submitButtonText, { fontSize: responsiveFontSize(16) }]}>
+              {isEditing ? 'Обновить' : 'Создать'} концерт
+            </Text>
+          </LinearGradient>
+        </TouchableOpacity>
+
+        <View style={{ height: responsiveSize(30) }} />
+      </ScrollView>
+
+      {/* ✅ DATE PICKER MODAL */}
+      {Platform.OS !== 'web' && showDatePicker && (
+        <DateTimePicker
+          value={new Date(date)}
+          mode="date"
+          display="spinner"
+          onChange={handleDateChange}
+        />
+      )}
+
+      {/* ✅ DEPARTURE TIME PICKER MODAL */}
+      {Platform.OS !== 'web' && showDepartureTimePicker && (
+        <DateTimePicker
+          value={
+            departureTime
+              ? new Date(`2024-01-01T${departureTime}:00`)
+              : new Date()
+          }
+          mode="time"
+          display="spinner"
+          onChange={handleDepartureTimeChange}
+        />
+      )}
+
+      {/* ✅ START TIME PICKER MODAL */}
+      {Platform.OS !== 'web' && showStartTimePicker && (
+        <DateTimePicker
+          value={
+            startTime
+              ? new Date(`2024-01-01T${startTime}:00`)
+              : new Date()
+          }
+          mode="time"
+          display="spinner"
+          onChange={handleStartTimeChange}
+        />
+      )}
+
+      {/* ✅ PARTICIPANT MODAL */}
+      <Modal
+        visible={showParticipantModal}
+        transparent={true}
+        animationType="slide"
+        onRequestClose={() => setShowParticipantModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <TouchableOpacity
+            style={styles.modalBackdrop}
+            activeOpacity={1}
+            onPress={() => setShowParticipantModal(false)}
+          />
+          <View style={styles.modalContent}>
+            <LinearGradient
+              colors={['rgba(26, 26, 26, 0.98)', 'rgba(35, 35, 35, 0.95)']}
+              style={styles.modalGradient}
+            >
+              <View style={styles.modalHeader}>
+                <Text style={[styles.modalTitle, { fontSize: responsiveFontSize(18) }]}>
+                  Участники
+                </Text>
+                <TouchableOpacity
+                  onPress={() => setShowParticipantModal(false)}
+                  style={styles.modalClose}
+                >
+                  <Ionicons name="close-circle" size={responsiveSize(28)} color="#4A90E2" />
+                </TouchableOpacity>
+              </View>
+
+              <ScrollView style={styles.categoryTabs} horizontal showsHorizontalScrollIndicator={false}>
+                {PARTICIPANT_CATEGORIES.map((cat) => (
+                  <TouchableOpacity
+                    key={cat.id}
+                    style={[
+                      styles.categoryTab,
+                      currentCategory === cat.id && styles.categoryTabActive,
+                    ]}
+                    onPress={() => setCurrentCategory(cat.id)}
+                  >
+                    <LinearGradient
+                      colors={
+                        currentCategory === cat.id
+                          ? [cat.color, cat.color]
+                          : ['rgba(100, 100, 100, 0.2)', 'rgba(100, 100, 100, 0.1)']
+                      }
+                      style={styles.categoryTabGradient}
+                    >
+                      <Text
+                        style={[
+                          styles.categoryTabText,
+                          { fontSize: responsiveFontSize(12) },
+                          currentCategory === cat.id && { color: '#FFF' },
+                        ]}
+                      >
+                        {cat.label}
+                      </Text>
+                    </LinearGradient>
+                  </TouchableOpacity>
+                ))}
+              </ScrollView>
+
+              <View style={styles.participantInputGroup}>
+                <TextInput
+                  style={[styles.textInput, { flex: 1, fontSize: responsiveFontSize(14) }]}
+                  placeholder="Имя участника..."
+                  placeholderTextColor="#666"
+                  value={participantName}
+                  onChangeText={setParticipantName}
+                />
+                <TouchableOpacity
+                  style={styles.addButton}
+                  onPress={addParticipant}
+                >
+                  <LinearGradient colors={['#34C759', '#30B350']} style={styles.addButtonGradient}>
+                    <Ionicons name="add" size={responsiveSize(20)} color="#FFF" />
                   </LinearGradient>
                 </TouchableOpacity>
               </View>
-              
-              {songs.length > 0 && (
-                <View style={styles.programPreview}>
-                  <Text style={[styles.programPreviewText, { fontSize: responsiveFontSize(13) }]}>
-                    {songs.length} произведений в программе
-                  </Text>
-                </View>
-              )}
-            </View>
 
-            {/* УЧАСТНИКИ ПО КАТЕГОРИЯМ */}
-            <View style={styles.section}>
-              <View style={styles.sectionHeader}>
-                <Text style={[styles.sectionTitle, { fontSize: responsiveFontSize(16) }]}>
-                  👥 Участники ({getTotalParticipantsCount()})
+              <ScrollView style={styles.participantList} showsVerticalScrollIndicator={false}>
+                {participants[currentCategory]?.map((name, idx) => (
+                  <View key={idx} style={styles.participantItem}>
+                    <LinearGradient
+                      colors={[
+                        PARTICIPANT_CATEGORIES.find((c) => c.id === currentCategory)?.color || '#FFF',
+                        'rgba(255, 255, 255, 0.1)',
+                      ]}
+                      style={styles.participantItemGradient}
+                    >
+                      <Text
+                        style={[
+                          styles.participantItemText,
+                          { fontSize: responsiveFontSize(14) },
+                        ]}
+                      >
+                        {name}
+                      </Text>
+                      <TouchableOpacity
+                        onPress={() => removeParticipant(currentCategory, name)}
+                      >
+                        <Ionicons name="trash" size={responsiveSize(18)} color="#FF6B6B" />
+                      </TouchableOpacity>
+                    </LinearGradient>
+                  </View>
+                ))}
+              </ScrollView>
+            </LinearGradient>
+          </View>
+        </View>
+      </Modal>
+
+      {/* ✅ PROGRAM MODAL */}
+      <Modal
+        visible={showProgramModal}
+        transparent={true}
+        animationType="slide"
+        onRequestClose={() => setShowProgramModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <TouchableOpacity
+            style={styles.modalBackdrop}
+            activeOpacity={1}
+            onPress={() => setShowProgramModal(false)}
+          />
+          <View style={styles.modalContent}>
+            <LinearGradient
+              colors={['rgba(26, 26, 26, 0.98)', 'rgba(35, 35, 35, 0.95)']}
+              style={styles.modalGradient}
+            >
+              <View style={styles.modalHeader}>
+                <Text style={[styles.modalTitle, { fontSize: responsiveFontSize(18) }]}>
+                  Программа концерта
                 </Text>
+                <TouchableOpacity
+                  onPress={() => setShowProgramModal(false)}
+                  style={styles.modalClose}
+                >
+                  <Ionicons name="close-circle" size={responsiveSize(28)} color="#FF6B6B" />
+                </TouchableOpacity>
               </View>
 
-              {PARTICIPANT_CATEGORIES.map((category) => (
-                <View key={category.key} style={styles.categoryCard}>
-                  <TouchableOpacity 
-                    style={styles.categoryHeader}
-                    onPress={() => toggleCategory(category.key)}
-                  >
-                    <LinearGradient
-                      colors={expandedCategories[category.key] ? 
-                        [`${category.color}40`, `${category.color}20`] : 
-                        ['rgba(42, 42, 42, 0.6)', 'rgba(35, 35, 35, 0.6)']}
-                      style={styles.categoryHeaderGradient}
-                    >
-                      <View style={styles.categoryTitleContainer}>
-                        <Ionicons 
-                          name={category.icon} 
-                          size={responsiveSize(20)} 
-                          color={category.color} 
-                        />
-                        <View style={styles.categoryTitleTextContainer}>
-                          <Text style={[styles.categoryTitle, { fontSize: responsiveFontSize(14) }]}>{category.label}</Text>
-                          <Text style={[styles.categoryCount, { fontSize: responsiveFontSize(11) }]}>
-                            {participants[category.key].length} участников
-                          </Text>
-                        </View>
-                      </View>
-                      
-                      <View style={styles.categoryActions}>
-                        <TouchableOpacity 
-                          style={styles.addCategoryButton}
-                          onPress={(e) => {
-                            e.stopPropagation();
-                            openAddParticipant(category.key);
-                          }}
-                        >
-                          <Ionicons name="add-circle" size={responsiveSize(24)} color={category.color} />
-                        </TouchableOpacity>
-                        <Ionicons 
-                          name={expandedCategories[category.key] ? 'chevron-up' : 'chevron-down'} 
-                          size={responsiveSize(20)} 
-                          color="#999" 
-                        />
-                      </View>
-                    </LinearGradient>
-                  </TouchableOpacity>
+              <TextInput
+                style={[styles.textInput, { fontSize: responsiveFontSize(14), marginBottom: responsiveSize(15) }]}
+                placeholder="Название программы..."
+                placeholderTextColor="#666"
+                value={programTitle}
+                onChangeText={setProgramTitle}
+              />
 
-                  {expandedCategories[category.key] && (
-                    <View style={styles.categoryContent}>
-                      {participants[category.key].length === 0 ? (
-                        <View style={styles.categoryEmptyState}>
-                          <Ionicons name="people-outline" size={responsiveSize(24)} color="#555" />
-                          <Text style={[styles.categoryEmptyText, { fontSize: responsiveFontSize(12) }]}>
-                            Участники не добавлены
-                          </Text>
-                        </View>
-                      ) : (
-                        <View style={styles.participantsList}>
-                          {participants[category.key].map((participant, index) => (
-                            <View key={index} style={styles.participantItem}>
-                              <LinearGradient
-                                colors={[`${category.color}20`, `${category.color}10`]}
-                                style={styles.participantItemGradient}
-                              >
-                                <View style={styles.participantInfo}>
-                                  <Text style={[styles.participantNumber, { fontSize: responsiveFontSize(12) }]}>
-                                    {index + 1}.
-                                  </Text>
-                                  <Text style={[styles.participantName, { fontSize: responsiveFontSize(13) }]}>
-                                    {participant}
-                                  </Text>
-                                </View>
-                                <TouchableOpacity 
-                                  onPress={() => removeParticipant(category.key, index)}
-                                  style={styles.removeParticipantButton}
-                                >
-                                  <Ionicons name="close-circle" size={responsiveSize(20)} color="#FF6B6B" />
-                                </TouchableOpacity>
-                              </LinearGradient>
-                            </View>
-                          ))}
-                        </View>
-                      )}
-                    </View>
-                  )}
-                </View>
-              ))}
-            </View>
-
-            {/* КНОПКА СОХРАНЕНИЯ */}
-            <TouchableOpacity 
-              style={styles.submitButton}
-              onPress={handleSubmit}
-            >
-              <LinearGradient
-                colors={['#FFD700', '#FFA500']}
-                style={styles.submitGradient}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 1 }}
-              >
-                <Ionicons name="save-outline" size={responsiveSize(20)} color="#1a1a1a" />
-                <Text style={[styles.submitText, { fontSize: responsiveFontSize(16) }]}>
-                  {isEditing ? 'Обновить концерт' : 'Сохранить концерт'}
-                </Text>
-              </LinearGradient>
-            </TouchableOpacity>
-          </View>
-        </ScrollView>
-
-        {/* ✅ МОДАЛЬНОЕ ОКНО УЧАСТНИКОВ */}
-        <Modal
-          visible={showParticipantModal}
-          transparent={true}
-          animationType="slide"
-          onRequestClose={() => setShowParticipantModal(false)}
-        >
-          <View style={styles.modalOverlay}>
-            <TouchableOpacity 
-              style={styles.modalBackdrop}
-              activeOpacity={1}
-              onPress={() => setShowParticipantModal(false)}
-            />
-            <View style={styles.modalContent}>
-              <LinearGradient
-                colors={['rgba(26, 26, 26, 0.98)', 'rgba(35, 35, 35, 0.95)']}
-                style={styles.modalContentGradient}
-              >
-                <View style={styles.modalHeader}>
-                  <Text style={[styles.modalTitle, { fontSize: responsiveFontSize(18) }]}>
-                    Добавить участника
-                    {selectedCategory && (
-                      <Text style={[styles.modalSubtitle, { fontSize: responsiveFontSize(13) }]}>
-                        {'\n'}
-                        {PARTICIPANT_CATEGORIES.find(c => c.key === selectedCategory)?.label}
-                      </Text>
-                    )}
-                  </Text>
-                  <TouchableOpacity 
-                    onPress={() => setShowParticipantModal(false)}
-                    style={styles.modalCloseButton}
-                  >
-                    <Ionicons name="close-circle" size={responsiveSize(28)} color="#FFD700" />
-                  </TouchableOpacity>
-                </View>
-                
+              <View style={styles.participantInputGroup}>
                 <TextInput
-                  style={[styles.modalInput, { fontSize: responsiveFontSize(14) }]}
-                  value={newParticipant}
-                  onChangeText={setNewParticipant}
-                  placeholder="ФИО участника"
+                  style={[styles.textInput, { flex: 1, fontSize: responsiveFontSize(14) }]}
+                  placeholder="Название песни..."
                   placeholderTextColor="#666"
-                  autoFocus={Platform.OS !== 'web'}
-                  onSubmitEditing={addParticipant}
-                  returnKeyType="done"
+                  value={songTitle}
+                  onChangeText={setSongTitle}
                 />
+                <TouchableOpacity style={styles.addButton} onPress={addSong}>
+                  <LinearGradient colors={['#FF6B6B', '#EE5A52']} style={styles.addButtonGradient}>
+                    <Ionicons name="add" size={responsiveSize(20)} color="#FFF" />
+                  </LinearGradient>
+                </TouchableOpacity>
+              </View>
 
-                <View style={styles.modalButtons}>
-                  <TouchableOpacity 
-                    style={styles.cancelButton}
-                    onPress={() => setShowParticipantModal(false)}
-                  >
-                    <Text style={[styles.cancelButtonText, { fontSize: responsiveFontSize(14) }]}>Отмена</Text>
-                  </TouchableOpacity>
-                  
-                  <TouchableOpacity 
-                    style={styles.confirmButton}
-                    onPress={addParticipant}
+              <TextInput
+                style={[styles.textInput, { fontSize: responsiveFontSize(14) }]}
+                placeholder="Солисты (опционально)..."
+                placeholderTextColor="#666"
+                value={soloists}
+                onChangeText={setSoloists}
+              />
+
+              <ScrollView style={styles.songList} showsVerticalScrollIndicator={false}>
+                {songs.map((song, idx) => (
+                  <View key={idx} style={styles.songItem}>
+                    <LinearGradient
+                      colors={['rgba(255, 107, 107, 0.2)', 'rgba(238, 90, 82, 0.1)']}
+                      style={styles.songItemGradient}
+                    >
+                      <View style={{ flex: 1 }}>
+                        <Text
+                          style={[
+                            styles.songTitle,
+                            { fontSize: responsiveFontSize(14) },
+                          ]}
+                        >
+                          {song.title}
+                        </Text>
+                        {song.soloists && (
+                          <Text
+                            style={[
+                              styles.songSoloists,
+                              { fontSize: responsiveFontSize(12) },
+                            ]}
+                          >
+                            {song.soloists}
+                          </Text>
+                        )}
+                      </View>
+                      <TouchableOpacity onPress={() => removeSong(idx)}>
+                        <Ionicons name="trash" size={responsiveSize(18)} color="#FF6B6B" />
+                      </TouchableOpacity>
+                    </LinearGradient>
+                  </View>
+                ))}
+              </ScrollView>
+            </LinearGradient>
+          </View>
+        </View>
+      </Modal>
+
+      {/* ✅ REGION MODAL */}
+      <Modal
+        visible={showRegionModal}
+        transparent={true}
+        animationType="slide"
+        onRequestClose={() => setShowRegionModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <TouchableOpacity
+            style={styles.modalBackdrop}
+            activeOpacity={1}
+            onPress={() => setShowRegionModal(false)}
+          />
+          <View style={styles.regionModalContent}>
+            <LinearGradient
+              colors={['rgba(26, 26, 26, 0.98)', 'rgba(35, 35, 35, 0.95)']}
+              style={styles.regionModalGradient}
+            >
+              <View style={styles.regionModalHeader}>
+                <Text style={[styles.regionModalTitle, { fontSize: responsiveFontSize(18) }]}>
+                  Выберите область
+                </Text>
+                <TouchableOpacity
+                  onPress={() => setShowRegionModal(false)}
+                  style={styles.regionModalClose}
+                >
+                  <Ionicons name="close-circle" size={responsiveSize(28)} color="#34C759" />
+                </TouchableOpacity>
+              </View>
+
+              <TextInput
+                style={[styles.regionSearch, { fontSize: responsiveFontSize(14) }]}
+                placeholder="Поиск области..."
+                placeholderTextColor="#666"
+                value={regionSearch}
+                onChangeText={setRegionSearch}
+              />
+
+              <ScrollView style={styles.regionList} showsVerticalScrollIndicator={false}>
+                {filteredRegions.map((r, idx) => (
+                  <TouchableOpacity
+                    key={idx}
+                    style={[styles.regionOption, region === r && styles.regionOptionActive]}
+                    onPress={() => {
+                      setRegion(r);
+                      setShowRegionModal(false);
+                      setRegionSearch('');
+                    }}
                   >
                     <LinearGradient
-                      colors={selectedCategory ? [
-                        PARTICIPANT_CATEGORIES.find(c => c.key === selectedCategory)?.color || '#4A90E2',
-                        PARTICIPANT_CATEGORIES.find(c => c.key === selectedCategory)?.color || '#357ABD'
-                      ] : ['#4A90E2', '#357ABD']}
-                      style={styles.confirmButtonGradient}
+                      colors={
+                        region === r
+                          ? ['rgba(52, 199, 89, 0.2)', 'rgba(34, 197, 94, 0.1)']
+                          : ['transparent', 'transparent']
+                      }
+                      style={styles.regionOptionGradient}
                     >
-                      <Text style={[styles.confirmButtonText, { fontSize: responsiveFontSize(14) }]}>Добавить</Text>
+                      <Ionicons
+                        name={region === r ? 'checkmark-circle' : 'ellipse-outline'}
+                        size={responsiveSize(20)}
+                        color={region === r ? '#34C759' : '#666'}
+                      />
+                      <Text
+                        style={[
+                          styles.regionOptionText,
+                          { fontSize: responsiveFontSize(14) },
+                          region === r && styles.regionOptionTextActive,
+                        ]}
+                      >
+                        {r}
+                      </Text>
                     </LinearGradient>
                   </TouchableOpacity>
-                </View>
-              </LinearGradient>
-            </View>
+                ))}
+              </ScrollView>
+            </LinearGradient>
           </View>
-        </Modal>
+        </View>
+      </Modal>
 
-        {/* ✅ МОДАЛЬНОЕ ОКНО ПРОГРАММЫ */}
-        <Modal
-          visible={showProgramModal}
-          transparent={true}
-          animationType="slide"
-          onRequestClose={() => setShowProgramModal(false)}
-        >
-          <View style={styles.modalOverlay}>
-            <TouchableOpacity 
-              style={styles.modalBackdrop}
-              activeOpacity={1}
-              onPress={() => setShowProgramModal(false)}
-            />
-            <View style={styles.programModalContent}>
-              <LinearGradient
-                colors={['rgba(26, 26, 26, 0.98)', 'rgba(35, 35, 35, 0.95)']}
-                style={styles.programModalGradient}
-              >
-                <View style={styles.programModalHeader}>
-                  <View style={styles.programTitleContainer}>
-                    <Ionicons name="musical-notes" size={responsiveSize(24)} color="#FFD700" />
-                    <Text style={[styles.programModalTitle, { fontSize: responsiveFontSize(18) }]}>
-                      Концертная программа
-                    </Text>
-                  </View>
-                  <TouchableOpacity 
-                    onPress={() => setShowProgramModal(false)}
-                    style={styles.programModalClose}
-                  >
-                    <Ionicons name="close-circle" size={responsiveSize(28)} color="#FFD700" />
-                  </TouchableOpacity>
-                </View>
-
-                <ScrollView style={styles.programScroll}>
-                  <View style={styles.inputCard}>
-                    <Text style={[styles.label, { fontSize: responsiveFontSize(14) }]}>Название программы</Text>
-                    <TextInput
-                      style={[styles.textInput, { fontSize: responsiveFontSize(14) }]}
-                      value={programTitle}
-                      onChangeText={setProgramTitle}
-                      placeholder="Введите название программы..."
-                      placeholderTextColor="#666"
-                    />
-                  </View>
-
-                  <View style={styles.songFormCard}>
-                    <Text style={[styles.sectionTitle, { fontSize: responsiveFontSize(16) }]}>
-                      {editingSongIndex !== null ? '✏️ Редактировать произведение' : '🎵 Добавить произведение'}
-                    </Text>
-                    
-                    <TextInput
-                      style={[styles.textInput, { fontSize: responsiveFontSize(14) }]}
-                      value={newSong.title}
-                      onChangeText={(text) => setNewSong({...newSong, title: text})}
-                      placeholder="Название произведения *"
-                      placeholderTextColor="#666"
-                    />
-                    
-                    <TextInput
-                      style={[styles.textInput, { fontSize: responsiveFontSize(14) }]}
-                      value={newSong.soloists}
-                      onChangeText={(text) => setNewSong({...newSong, soloists: text})}
-                      placeholder="Солисты (через запятую)"
-                      placeholderTextColor="#666"
-                    />
-                    
-                    <View style={styles.songFormButtons}>
-                      {editingSongIndex !== null && (
-                        <TouchableOpacity 
-                          style={styles.cancelEditButton}
-                          onPress={() => {
-                            setNewSong({ title: '', soloists: '' });
-                            setEditingSongIndex(null);
-                          }}
-                        >
-                          <Text style={[styles.cancelEditText, { fontSize: responsiveFontSize(12) }]}>Отмена</Text>
-                        </TouchableOpacity>
-                      )}
-                      <TouchableOpacity 
-                        style={styles.addSongButton}
-                        onPress={addOrUpdateSong}
-                      >
-                        <LinearGradient
-                          colors={['#9B59B6', '#8E44AD']}
-                          style={styles.addSongGradient}
-                        >
-                          <Text style={[styles.addSongText, { fontSize: responsiveFontSize(12) }]}>
-                            {editingSongIndex !== null ? 'Обновить' : 'Добавить'}
-                          </Text>
-                        </LinearGradient>
-                      </TouchableOpacity>
-                    </View>
-                  </View>
-
-                  <View style={styles.songsSection}>
-                    <Text style={[styles.sectionTitle, { fontSize: responsiveFontSize(16) }]}>
-                      📋 Список произведений {songs.length > 0 && `(${songs.length})`}
-                    </Text>
-                    
-                    {songs.length === 0 ? (
-                      <View style={styles.emptyState}>
-                        <Ionicons name="musical-notes" size={responsiveSize(40)} color="#555" />
-                        <Text style={[styles.emptyStateText, { fontSize: responsiveFontSize(14) }]}>
-                          Произведения не добавлены
-                        </Text>
-                      </View>
-                    ) : (
-                      <View style={styles.songsList}>
-                        {songs.map((song, index) => (
-                          <View key={index} style={styles.songItem}>
-                            <LinearGradient
-                              colors={['rgba(155, 89, 182, 0.2)', 'rgba(142, 68, 173, 0.2)']}
-                              style={styles.songItemGradient}
-                            >
-                              <View style={styles.songContent}>
-                                <Text style={[styles.songNumber, { fontSize: responsiveFontSize(12) }]}>
-                                  {index + 1}.
-                                </Text>
-                                <View style={styles.songDetails}>
-                                  <Text style={[styles.songTitle, { fontSize: responsiveFontSize(13) }]}>
-                                    {song.title}
-                                  </Text>
-                                  {song.soloists && (
-                                    <Text style={[styles.songSoloists, { fontSize: responsiveFontSize(11) }]}>
-                                      Солисты: {song.soloists}
-                                    </Text>
-                                  )}
-                                </View>
-                              </View>
-                              <View style={styles.songActions}>
-                                <TouchableOpacity 
-                                  onPress={() => editSong(index)}
-                                  style={styles.songActionButton}
-                                >
-                                  <Ionicons name="create-outline" size={responsiveSize(18)} color="#FFD700" />
-                                </TouchableOpacity>
-                                <TouchableOpacity 
-                                  onPress={() => removeSong(index)}
-                                  style={styles.songActionButton}
-                                >
-                                  <Ionicons name="trash-outline" size={responsiveSize(18)} color="#FF6B6B" />
-                                </TouchableOpacity>
-                              </View>
-                            </LinearGradient>
-                          </View>
-                        ))}
-                      </View>
-                    )}
-
-                    {songs.length > 0 && (
-                      <TouchableOpacity 
-                        style={styles.clearProgramButton}
-                        onPress={clearProgram}
-                      >
-                        <LinearGradient
-                          colors={['#FF6B6B', '#EE5A52']}
-                          style={styles.clearProgramGradient}
-                        >
-                          <Text style={[styles.clearProgramText, { fontSize: responsiveFontSize(14) }]}>
-                            Очистить программу
-                          </Text>
-                        </LinearGradient>
-                      </TouchableOpacity>
-                    )}
-                  </View>
-                </ScrollView>
-              </LinearGradient>
-            </View>
-          </View>
-        </Modal>
-
-        {/* Time Pickers для нативных платформ */}
-        {Platform.OS !== 'web' && showDepartureTimePicker && (
-          <DateTimePicker
-            value={departureDate}
-            mode="time"
-            is24Hour={true}
-            onChange={onDepartureTimeChange}
-          />
-        )}
-
-        {Platform.OS !== 'web' && showStartTimePicker && (
-          <DateTimePicker
-            value={startDate}
-            mode="time"
-            is24Hour={true}
-            onChange={onStartTimeChange}
-          />
-        )}
-
-        {/* ✅ CUSTOM ALERT COMPONENT */}
-        <CustomAlert
-          visible={alertConfig.visible}
-          title={alertConfig.title}
-          message={alertConfig.message}
-          buttons={alertConfig.buttons}
-          onClose={closeAlert}
-        />
-      </KeyboardAvoidComponent>
-    </LinearGradient>
+      {/* ✅ CUSTOM ALERT */}
+      <CustomAlert
+        visible={alertVisible}
+        title={alertConfig.title}
+        message={alertConfig.message}
+        buttons={alertConfig.buttons}
+        onDismiss={() => setAlertVisible(false)}
+      />
+    </SafeAreaView>
   );
 }
 
-// ✅ СТИЛИ
+// ✅ STYLES
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-  },
-  keyboardAvoid: {
-    flex: 1,
-  },
-  scrollView: {
-    flex: 1,
+    backgroundColor: '#1a1a1a',
   },
   scrollContent: {
-    flexGrow: 1,
+    paddingHorizontal: 15,
+    paddingTop: 10,
+    paddingBottom: 20,
   },
   header: {
-    paddingHorizontal: 20,
-    paddingBottom: 20,
-    borderBottomLeftRadius: 25,
-    borderBottomRightRadius: 25,
-    shadowColor: '#FFD700',
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.3,
-    shadowRadius: 16,
-    elevation: 12,
-  },
-  headerContent: {
     flexDirection: 'row',
-    alignItems: 'center',
     justifyContent: 'space-between',
-  },
-  backButton: {
-    borderRadius: 20,
-    overflow: 'hidden',
-  },
-  backButtonGradient: {
-    width: 44,
-    height: 44,
-    justifyContent: 'center',
     alignItems: 'center',
-    borderRadius: 20,
-  },
-  titleContainer: {
-    flex: 1,
-    alignItems: 'center',
+    paddingHorizontal: 15,
+    paddingVertical: 15,
+    marginHorizontal: -15,
+    marginTop: -10,
+    marginBottom: 20,
   },
   headerTitle: {
-    fontWeight: '800',
     color: '#E0E0E0',
-    textAlign: 'center',
-  },
-  headerSubtitle: {
-    color: '#999',
-    marginTop: 4,
-    textAlign: 'center',
-  },
-  headerSpacer: {
-    width: 44,
-  },
-  contentContainer: {
-    padding: 20,
-    paddingBottom: 40,
-  },
-  dateCard: {
-    marginBottom: 25,
-  },
-  dateGradient: {
-    borderRadius: 16,
-    padding: 20,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    borderWidth: 1,
-    borderColor: 'rgba(255, 215, 0, 0.3)',
-  },
-  dateContent: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  dateTextContainer: {
-    marginLeft: 12,
-  },
-  dateLabel: {
-    color: '#999',
-    fontWeight: '600',
-  },
-  dateValue: {
-    color: '#E0E0E0',
-    fontWeight: '700',
-    marginTop: 2,
-  },
-  editingBadge: {
-    backgroundColor: 'rgba(255, 107, 107, 0.2)',
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: 'rgba(255, 107, 107, 0.4)',
-  },
-  editingBadgeText: {
-    color: '#FF6B6B',
-    fontWeight: '800',
-  },
-  section: {
-    marginBottom: 25,
-  },
-  sectionHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 15,
-  },
-  sectionTitle: {
-    fontWeight: '700',
-    color: '#E0E0E0',
-  },
-  typeScroll: {
-    marginHorizontal: -5,
-  },
-  typeContainer: {
-    flexDirection: 'row',
-    paddingHorizontal: 5,
-  },
-  typeButton: {
-    borderRadius: 20,
-    overflow: 'hidden',
-    marginHorizontal: 5,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.3,
-    shadowRadius: 4,
-    elevation: 3,
-  },
-  typeButtonGradient: {
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    borderRadius: 20,
-  },
-  typeButtonText: {
-    color: '#999',
-    fontWeight: '600',
-  },
-  typeButtonTextActive: {
-    color: '#1a1a1a',
     fontWeight: '700',
   },
   inputCard: {
     marginBottom: 15,
   },
   label: {
-    fontWeight: '600',
     color: '#E0E0E0',
+    fontWeight: '600',
     marginBottom: 8,
+  },
+  dateButton: {
+    borderRadius: 12,
+    overflow: 'hidden',
+  },
+  dateButtonGradient: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 15,
+    paddingVertical: 12,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 215, 0, 0.3)',
+  },
+  dateButtonText: {
+    color: '#E0E0E0',
+    fontWeight: '600',
+    flex: 1,
+    marginHorizontal: 10,
+  },
+  editingBadge: {
+    backgroundColor: 'rgba(255, 215, 0, 0.3)',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 6,
+  },
+  editingBadgeText: {
+    color: '#FFD700',
+    fontSize: 10,
+    fontWeight: '700',
+  },
+  concertTypeScroll: {
+    marginBottom: 5,
+  },
+  concertTypeButton: {
+    borderRadius: 12,
+    overflow: 'hidden',
+  },
+  concertTypeButtonActive: {},
+  concertTypeGradient: {
+    paddingHorizontal: 15,
+    paddingVertical: 10,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: 'rgba(100, 100, 100, 0.3)',
+  },
+  concertTypeText: {
+    color: '#999',
+    fontWeight: '500',
+  },
+  concertTypeTextActive: {
+    color: '#FFD700',
+    fontWeight: '700',
   },
   textInput: {
     backgroundColor: 'rgba(42, 42, 42, 0.8)',
@@ -1260,214 +1066,92 @@ const styles = StyleSheet.create({
     color: '#E0E0E0',
     borderWidth: 1,
     borderColor: 'rgba(255, 255, 255, 0.1)',
-    textAlignVertical: 'top',
   },
-  timeContainer: {
-    flexDirection: Platform.OS === 'web' ? 'column' : 'row',
-    justifyContent: 'space-between',
+  regionButton: {
+    borderRadius: 12,
+    overflow: 'hidden',
   },
-  timeInputCard: {
-    flex: 1,
-    marginHorizontal: 5,
-    marginBottom: Platform.OS === 'web' ? 15 : 0,
-  },
-  webTimeContainer: {
+  regionButtonGradient: {
     flexDirection: 'row',
     alignItems: 'center',
+    paddingHorizontal: 15,
+    paddingVertical: 12,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: 'rgba(52, 199, 89, 0.3)',
   },
-  timeInputWrapper: {
+  regionButtonText: {
+    color: '#E0E0E0',
+    fontWeight: '600',
+    flex: 1,
+    marginHorizontal: 10,
+  },
+  timesRow: {
+    flexDirection: 'row',
+    marginBottom: 15,
+  },
+  timeButton: {
     backgroundColor: 'rgba(42, 42, 42, 0.8)',
     borderRadius: 12,
     paddingHorizontal: 15,
     paddingVertical: 12,
     borderWidth: 1,
     borderColor: 'rgba(255, 255, 255, 0.1)',
-    flexDirection: 'row',
-    alignItems: 'center',
-    flex: 1,
   },
   timeInput: {
     backgroundColor: 'rgba(42, 42, 42, 0.8)',
     borderRadius: 12,
     paddingHorizontal: 15,
     paddingVertical: 12,
+    color: '#E0E0E0',
     borderWidth: 1,
     borderColor: 'rgba(255, 255, 255, 0.1)',
-    flexDirection: 'row',
-    alignItems: 'center',
+    fontSize: 14,
   },
-  timeText: {
+  timeButtonText: {
     color: '#E0E0E0',
-    marginLeft: 10,
-    fontWeight: '500',
+    fontWeight: '600',
   },
-  timePlaceholder: {
-    color: '#666',
-    marginLeft: 10,
-  },
-  timeHint: {
-    color: '#999',
-    marginTop: 8,
-    textAlign: 'center',
-    fontStyle: 'italic',
-  },
-  programButton: {
-    borderRadius: 20,
+  sectionButton: {
+    borderRadius: 12,
     overflow: 'hidden',
+    marginBottom: 15,
   },
-  programButtonGradient: {
+  sectionButtonGradient: {
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 15,
-    paddingVertical: 8,
-    borderRadius: 20,
+    paddingVertical: 12,
+    borderRadius: 12,
   },
-  programButtonText: {
-    color: 'white',
+  sectionButtonText: {
+    color: '#FFF',
     fontWeight: '600',
-    marginLeft: 6,
-  },
-  programPreview: {
-    backgroundColor: 'rgba(155, 89, 182, 0.1)',
-    padding: 12,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: 'rgba(155, 89, 182, 0.3)',
-  },
-  programPreviewText: {
-    color: '#9B59B6',
-    fontWeight: '500',
-    textAlign: 'center',
-  },
-  categoryCard: {
-    marginBottom: 12,
-    borderRadius: 12,
-    overflow: 'hidden',
-  },
-  categoryHeader: {
-    borderRadius: 12,
-    overflow: 'hidden',
-  },
-  categoryHeaderGradient: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    padding: 16,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.1)',
-  },
-  categoryTitleContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
     flex: 1,
-  },
-  categoryTitleTextContainer: {
-    marginLeft: 12,
-  },
-  categoryTitle: {
-    fontWeight: '700',
-    color: '#E0E0E0',
-  },
-  categoryCount: {
-    color: '#999',
-    marginTop: 2,
-  },
-  categoryActions: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  addCategoryButton: {
-    padding: 5,
-    marginRight: 10,
-  },
-  categoryContent: {
-    paddingHorizontal: 16,
-    paddingBottom: 16,
-    backgroundColor: 'rgba(20, 20, 20, 0.5)',
-  },
-  categoryEmptyState: {
-    alignItems: 'center',
-    paddingVertical: 20,
-  },
-  categoryEmptyText: {
-    color: '#666',
-    marginTop: 8,
-  },
-  participantsList: {
-    paddingTop: 8,
-  },
-  participantItem: {
-    marginBottom: 8,
-    borderRadius: 8,
-    overflow: 'hidden',
-  },
-  participantItemGradient: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    padding: 10,
-    borderRadius: 8,
-  },
-  participantInfo: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    flex: 1,
-  },
-  participantNumber: {
-    color: '#999',
-    fontWeight: '600',
-    marginRight: 8,
-  },
-  participantName: {
-    color: '#E0E0E0',
-    fontWeight: '500',
-  },
-  removeParticipantButton: {
-    padding: 5,
-  },
-  emptyState: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 30,
-  },
-  emptyStateText: {
-    color: '#666',
-    marginTop: 8,
-    textAlign: 'center',
+    marginHorizontal: 10,
   },
   submitButton: {
-    marginTop: 10,
-    marginBottom: 30,
-    borderRadius: 15,
+    borderRadius: 12,
     overflow: 'hidden',
-    shadowColor: '#FFD700',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.4,
-    shadowRadius: 8,
-    elevation: 6,
+    marginTop: 10,
   },
-  submitGradient: {
+  submitButtonGradient: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 16,
     paddingHorizontal: 20,
-    borderRadius: 15,
+    paddingVertical: 15,
+    borderRadius: 12,
   },
-  submitText: {
-    color: '#1a1a1a',
+  submitButtonText: {
+    color: '#FFF',
     fontWeight: '700',
-    marginLeft: 8,
+    marginLeft: 10,
   },
-  
-  // ✅ МОДАЛЬНЫЕ ОКНА
   modalOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.85)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 20,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'flex-end',
   },
   modalBackdrop: {
     position: 'absolute',
@@ -1478,182 +1162,102 @@ const styles = StyleSheet.create({
   },
   modalContent: {
     borderRadius: 25,
-    width: '100%',
-    maxWidth: 400,
+    margin: 20,
+    flex: 1,
     borderWidth: 1,
-    borderColor: 'rgba(255, 215, 0, 0.3)',
+    borderColor: 'rgba(100, 100, 100, 0.3)',
+    maxHeight: Platform.OS === 'web' ? '85vh' : '85%',
   },
-  modalContentGradient: {
+  modalGradient: {
     borderRadius: 25,
-    padding: 25,
+    padding: 20,
+    flex: 1,
   },
   modalHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'flex-start',
-    marginBottom: 20,
-  },
-  modalTitle: {
-    fontWeight: '700',
-    color: '#E0E0E0',
-    flex: 1,
-  },
-  modalSubtitle: {
-    color: '#FFD700',
-    fontWeight: '600',
-  },
-  modalCloseButton: {
-    padding: 5,
-  },
-  modalInput: {
-    backgroundColor: 'rgba(42, 42, 42, 0.8)',
-    borderRadius: 12,
-    paddingHorizontal: 15,
-    paddingVertical: 12,
-    color: '#E0E0E0',
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.1)',
-    marginBottom: 20,
-  },
-  modalButtons: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-  },
-  cancelButton: {
-    flex: 1,
-    paddingVertical: 12,
-    borderRadius: 12,
     alignItems: 'center',
-    marginRight: 10,
-    backgroundColor: 'rgba(42, 42, 42, 0.8)',
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.1)',
-  },
-  cancelButtonText: {
-    color: '#E0E0E0',
-    fontWeight: '600',
-  },
-  confirmButton: {
-    flex: 1,
-    borderRadius: 12,
-    overflow: 'hidden',
-  },
-  confirmButtonGradient: {
-    paddingVertical: 12,
-    alignItems: 'center',
-    borderRadius: 12,
-  },
-  confirmButtonText: {
-    color: 'white',
-    fontWeight: '600',
-  },
-  programModalContent: {
-    borderRadius: 25,
-    margin: 20,
-    flex: 1,
-    borderWidth: 1,
-    borderColor: 'rgba(255, 215, 0, 0.3)',
-    maxHeight: Platform.OS === 'web' ? '85vh' : '85%',
-  },
-  programModalGradient: {
-    borderRadius: 25,
-    padding: 25,
-    flex: 1,
-  },
-  programModalHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 20,
+    marginBottom: 15,
     paddingBottom: 15,
     borderBottomWidth: 1,
     borderBottomColor: 'rgba(255, 255, 255, 0.1)',
   },
-  programTitleContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  programModalTitle: {
+  modalTitle: {
     fontWeight: '700',
     color: '#E0E0E0',
-    marginLeft: 10,
   },
-  programModalClose: {
+  modalClose: {
     padding: 5,
   },
-  programScroll: {
+  categoryTabs: {
+    marginBottom: 15,
+  },
+  categoryTab: {
+    marginRight: 10,
+    borderRadius: 10,
+    overflow: 'hidden',
+  },
+  categoryTabGradient: {
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 10,
+  },
+  categoryTabText: {
+    color: '#999',
+    fontWeight: '500',
+  },
+  participantInputGroup: {
+    flexDirection: 'row',
+    marginBottom: 15,
+    gap: 10,
+  },
+  addButton: {
+    borderRadius: 12,
+    overflow: 'hidden',
+    width: 50,
+  },
+  addButtonGradient: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 15,
+    paddingVertical: 12,
+    borderRadius: 12,
+  },
+  participantList: {
     flex: 1,
   },
-  songFormCard: {
-    backgroundColor: 'rgba(42, 42, 42, 0.6)',
+  participantItem: {
+    marginBottom: 10,
     borderRadius: 12,
-    padding: 15,
-    marginBottom: 20,
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.1)',
+    overflow: 'hidden',
   },
-  songFormButtons: {
+  participantItemGradient: {
     flexDirection: 'row',
-    justifyContent: 'flex-end',
-    marginTop: 10,
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 15,
+    paddingVertical: 12,
+    borderRadius: 12,
   },
-  cancelEditButton: {
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 8,
-    marginRight: 10,
-    backgroundColor: 'rgba(42, 42, 42, 0.8)',
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.1)',
-  },
-  cancelEditText: {
+  participantItemText: {
     color: '#E0E0E0',
     fontWeight: '500',
   },
-  addSongButton: {
-    borderRadius: 8,
-    overflow: 'hidden',
-  },
-  addSongGradient: {
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 8,
-  },
-  addSongText: {
-    color: 'white',
-    fontWeight: '600',
-  },
-  songsSection: {
-    marginBottom: 20,
-  },
-  songsList: {
-    marginBottom: 20,
+  songList: {
+    flex: 1,
   },
   songItem: {
-    marginBottom: 8,
+    marginBottom: 10,
     borderRadius: 12,
     overflow: 'hidden',
   },
   songItemGradient: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
-    padding: 12,
+    justifyContent: 'space-between',
+    paddingHorizontal: 15,
+    paddingVertical: 12,
     borderRadius: 12,
-  },
-  songContent: {
-    flexDirection: 'row',
-    flex: 1,
-    alignItems: 'flex-start',
-  },
-  songNumber: {
-    color: '#9B59B6',
-    fontWeight: 'bold',
-    marginRight: 8,
-    marginTop: 2,
-  },
-  songDetails: {
-    flex: 1,
   },
   songTitle: {
     color: '#E0E0E0',
@@ -1664,87 +1268,120 @@ const styles = StyleSheet.create({
     color: '#999',
     fontStyle: 'italic',
   },
-  songActions: {
+  regionModalContent: {
+    borderRadius: 25,
+    margin: 20,
+    flex: 1,
+    borderWidth: 1,
+    borderColor: 'rgba(52, 199, 89, 0.3)',
+    maxHeight: Platform.OS === 'web' ? '85vh' : '85%',
+  },
+  regionModalGradient: {
+    borderRadius: 25,
+    padding: 25,
+    flex: 1,
+  },
+  regionModalHeader: {
     flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 20,
+    paddingBottom: 15,
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(255, 255, 255, 0.1)',
   },
-  songActionButton: {
+  regionModalTitle: {
+    fontWeight: '700',
+    color: '#E0E0E0',
+  },
+  regionModalClose: {
     padding: 5,
-    marginLeft: 8,
   },
-  clearProgramButton: {
+  regionSearch: {
+    backgroundColor: 'rgba(42, 42, 42, 0.8)',
+    borderRadius: 12,
+    paddingHorizontal: 15,
+    paddingVertical: 12,
+    color: '#E0E0E0',
+    borderWidth: 1,
+    borderColor: 'rgba(52, 199, 89, 0.3)',
+    marginBottom: 15,
+  },
+  regionList: {
+    flex: 1,
+  },
+  regionOption: {
+    marginBottom: 8,
     borderRadius: 12,
     overflow: 'hidden',
-    marginTop: 10,
   },
-  clearProgramGradient: {
-    paddingVertical: 12,
+  regionOptionGradient: {
+    flexDirection: 'row',
     alignItems: 'center',
+    paddingHorizontal: 15,
+    paddingVertical: 12,
     borderRadius: 12,
+    borderWidth: 1,
+    borderColor: 'rgba(52, 199, 89, 0.2)',
   },
-  clearProgramText: {
-    color: 'white',
-    fontWeight: '600',
+  regionOptionActive: {},
+  regionOptionText: {
+    color: '#E0E0E0',
+    marginLeft: 12,
+    fontWeight: '500',
   },
-
-  // ✅ CUSTOM ALERT STYLES
-  customAlertOverlay: {
+  regionOptionTextActive: {
+    color: '#34C759',
+    fontWeight: '700',
+  },
+  alertOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.85)',
+    backgroundColor: 'rgba(0, 0, 0, 0.6)',
     justifyContent: 'center',
     alignItems: 'center',
     padding: 20,
   },
-  customAlertContainer: {
-    width: '100%',
-    maxWidth: 350,
+  alertContent: {
+    borderRadius: 20,
+    overflow: 'hidden',
+    minWidth: '80%',
+    maxWidth: 400,
   },
-  customAlertGradient: {
-    borderRadius: 25,
+  alertGradient: {
+    borderRadius: 20,
     padding: 25,
-    shadowColor: '#FFD700',
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.3,
-    shadowRadius: 12,
-    elevation: 8,
-    borderWidth: 1,
-    borderColor: 'rgba(255, 215, 0, 0.3)',
   },
-  customAlertTitle: {
-    fontSize: 20,
-    fontWeight: '800',
+  alertTitle: {
     color: '#E0E0E0',
-    marginBottom: 12,
-    textAlign: 'center',
+    fontSize: 18,
+    fontWeight: '700',
+    marginBottom: 10,
   },
-  customAlertMessage: {
-    fontSize: 14,
+  alertMessage: {
     color: '#999',
+    fontSize: 14,
     marginBottom: 20,
-    textAlign: 'center',
     lineHeight: 20,
   },
-  customAlertButtons: {
+  alertButtonsContainer: {
     flexDirection: 'row',
     gap: 10,
   },
-  customAlertButton: {
+  alertButton: {
     flex: 1,
     borderRadius: 12,
     overflow: 'hidden',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.3,
-    shadowRadius: 5,
-    elevation: 3,
   },
-  customAlertButtonGradient: {
+  alertButtonGradient: {
+    paddingHorizontal: 20,
     paddingVertical: 12,
     alignItems: 'center',
     justifyContent: 'center',
+    borderRadius: 12,
   },
-  customAlertButtonText: {
+  alertButtonText: {
+    color: '#FFF',
+    fontWeight: '700',
     fontSize: 14,
-    fontWeight: '600',
-    color: 'white',
   },
 });

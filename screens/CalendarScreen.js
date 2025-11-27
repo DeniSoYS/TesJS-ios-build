@@ -17,6 +17,7 @@ import {
 } from 'react-native';
 import { Calendar, LocaleConfig } from 'react-native-calendars';
 import { auth, db } from '../firebaseConfig';
+import { calculateStatistics, getColorByRegion, getCurrentMonthName, getCurrentQuarterText, getLast4MonthsText } from '../utils/statisticsUtils'; // ✅ ИМПОРТ УТИЛИТ
 
 // ✅ ФУНКЦИЯ КОНВЕРТАЦИИ ТИПОВ
 const toRussianType = (englishType) => {
@@ -156,12 +157,67 @@ LocaleConfig.locales['ru'] = {
 };
 LocaleConfig.defaultLocale = 'ru';
 
+// ✅ КОМПОНЕНТ ПРОГРЕСС-БАР
+const ProgressBar = ({ voronezh, other, voronejPercentage, otherPercentage, responsiveFontSize }) => {
+  const total = voronezh + other;
+  
+  return (
+    <View style={styles.progressContainer}>
+      <View style={styles.progressLabels}>
+        <View style={styles.progressLabel}>
+          <View style={styles.voronejDot} />
+          <Text style={[styles.progressLabelText, { fontSize: responsiveFontSize(11) }]}>
+            Воронежская: {voronezh} ({voronejPercentage}%)
+          </Text>
+        </View>
+        <View style={styles.progressLabel}>
+          <View style={styles.otherDot} />
+          <Text style={[styles.progressLabelText, { fontSize: responsiveFontSize(11) }]}>
+            Другие: {other} ({otherPercentage}%)
+          </Text>
+        </View>
+      </View>
+      
+      {total > 0 ? (
+        <View style={styles.progressBarBackground}>
+          <LinearGradient
+            colors={['#4A90E2', '#357ABD']}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 0 }}
+            style={[styles.progressBarFill, { width: `${voronejPercentage}%` }]}
+          />
+          <LinearGradient
+            colors={['#34C759', '#28A745']}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 0 }}
+            style={[styles.progressBarFill, { width: `${otherPercentage}%` }]}
+          />
+        </View>
+      ) : (
+        <View style={styles.progressBarEmpty}>
+          <Text style={[styles.progressEmptyText, { fontSize: responsiveFontSize(12) }]}>
+            Нет данных
+          </Text>
+        </View>
+      )}
+    </View>
+  );
+};
+
 export default function CalendarScreen({ navigation, route }) {
   const dimensions = useWindowDimensions();
   const userEmail = route.params?.email || 'Пользователь';
   const userRole = route.params?.role || 'user';
   
   const [refreshing, setRefreshing] = useState(false);
+  
+  // ✅ STATE ДЛЯ СТАТИСТИКИ
+  const [statistics, setStatistics] = useState({
+    monthly: { voronezh: 0, other: 0, total: 0 },
+    quarterly: { voronezh: 0, other: 0, total: 0 },
+    last4Months: { voronezh: 0, other: 0, total: 0 },
+  });
+  const [activeStatTab, setActiveStatTab] = useState('monthly'); // monthly, quarterly, last4months
   
   const getTodayDate = () => {
     const now = new Date();
@@ -229,7 +285,6 @@ export default function CalendarScreen({ navigation, route }) {
     let pulseAnimation;
     
     if (Platform.OS === 'web') {
-      // Для web - остановка анимации при неактивной вкладке
       const handleVisibilityChange = () => {
         if (document.hidden) {
           pulseAnimation && pulseAnimation.stop();
@@ -264,7 +319,6 @@ export default function CalendarScreen({ navigation, route }) {
         pulseAnimation && pulseAnimation.stop();
       };
     } else {
-      // Для нативных платформ
       pulseAnimation = Animated.loop(
         Animated.sequence([
           Animated.timing(pulseAnim, {
@@ -303,7 +357,6 @@ export default function CalendarScreen({ navigation, route }) {
   // ✅ BROWSER HISTORY API ДЛЯ BACK BUTTON
   useEffect(() => {
     if (Platform.OS === 'web') {
-      // Добавляем состояние в history при открытии модалки
       if (modalVisible || eventTypeModalVisible || logoutModalVisible) {
         window.history.pushState({ modal: true }, '');
       }
@@ -376,6 +429,10 @@ export default function CalendarScreen({ navigation, route }) {
       tours: toursThisMonth.length,
       moves: movesThisMonth.length
     });
+    
+    // ✅ ОБНОВЛЯЕМ СТАТИСТИКУ ПО РЕГИОНАМ
+    const newStats = calculateStatistics(concertsData);
+    setStatistics(newStats);
   };
 
   const loadAllData = async () => {
@@ -525,14 +582,17 @@ export default function CalendarScreen({ navigation, route }) {
       },
     };
 
+    // ✅ РАСКРАСКА ПО РЕГИОНАМ
     concertsData.forEach(concert => {
+      const eventColor = getColorByRegion(concert.region); // ✅ ИСПОЛЬЗУЕМ УТИЛИТУ
+      
       if (concert.date === today) {
         newMarkedDates[concert.date] = {
           ...newMarkedDates[concert.date],
           marked: true,
           dots: [{
             key: 'concert',
-            color: '#FFD700',
+            color: eventColor,
             selectedDotColor: '#1a1a1a'
           }]
         };
@@ -541,7 +601,7 @@ export default function CalendarScreen({ navigation, route }) {
           marked: true,
           dots: [{
             key: 'concert',
-            color: '#FFD700',
+            color: eventColor,
             selectedDotColor: '#1a1a1a'
           }],
           customStyles: {
@@ -844,12 +904,6 @@ export default function CalendarScreen({ navigation, route }) {
     return `${parseInt(day)} ${months[parseInt(month) - 1]} ${year}`;
   };
 
-  const getCurrentMonthName = () => {
-    const months = ['Январь', 'Февраль', 'Март', 'Апрель', 'Май', 'Июнь', 
-                   'Июль', 'Август', 'Сентябрь', 'Октябрь', 'Ноябрь', 'Декабрь'];
-    return months[currentMonth.month - 1];
-  };
-
   const getQuickActions = () => {
     const actions = [
       { 
@@ -921,6 +975,33 @@ export default function CalendarScreen({ navigation, route }) {
   // ✅ ВЫЧИСЛЯЕМ RESPONSIVE SIZES С АКТУАЛЬНЫМИ РАЗМЕРАМИ
   const responsiveSize = (size) => getResponsiveSize(size, dimensions.width);
   const responsiveFontSize = (size) => getResponsiveFontSize(size, dimensions.width);
+
+  // ✅ ПОЛУЧАЕМ ТЕКУЩИЕ ДАННЫЕ СТАТИСТИКИ
+  const getStatTitle = () => {
+    switch(activeStatTab) {
+      case 'quarterly':
+        return getCurrentQuarterText();
+      case 'last4months':
+        return getLast4MonthsText();
+      default:
+        return `${getCurrentMonthName()} ${currentMonth.year}`;
+    }
+  };
+
+  const getStatData = () => {
+    switch(activeStatTab) {
+      case 'quarterly':
+        return statistics.quarterly;
+      case 'last4months':
+        return statistics.last4Months;
+      default:
+        return statistics.monthly;
+    }
+  };
+
+  const currentStatData = getStatData();
+  const statVoronejPercent = currentStatData.total > 0 ? Math.round((currentStatData.voronezh / currentStatData.total) * 100) : 0;
+  const statOtherPercent = currentStatData.total > 0 ? Math.round((currentStatData.other / currentStatData.total) * 100) : 0;
 
   return (
     <View style={styles.container}>
@@ -1018,14 +1099,80 @@ export default function CalendarScreen({ navigation, route }) {
                 </View>
               </View>
 
-              {/* СТАТИСТИКА */}
+              {/* ✅ СТАТИСТИКА ПО МЕСЯЦАМ/КВАРТАЛАМ */}
               <View style={styles.statsContainer}>
                 <View style={styles.monthStatsHeader}>
                   <Text style={[styles.monthStatsTitle, { fontSize: responsiveFontSize(14) }]}>
-                    Статистика за {getCurrentMonthName()} {currentMonth.year}
+                    Статистика по регионам
                   </Text>
                 </View>
                 
+                {/* ✅ ТАБЫ СТАТИСТИКИ */}
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.statTabsScroll}>
+                  <TouchableOpacity 
+                    style={[
+                      styles.statTab,
+                      activeStatTab === 'monthly' && styles.statTabActive
+                    ]}
+                    onPress={() => setActiveStatTab('monthly')}
+                  >
+                    <Text style={[
+                      styles.statTabText,
+                      { fontSize: responsiveFontSize(12) },
+                      activeStatTab === 'monthly' && styles.statTabTextActive
+                    ]}>
+                      Месяц
+                    </Text>
+                  </TouchableOpacity>
+
+                  <TouchableOpacity 
+                    style={[
+                      styles.statTab,
+                      activeStatTab === 'quarterly' && styles.statTabActive
+                    ]}
+                    onPress={() => setActiveStatTab('quarterly')}
+                  >
+                    <Text style={[
+                      styles.statTabText,
+                      { fontSize: responsiveFontSize(12) },
+                      activeStatTab === 'quarterly' && styles.statTabTextActive
+                    ]}>
+                      Квартал
+                    </Text>
+                  </TouchableOpacity>
+
+                  <TouchableOpacity 
+                    style={[
+                      styles.statTab,
+                      activeStatTab === 'last4months' && styles.statTabActive
+                    ]}
+                    onPress={() => setActiveStatTab('last4months')}
+                  >
+                    <Text style={[
+                      styles.statTabText,
+                      { fontSize: responsiveFontSize(12) },
+                      activeStatTab === 'last4months' && styles.statTabTextActive
+                    ]}>
+                      4 месяца
+                    </Text>
+                  </TouchableOpacity>
+                </ScrollView>
+
+                {/* ✅ НАЗВАНИЕ ПЕРИОДА */}
+                <Text style={[styles.statPeriodText, { fontSize: responsiveFontSize(13), marginTop: 12, marginBottom: 12 }]}>
+                  {getStatTitle()}
+                </Text>
+
+                {/* ✅ ПРОГРЕСС-БАР */}
+                <ProgressBar 
+                  voronezh={currentStatData.voronezh}
+                  other={currentStatData.other}
+                  voronejPercentage={statVoronejPercent}
+                  otherPercentage={statOtherPercent}
+                  responsiveFontSize={responsiveFontSize}
+                />
+                
+                {/* ✅ СТАТИСТИКА МЕСЯЦА */}
                 <View style={styles.statsRow}>
                   <View style={styles.statCard}>
                     <View style={styles.statIconWrapper}>
@@ -1264,7 +1411,7 @@ export default function CalendarScreen({ navigation, route }) {
           </View>
         </ScrollView>
 
-        {/* ✅ МОДАЛЬНОЕ ОКНО СОБЫТИЙ (БЕЗ BLURVIEW) */}
+        {/* ✅ МОДАЛЬНОЕ ОКНО СОБЫТИЙ */}
         <Modal
           animationType="fade"
           transparent={true}
@@ -1445,6 +1592,12 @@ export default function CalendarScreen({ navigation, route }) {
                               <Text style={[styles.concertDescription, { fontSize: responsiveFontSize(14) }]}>{concert.description}</Text>
                               <Text style={[styles.concertAddress, { fontSize: responsiveFontSize(13) }]}>{concert.address}</Text>
                               
+                              {concert.region && (
+                                <Text style={[styles.concertRegion, { fontSize: responsiveFontSize(12) }]}>
+                                  📍 {concert.region}
+                                </Text>
+                              )}
+                              
                               {(concert.program || concert.participants) && (
                                 <View style={styles.concertInfo}>
                                   {concert.program && concert.program.songs && concert.program.songs.length > 0 && (
@@ -1456,11 +1609,11 @@ export default function CalendarScreen({ navigation, route }) {
                                     </View>
                                   )}
                                   
-                                  {concert.participants && concert.participants.length > 0 && (
+                                  {concert.participants && Object.values(concert.participants).flat().length > 0 && (
                                     <View style={styles.infoItem}>
                                       <Ionicons name="people" size={responsiveSize(14)} color="#FFD700" />
                                       <Text style={[styles.infoText, { fontSize: responsiveFontSize(12) }]}>
-                                        Участники: {concert.participants.length} человек
+                                        Участники: {Object.values(concert.participants).flat().length} человек
                                       </Text>
                                     </View>
                                   )}
@@ -1510,7 +1663,7 @@ export default function CalendarScreen({ navigation, route }) {
           </View>
         </Modal>
 
-        {/* ✅ МОДАЛЬНОЕ ОКНО ВЫБОРА ТИПА СОБЫТИЯ (БЕЗ BLURVIEW) */}
+        {/* ✅ МОДАЛЬНОЕ ОКНО ВЫБОРА ТИПА СОБЫТИЯ */}
         <Modal
           animationType="fade"
           transparent={true}
@@ -1605,7 +1758,7 @@ export default function CalendarScreen({ navigation, route }) {
           </View>
         </Modal>
 
-        {/* ✅ МОДАЛЬНОЕ ОКНО ВЫХОДА (БЕЗ BLURVIEW) */}
+        {/* ✅ МОДАЛЬНОЕ ОКНО ВЫХОДА */}
         <Modal
           animationType="fade"
           transparent={true}
@@ -1687,7 +1840,7 @@ export default function CalendarScreen({ navigation, route }) {
   );
 }
 
-// ✅ СТИЛИ (БАЗОВЫЕ РАЗМЕРЫ, БЕЗ ДИНАМИЧЕСКИХ)
+// ✅ СТИЛИ
 const styles = StyleSheet.create({
   container: {
     flex: 1,
@@ -1911,6 +2064,97 @@ const styles = StyleSheet.create({
     color: '#FFD700',
     textAlign: 'center',
     letterSpacing: 0.3,
+  },
+
+  // ✅ ТАБЫ СТАТИСТИКИ
+  statTabsScroll: {
+    marginBottom: 12,
+    marginHorizontal: -5,
+    paddingHorizontal: 5,
+  },
+  statTab: {
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 12,
+    backgroundColor: 'rgba(42, 42, 42, 0.5)',
+    marginHorizontal: 5,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 215, 0, 0.15)',
+  },
+  statTabActive: {
+    backgroundColor: 'rgba(255, 215, 0, 0.3)',
+    borderColor: 'rgba(255, 215, 0, 0.5)',
+  },
+  statTabText: {
+    color: '#888',
+    fontWeight: '600',
+  },
+  statTabTextActive: {
+    color: '#FFD700',
+  },
+
+  // ✅ ТЕКСТ ПЕРИОДА
+  statPeriodText: {
+    color: '#999',
+    textAlign: 'center',
+    fontWeight: '500',
+  },
+
+  // ✅ ПРОГРЕСС-БАР
+  progressContainer: {
+    marginBottom: 16,
+  },
+  progressLabels: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 8,
+  },
+  progressLabel: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  voronejDot: {
+    width: 12,
+    height: 12,
+    borderRadius: 6,
+    backgroundColor: '#4A90E2',
+    marginRight: 6,
+  },
+  otherDot: {
+    width: 12,
+    height: 12,
+    borderRadius: 6,
+    backgroundColor: '#34C759',
+    marginRight: 6,
+  },
+  progressLabelText: {
+    color: '#999',
+    fontWeight: '500',
+  },
+  progressBarBackground: {
+    height: 12,
+    borderRadius: 6,
+    backgroundColor: 'rgba(42, 42, 42, 0.8)',
+    overflow: 'hidden',
+    flexDirection: 'row',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 215, 0, 0.2)',
+  },
+  progressBarFill: {
+    height: '100%',
+  },
+  progressBarEmpty: {
+    height: 12,
+    borderRadius: 6,
+    backgroundColor: 'rgba(42, 42, 42, 0.8)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 215, 0, 0.2)',
+  },
+  progressEmptyText: {
+    color: '#666',
+    fontWeight: '500',
   },
   
   statsRow: {
@@ -2167,7 +2411,7 @@ const styles = StyleSheet.create({
     lineHeight: 14,
   },
 
-  // ✅ МОДАЛЬНЫЕ ОКНА (БЕЗ BLURVIEW)
+  // ✅ МОДАЛЬНЫЕ ОКНА
   modalOverlay: {
     flex: 1,
     backgroundColor: 'rgba(0, 0, 0, 0.85)',
@@ -2278,6 +2522,11 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     color: '#FFD700',
     flex: 1,
+  },
+  concertRegion: {
+    color: '#34C759',
+    fontWeight: '500',
+    marginBottom: 8,
   },
   deleteButton: {
     padding: 6,

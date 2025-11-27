@@ -29,13 +29,14 @@ export const CONCERT_TYPE_LABELS = {
   'Конкурс': 'Конкурс',
 };
 
+// ✅ ИСПРАВЛЕНО: key → value
 export const CONCERT_TYPE_LIST = [
-  { key: CONCERT_TYPES.GENERAL, label: 'Общий концерт' },
-  { key: CONCERT_TYPES.BRIGADE_1, label: 'Первая бригада' },
-  { key: CONCERT_TYPES.BRIGADE_2, label: 'Вторая бригада' },
-  { key: CONCERT_TYPES.BRIGADE_ENHANCED, label: 'Концерт усиленной бригады' },
-  { key: CONCERT_TYPES.SOLOISTS_ORCHESTRA, label: 'Солисты оркестр' },
-  { key: CONCERT_TYPES.UNKNOWN, label: 'Неизвестно' },
+  { value: CONCERT_TYPES.GENERAL, label: 'Общий концерт' },
+  { value: CONCERT_TYPES.BRIGADE_1, label: 'Первая бригада' },
+  { value: CONCERT_TYPES.BRIGADE_2, label: 'Вторая бригада' },
+  { value: CONCERT_TYPES.BRIGADE_ENHANCED, label: 'Концерт усиленной бригады' },
+  { value: CONCERT_TYPES.SOLOISTS_ORCHESTRA, label: 'Солисты оркестр' },
+  { value: CONCERT_TYPES.UNKNOWN, label: 'Неизвестно' },
 ];
 
 /**
