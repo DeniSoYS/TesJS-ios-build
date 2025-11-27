@@ -349,6 +349,12 @@ export default function CalendarScreen({ navigation, route }) {
   useEffect(() => {
     loadAllData();
   }, []);
+  useEffect(() => {
+  if (route?.params?.refresh || route?.params?.updatedConcertId) {
+    console.log('🔄 Перезагружаем данные после обновления концерта...');
+    loadAllData();
+  }
+}, [route?.params?.refresh, route?.params?.updatedConcertId]);
 
   useEffect(() => {
     updateMarkedDates(concerts, tours, moves);

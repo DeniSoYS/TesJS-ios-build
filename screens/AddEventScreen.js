@@ -17,6 +17,7 @@ import {
   TouchableOpacity,
   View
 } from 'react-native';
+import { db } from '../firebaseConfig';
 import { CONCERT_TYPE_LIST } from '../utils/concertTypes'; // ✅ ИМПОРТ УТИЛИТЫ
 
 // ✅ РЕГИОНЫ
@@ -174,7 +175,7 @@ const WebTimePicker = ({ value, onChange }) => {
 };
 
 // ✅ MAIN COMPONENT
-export default function AddEventScreen({ route, navigation, db }) {
+export default function AddEventScreen({ route, navigation}) {
   const dimensions = useWindowDimensions();
   const responsiveSize = (size) => getResponsiveSize(size, dimensions.width);
   const responsiveFontSize = (size) => getResponsiveFontSize(size, dimensions.width);
@@ -362,50 +363,53 @@ export default function AddEventScreen({ route, navigation, db }) {
   };
 
   // ✅ SUBMIT
-  const handleSubmit = async () => {
-    if (!description.trim() || !address.trim() || !departureTime || !startTime || !region.trim()) {
-      showAlert('Ошибка', 'Пожалуйста, заполните все обязательные поля');
-      return;
-    }
+const handleSubmit = async () => {
+  if (!description.trim() || !address.trim() || !departureTime || !startTime || !region.trim()) {
+    showAlert('Ошибка', 'Пожалуйста, заполните все обязательные поля');
+    return;
+  }
 
-    try {
-      const concertData = {
-        date,
-        concertType,
-        description: description.trim(),
-        address: address.trim(),
-        region: region.trim(),
-        departureTime,
-        startTime,
-        participants,
-        program: { title: programTitle, songs },
-        updatedAt: new Date(),
-      };
+  try {
+    const concertData = {
+      date,
+      concertType,
+      description: description.trim(),
+      address: address.trim(),
+      region: region.trim(),
+      departureTime,
+      startTime,
+      participants,
+      program: { title: programTitle, songs },
+      updatedAt: new Date(),
+    };
 
-      if (isEditing) {
-        await updateDoc(doc(db, 'concerts', concert.id), concertData);
-        showAlert('Успех', 'Концерт обновлён!', [
-          {
-            text: 'OK',
-            onPress: () => navigation.goBack(),
-          },
-        ]);
-      } else {
-        await addDoc(collection(db, 'concerts'), {
-          ...concertData,
-          createdAt: new Date(),
-        });
-        showAlert('Успех', 'Концерт добавлен!', [
-          {
-            text: 'OK',
-            onPress: () => navigation.goBack(),
-          },
-        ]);
-      }
-    } catch (error) {
-      showAlert('Ошибка', `Не удалось сохранить концерт: ${error.message}`);
+    if (isEditing) {
+      await updateDoc(doc(db, 'concerts', concert.id), concertData);
+      showAlert('Успех', 'Концерт обновлён!', [
+        {
+          text: 'OK',
+          onPress: () => navigation.navigate('Calendar', {  // ✅ ИЗМЕНИ ЗДЕСЬ
+            refresh: true,
+            updatedConcertId: concert.id
+          }),
+        },
+      ]);
+    } else {
+      await addDoc(collection(db, 'concerts'), {
+        ...concertData,
+        createdAt: new Date(),
+      });
+      showAlert('Успех', 'Концерт добавлен!', [
+        {
+          text: 'OK',
+          onPress: () => navigation.goBack(),
+        },
+      ]);
     }
-  };
+  } catch (error) {
+    showAlert('Ошибка', `Не удалось сохранить концерт: ${error.message}`);
+  }
+};
 
   // ✅ RENDER
   return (
