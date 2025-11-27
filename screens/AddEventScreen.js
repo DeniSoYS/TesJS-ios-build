@@ -17,25 +17,10 @@ import {
   TouchableOpacity,
   View
 } from 'react-native';
+import RegionSelector from '../components/RegionSelector'; // ✅ ИМПОРТ КОМПОНЕНТА ВЫБОРА РЕГИОНА
 import { db } from '../firebaseConfig';
-import { CONCERT_TYPE_LIST } from '../utils/concertTypes'; // ✅ ИМПОРТ УТИЛИТЫ
-
-// ✅ РЕГИОНЫ
-const REGIONS = [
-  'Воронежская область',
-  'Белгородская область',
-  'Липецкая область',
-  'Тамбовская область',
-  'Курская область',
-  'Калужская область',
-  'Тульская область',
-  'Смоленская область',
-  'Брянская область',
-  'Орловская область',
-  'Московская область',
-  'Москва',
-  'Санкт-Петербург',
-];
+import { CONCERT_TYPE_LIST } from '../utils/concertTypes';
+import { getColorByRegion } from '../utils/statisticsUtils'; // ✅ ИМПОРТ ВСЕХ РЕГИОНОВ
 
 // ✅ КАТЕГОРИИ УЧАСТНИКОВ
 const PARTICIPANT_CATEGORIES = [
@@ -175,7 +160,7 @@ const WebTimePicker = ({ value, onChange }) => {
 };
 
 // ✅ MAIN COMPONENT
-export default function AddEventScreen({ route, navigation}) {
+export default function AddEventScreen({ route, navigation }) {
   const dimensions = useWindowDimensions();
   const responsiveSize = (size) => getResponsiveSize(size, dimensions.width);
   const responsiveFontSize = (size) => getResponsiveFontSize(size, dimensions.width);
@@ -196,8 +181,7 @@ export default function AddEventScreen({ route, navigation}) {
   const [showStartTimePicker, setShowStartTimePicker] = useState(false);
   const [showParticipantModal, setShowParticipantModal] = useState(false);
   const [showProgramModal, setShowProgramModal] = useState(false);
-  const [showRegionModal, setShowRegionModal] = useState(false);
-  const [regionSearch, setRegionSearch] = useState('');
+  const [showRegionModal, setShowRegionModal] = useState(false); // ✅ ДЛЯ НОВОГО КОМПОНЕНТА
 
   const [participants, setParticipants] = useState(
     concert?.participants || {
@@ -229,11 +213,6 @@ export default function AddEventScreen({ route, navigation}) {
     });
     setAlertVisible(true);
   };
-
-  // ✅ FILTERED REGIONS
-  const filteredRegions = regionSearch
-    ? REGIONS.filter((r) => r.toLowerCase().includes(regionSearch.toLowerCase()))
-    : REGIONS;
 
   // ✅ BROWSER HISTORY & BACK HANDLER
   useEffect(() => {
@@ -363,53 +342,53 @@ export default function AddEventScreen({ route, navigation}) {
   };
 
   // ✅ SUBMIT
-const handleSubmit = async () => {
-  if (!description.trim() || !address.trim() || !departureTime || !startTime || !region.trim()) {
-    showAlert('Ошибка', 'Пожалуйста, заполните все обязательные поля');
-    return;
-  }
-
-  try {
-    const concertData = {
-      date,
-      concertType,
-      description: description.trim(),
-      address: address.trim(),
-      region: region.trim(),
-      departureTime,
-      startTime,
-      participants,
-      program: { title: programTitle, songs },
-      updatedAt: new Date(),
-    };
-
-    if (isEditing) {
-      await updateDoc(doc(db, 'concerts', concert.id), concertData);
-      showAlert('Успех', 'Концерт обновлён!', [
-        {
-          text: 'OK',
-          onPress: () => navigation.navigate('Calendar', {  // ✅ ИЗМЕНИ ЗДЕСЬ
-            refresh: true,
-            updatedConcertId: concert.id
-          }),
-        },
-      ]);
-    } else {
-      await addDoc(collection(db, 'concerts'), {
-        ...concertData,
-        createdAt: new Date(),
-      });
-      showAlert('Успех', 'Концерт добавлен!', [
-        {
-          text: 'OK',
-          onPress: () => navigation.goBack(),
-        },
-      ]);
+  const handleSubmit = async () => {
+    if (!description.trim() || !address.trim() || !departureTime || !startTime || !region.trim()) {
+      showAlert('Ошибка', 'Пожалуйста, заполните все обязательные поля');
+      return;
     }
-  } catch (error) {
-    showAlert('Ошибка', `Не удалось сохранить концерт: ${error.message}`);
-  }
-};
+
+    try {
+      const concertData = {
+        date,
+        concertType,
+        description: description.trim(),
+        address: address.trim(),
+        region: region.trim(),
+        departureTime,
+        startTime,
+        participants,
+        program: { title: programTitle, songs },
+        updatedAt: new Date(),
+      };
+
+      if (isEditing) {
+        await updateDoc(doc(db, 'concerts', concert.id), concertData);
+        showAlert('Успех', 'Концерт обновлён!', [
+          {
+            text: 'OK',
+            onPress: () => navigation.navigate('Calendar', {
+              refresh: true,
+              updatedConcertId: concert.id
+            }),
+          },
+        ]);
+      } else {
+        await addDoc(collection(db, 'concerts'), {
+          ...concertData,
+          createdAt: new Date(),
+        });
+        showAlert('Успех', 'Концерт добавлен!', [
+          {
+            text: 'OK',
+            onPress: () => navigation.goBack(),
+          },
+        ]);
+      }
+    } catch (error) {
+      showAlert('Ошибка', `Не удалось сохранить концерт: ${error.message}`);
+    }
+  };
 
   // ✅ RENDER
   return (
@@ -529,7 +508,7 @@ const handleSubmit = async () => {
           />
         </View>
 
-        {/* ✅ REGION */}
+        {/* ✅ REGION - НОВЫЙ КОМПОНЕНТ С КРАСИВЫМ ВЫБОРОМ */}
         <View style={styles.inputCard}>
           <Text style={[styles.label, { fontSize: responsiveFontSize(14) }]}>
             Область проведения *
@@ -542,7 +521,7 @@ const handleSubmit = async () => {
               colors={['rgba(52, 199, 89, 0.2)', 'rgba(34, 197, 94, 0.1)']}
               style={styles.regionButtonGradient}
             >
-              <Ionicons name="location" size={responsiveSize(20)} color="#34C759" />
+              <View style={[styles.regionDot, { backgroundColor: getColorByRegion(region) }]} />
               <Text style={[styles.regionButtonText, { fontSize: responsiveFontSize(14) }]}>
                 {region}
               </Text>
@@ -884,85 +863,14 @@ const handleSubmit = async () => {
         </View>
       </Modal>
 
-      {/* ✅ REGION MODAL */}
-      <Modal
+      {/* ✅ REGION SELECTOR - НОВЫЙ КОМПОНЕНТ С ПОДДЕРЖКОЙ ВСЕХ 85 РЕГИОНОВ */}
+      <RegionSelector
+        selectedRegion={region}
+        onSelectRegion={setRegion}
         visible={showRegionModal}
-        transparent={true}
-        animationType="slide"
-        onRequestClose={() => setShowRegionModal(false)}
-      >
-        <View style={styles.modalOverlay}>
-          <TouchableOpacity
-            style={styles.modalBackdrop}
-            activeOpacity={1}
-            onPress={() => setShowRegionModal(false)}
-          />
-          <View style={styles.regionModalContent}>
-            <LinearGradient
-              colors={['rgba(26, 26, 26, 0.98)', 'rgba(35, 35, 35, 0.95)']}
-              style={styles.regionModalGradient}
-            >
-              <View style={styles.regionModalHeader}>
-                <Text style={[styles.regionModalTitle, { fontSize: responsiveFontSize(18) }]}>
-                  Выберите область
-                </Text>
-                <TouchableOpacity
-                  onPress={() => setShowRegionModal(false)}
-                  style={styles.regionModalClose}
-                >
-                  <Ionicons name="close-circle" size={responsiveSize(28)} color="#34C759" />
-                </TouchableOpacity>
-              </View>
-
-              <TextInput
-                style={[styles.regionSearch, { fontSize: responsiveFontSize(14) }]}
-                placeholder="Поиск области..."
-                placeholderTextColor="#666"
-                value={regionSearch}
-                onChangeText={setRegionSearch}
-              />
-
-              <ScrollView style={styles.regionList} showsVerticalScrollIndicator={false}>
-                {filteredRegions.map((r, idx) => (
-                  <TouchableOpacity
-                    key={idx}
-                    style={[styles.regionOption, region === r && styles.regionOptionActive]}
-                    onPress={() => {
-                      setRegion(r);
-                      setShowRegionModal(false);
-                      setRegionSearch('');
-                    }}
-                  >
-                    <LinearGradient
-                      colors={
-                        region === r
-                          ? ['rgba(52, 199, 89, 0.2)', 'rgba(34, 197, 94, 0.1)']
-                          : ['transparent', 'transparent']
-                      }
-                      style={styles.regionOptionGradient}
-                    >
-                      <Ionicons
-                        name={region === r ? 'checkmark-circle' : 'ellipse-outline'}
-                        size={responsiveSize(20)}
-                        color={region === r ? '#34C759' : '#666'}
-                      />
-                      <Text
-                        style={[
-                          styles.regionOptionText,
-                          { fontSize: responsiveFontSize(14) },
-                          region === r && styles.regionOptionTextActive,
-                        ]}
-                      >
-                        {r}
-                      </Text>
-                    </LinearGradient>
-                  </TouchableOpacity>
-                ))}
-              </ScrollView>
-            </LinearGradient>
-          </View>
-        </View>
-      </Modal>
+        onClose={() => setShowRegionModal(false)}
+        responsiveFontSize={responsiveFontSize}
+      />
 
       {/* ✅ CUSTOM ALERT */}
       <CustomAlert
@@ -1083,12 +991,17 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     borderWidth: 1,
     borderColor: 'rgba(52, 199, 89, 0.3)',
+    gap: 10,
+  },
+  regionDot: {
+    width: 12,
+    height: 12,
+    borderRadius: 6,
   },
   regionButtonText: {
     color: '#E0E0E0',
     fontWeight: '600',
     flex: 1,
-    marginHorizontal: 10,
   },
   timesRow: {
     flexDirection: 'row',
@@ -1271,72 +1184,6 @@ const styles = StyleSheet.create({
   songSoloists: {
     color: '#999',
     fontStyle: 'italic',
-  },
-  regionModalContent: {
-    borderRadius: 25,
-    margin: 20,
-    flex: 1,
-    borderWidth: 1,
-    borderColor: 'rgba(52, 199, 89, 0.3)',
-    maxHeight: Platform.OS === 'web' ? '85vh' : '85%',
-  },
-  regionModalGradient: {
-    borderRadius: 25,
-    padding: 25,
-    flex: 1,
-  },
-  regionModalHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 20,
-    paddingBottom: 15,
-    borderBottomWidth: 1,
-    borderBottomColor: 'rgba(255, 255, 255, 0.1)',
-  },
-  regionModalTitle: {
-    fontWeight: '700',
-    color: '#E0E0E0',
-  },
-  regionModalClose: {
-    padding: 5,
-  },
-  regionSearch: {
-    backgroundColor: 'rgba(42, 42, 42, 0.8)',
-    borderRadius: 12,
-    paddingHorizontal: 15,
-    paddingVertical: 12,
-    color: '#E0E0E0',
-    borderWidth: 1,
-    borderColor: 'rgba(52, 199, 89, 0.3)',
-    marginBottom: 15,
-  },
-  regionList: {
-    flex: 1,
-  },
-  regionOption: {
-    marginBottom: 8,
-    borderRadius: 12,
-    overflow: 'hidden',
-  },
-  regionOptionGradient: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 15,
-    paddingVertical: 12,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: 'rgba(52, 199, 89, 0.2)',
-  },
-  regionOptionActive: {},
-  regionOptionText: {
-    color: '#E0E0E0',
-    marginLeft: 12,
-    fontWeight: '500',
-  },
-  regionOptionTextActive: {
-    color: '#34C759',
-    fontWeight: '700',
   },
   alertOverlay: {
     flex: 1,
