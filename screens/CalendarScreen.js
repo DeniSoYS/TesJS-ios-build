@@ -237,20 +237,16 @@ export default function CalendarScreen({ navigation, route }) {
   const [statistics, setStatistics] = useState({
     monthly: { voronezh: 0, other: 0, total: 0 },
     quarterly: { voronezh: 0, other: 0, total: 0 },
-    // ❌ УДАЛЕН last4Months
   });
   const [activeStatTab, setActiveStatTab] = useState('monthly'); // 'monthly', 'quarterly'
 
-  // ✅ УПРАВЛЕНИЕ ВИДИМОСТЬЮ ПАНЕЛЕЙ - ДОБАВЛЕНА ШТОРКА
+  // ✅ УПРАВЛЕНИЕ ВИДИМОСТЬЮ ПАНЕЛЕЙ - КАК У СТАТИСТИКИ ЗА МЕСЯЦ
   const [showHeaderStats, setShowHeaderStats] = useState(true);
   const [showRegionStats, setShowRegionStats] = useState(true);
   
   // Анимированные значения для высоты панелей
   const headerStatsHeightAnim = useRef(new Animated.Value(1)).current;
   const regionStatsHeightAnim = useRef(new Animated.Value(1)).current;
-
-  // ✅ ДОБАВЛЕНО: АНИМАЦИЯ ШТОРКИ ДЛЯ РЕГИОНАЛЬНОЙ СТАТИСТИКИ
-  const regionStatsSlideAnim = useRef(new Animated.Value(0)).current;
 
   // ✅ АНИМАЦИЯ КНОПКИ ОБНОВЛЕНИЯ
   const refreshButtonAnim = useRef(new Animated.Value(0)).current;
@@ -276,7 +272,7 @@ export default function CalendarScreen({ navigation, route }) {
     setAlertConfig({ ...alertConfig, visible: false });
   };
 
-  // ✅ ФУНКЦИИ ПЕРЕКЛЮЧЕНИЯ ВИДИМОСТИ ПАНЕЛЕЙ
+  // ✅ ФУНКЦИИ ПЕРЕКЛЮЧЕНИЯ ВИДИМОСТИ ПАНЕЛЕЙ - КАК У СТАТИСТИКИ ЗА МЕСЯЦ
   const toggleHeaderStats = () => {
     const newState = !showHeaderStats;
     setShowHeaderStats(newState);
@@ -288,40 +284,16 @@ export default function CalendarScreen({ navigation, route }) {
     }).start();
   };
 
-  // ✅ ИЗМЕНЕНО: ФУНКЦИЯ ПЕРЕКЛЮЧЕНИЯ РЕГИОНАЛЬНОЙ СТАТИСТИКИ КАК ШТОРКИ
+  // ✅ ИЗМЕНЕНО: ФУНКЦИЯ ПЕРЕКЛЮЧЕНИЯ РЕГИОНАЛЬНОЙ СТАТИСТИКИ КАК У СТАТИСТИКИ ЗА МЕСЯЦ
   const toggleRegionStats = () => {
     const newState = !showRegionStats;
     setShowRegionStats(newState);
     
-    if (newState) {
-      // Открытие шторки
-      Animated.parallel([
-        Animated.timing(regionStatsHeightAnim, {
-          toValue: 1,
-          duration: 300,
-          useNativeDriver: false,
-        }),
-        Animated.timing(regionStatsSlideAnim, {
-          toValue: 0,
-          duration: 300,
-          useNativeDriver: true,
-        })
-      ]).start();
-    } else {
-      // Закрытие шторки
-      Animated.parallel([
-        Animated.timing(regionStatsHeightAnim, {
-          toValue: 0,
-          duration: 300,
-          useNativeDriver: false,
-        }),
-        Animated.timing(regionStatsSlideAnim, {
-          toValue: 1,
-          duration: 300,
-          useNativeDriver: true,
-        })
-      ]).start();
-    }
+    Animated.timing(regionStatsHeightAnim, {
+      toValue: newState ? 1 : 0,
+      duration: 300,
+      useNativeDriver: false,
+    }).start();
   };
   
   const pulseAnim = useRef(new Animated.Value(1)).current;
@@ -488,7 +460,6 @@ export default function CalendarScreen({ navigation, route }) {
     const selectedMonth = month || currentMonth.month;
     
     const stats = calculateStatistics(concertsData, selectedYear, selectedMonth);
-    // ❌ УДАЛЕН last4Months из статистики
     setStatistics({
       monthly: stats.monthly,
       quarterly: stats.quarterly
@@ -1079,12 +1050,6 @@ export default function CalendarScreen({ navigation, route }) {
     outputRange: ['0deg', '360deg']
   });
 
-  // ✅ АНИМАЦИЯ СДВИГА ДЛЯ ШТОРКИ
-  const slideInterpolate = regionStatsSlideAnim.interpolate({
-    inputRange: [0, 1],
-    outputRange: [0, -300]
-  });
-
   return (
     <View style={styles.container}>
       <StatusBar
@@ -1289,32 +1254,8 @@ export default function CalendarScreen({ navigation, route }) {
             />
           }
         >
-          {/* ✅ ПАНЕЛЬ 2: СТАТИСТИКА ПО РЕГИОНАМ - С ШТОРКОЙ */}
-          <Animated.View 
-            style={[
-              styles.statisticsSection,
-              {
-                transform: [{ translateY: slideInterpolate }],
-                maxHeight: regionStatsHeightAnim.interpolate({
-                  inputRange: [0, 1],
-                  outputRange: [0, 800],
-                }),
-                opacity: regionStatsHeightAnim,
-                marginTop: regionStatsHeightAnim.interpolate({
-                  inputRange: [0, 1],
-                  outputRange: [0, 15],
-                }),
-                marginBottom: regionStatsHeightAnim.interpolate({
-                  inputRange: [0, 1],
-                  outputRange: [0, 15],
-                }),
-                padding: regionStatsHeightAnim.interpolate({
-                  inputRange: [0, 1],
-                  outputRange: [0, 20],
-                }),
-              }
-            ]}
-          >
+          {/* ✅ ПАНЕЛЬ 2: СТАТИСТИКА ПО РЕГИОНАМ - ТЕПЕРЬ КАК АККОРДЕОН */}
+          <View style={styles.statisticsSection}>
             <View style={styles.statisticsSectionHeaderContainer}>
               <View style={styles.statisticsTitleWrapper}>
                 <LinearGradient
@@ -1341,63 +1282,73 @@ export default function CalendarScreen({ navigation, route }) {
               </TouchableOpacity>
             </View>
 
-            {/* ТАБЫ СТАТИСТИКИ - ТЕПЕРЬ ТОЛЬКО 2 ТАБА */}
-            <View style={styles.statisticsTabsContainer}>
-              <TouchableOpacity
-                style={[styles.statisticsTab, activeStatTab === 'monthly' && styles.statisticsTabActive]}
-                onPress={() => setActiveStatTab('monthly')}
-              >
-                <LinearGradient
-                  colors={activeStatTab === 'monthly' ? ['#FFD700', '#FFA500'] : ['rgba(100, 100, 100, 0.2)', 'rgba(100, 100, 100, 0.1)']}
-                  style={styles.statisticsTabGradient}
+            {/* СОДЕРЖИМОЕ ПАНЕЛИ - АНИМИРУЕТСЯ КАК У СТАТИСТИКИ ЗА МЕСЯЦ */}
+            <Animated.View 
+              style={{
+                maxHeight: regionStatsHeightAnim.interpolate({
+                  inputRange: [0, 1],
+                  outputRange: [0, 800],
+                }),
+                opacity: regionStatsHeightAnim,
+                overflow: 'hidden',
+              }}
+            >
+              {/* ТАБЫ СТАТИСТИКИ - ТЕПЕРЬ ТОЛЬКО 2 ТАБА */}
+              <View style={styles.statisticsTabsContainer}>
+                <TouchableOpacity
+                  style={[styles.statisticsTab, activeStatTab === 'monthly' && styles.statisticsTabActive]}
+                  onPress={() => setActiveStatTab('monthly')}
                 >
-                  <Text style={[styles.statisticsTabText, { fontSize: responsiveFontSize(12) }, activeStatTab === 'monthly' && styles.statisticsTabTextActive]}>
-                    Месяц
-                  </Text>
-                </LinearGradient>
-              </TouchableOpacity>
+                  <LinearGradient
+                    colors={activeStatTab === 'monthly' ? ['#FFD700', '#FFA500'] : ['rgba(100, 100, 100, 0.2)', 'rgba(100, 100, 100, 0.1)']}
+                    style={styles.statisticsTabGradient}
+                  >
+                    <Text style={[styles.statisticsTabText, { fontSize: responsiveFontSize(12) }, activeStatTab === 'monthly' && styles.statisticsTabTextActive]}>
+                      Месяц
+                    </Text>
+                  </LinearGradient>
+                </TouchableOpacity>
 
-              <TouchableOpacity
-                style={[styles.statisticsTab, activeStatTab === 'quarterly' && styles.statisticsTabActive]}
-                onPress={() => setActiveStatTab('quarterly')}
-              >
-                <LinearGradient
-                  colors={activeStatTab === 'quarterly' ? ['#4A90E2', '#357ABD'] : ['rgba(100, 100, 100, 0.2)', 'rgba(100, 100, 100, 0.1)']}
-                  style={styles.statisticsTabGradient}
+                <TouchableOpacity
+                  style={[styles.statisticsTab, activeStatTab === 'quarterly' && styles.statisticsTabActive]}
+                  onPress={() => setActiveStatTab('quarterly')}
                 >
-                  <Text style={[styles.statisticsTabText, { fontSize: responsiveFontSize(12) }, activeStatTab === 'quarterly' && styles.statisticsTabTextActive]}>
-                    Квартал
-                  </Text>
-                </LinearGradient>
-              </TouchableOpacity>
-
-              {/* ❌ УДАЛЕН ТАБ 4 МЕСЯЦА */}
-            </View>
-
-            {/* ТЕКУЩАЯ СТАТИСТИКА И ПРОГРЕСС-БАР */}
-            <View style={styles.statisticsContent}>
-              <Text style={[styles.statisticsContentTitle, { fontSize: responsiveFontSize(14) }]}>
-                {statPeriodText}
-              </Text>
-              
-              <ProgressBar 
-                voronezh={currentStats.voronezh}
-                other={currentStats.other}
-                total={currentStats.total}
-                responsiveSize={responsiveSize}
-                responsiveFontSize={responsiveFontSize}
-              />
-
-              <View style={styles.statisticsTotal}>
-                <Text style={[styles.statisticsTotalLabel, { fontSize: responsiveFontSize(12) }]}>
-                  Всего концертов:
-                </Text>
-                <Text style={[styles.statisticsTotalValue, { fontSize: responsiveFontSize(20) }]}>
-                  {currentStats.total}
-                </Text>
+                  <LinearGradient
+                    colors={activeStatTab === 'quarterly' ? ['#4A90E2', '#357ABD'] : ['rgba(100, 100, 100, 0.2)', 'rgba(100, 100, 100, 0.1)']}
+                    style={styles.statisticsTabGradient}
+                  >
+                    <Text style={[styles.statisticsTabText, { fontSize: responsiveFontSize(12) }, activeStatTab === 'quarterly' && styles.statisticsTabTextActive]}>
+                      Квартал
+                    </Text>
+                  </LinearGradient>
+                </TouchableOpacity>
               </View>
-            </View>
-          </Animated.View>
+
+              {/* ТЕКУЩАЯ СТАТИСТИКА И ПРОГРЕСС-БАР */}
+              <View style={styles.statisticsContent}>
+                <Text style={[styles.statisticsContentTitle, { fontSize: responsiveFontSize(14) }]}>
+                  {statPeriodText}
+                </Text>
+                
+                <ProgressBar 
+                  voronezh={currentStats.voronezh}
+                  other={currentStats.other}
+                  total={currentStats.total}
+                  responsiveSize={responsiveSize}
+                  responsiveFontSize={responsiveFontSize}
+                />
+
+                <View style={styles.statisticsTotal}>
+                  <Text style={[styles.statisticsTotalLabel, { fontSize: responsiveFontSize(12) }]}>
+                    Всего концертов:
+                  </Text>
+                  <Text style={[styles.statisticsTotalValue, { fontSize: responsiveFontSize(20) }]}>
+                    {currentStats.total}
+                  </Text>
+                </View>
+              </View>
+            </Animated.View>
+          </View>
 
           <View style={styles.calendarWrapper}>
             <LinearGradient
@@ -2013,14 +1964,16 @@ const styles = StyleSheet.create({
     flex: 1,
   },
 
-  // ✅ ИЗМЕНЕНО: СТАТИСТИКА ПО РЕГИОНАМ С АНИМАЦИЕЙ ШТОРКИ
+  // ✅ ИЗМЕНЕНО: СТАТИСТИКА ПО РЕГИОНАМ ТЕПЕРЬ КАК АККОРДЕОН
   statisticsSection: {
     marginHorizontal: 15,
+    marginTop: 15,
+    marginBottom: 15,
     backgroundColor: 'rgba(26, 26, 26, 0.8)',
     borderRadius: 20,
+    padding: 20,
     borderWidth: 1,
     borderColor: 'rgba(74, 144, 226, 0.2)',
-    overflow: 'hidden',
   },
   statisticsTitleWrapper: {
     flexDirection: 'row',
