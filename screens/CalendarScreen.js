@@ -4,6 +4,7 @@ import { signOut } from 'firebase/auth';
 import { collection, deleteDoc, doc, getDocs, query } from 'firebase/firestore';
 import { useEffect, useRef, useState } from 'react';
 import {
+  ActivityIndicator,
   Animated,
   Dimensions,
   Modal,
@@ -248,6 +249,9 @@ export default function CalendarScreen({ navigation, route }) {
   const headerStatsHeightAnim = useRef(new Animated.Value(1)).current;
   const regionStatsHeightAnim = useRef(new Animated.Value(1)).current;
 
+  // ✅ АНИМАЦИЯ КНОПКИ ОБНОВЛЕНИЯ
+  const refreshButtonAnim = useRef(new Animated.Value(0)).current;
+
   // ✅ CUSTOM ALERT STATE
   const [alertConfig, setAlertConfig] = useState({
     visible: false,
@@ -459,6 +463,16 @@ export default function CalendarScreen({ navigation, route }) {
 
   const loadAllData = async () => {
     setRefreshing(true);
+    
+    // ✅ АНИМАЦИЯ ВРАЩЕНИЯ КНОПКИ
+    Animated.loop(
+      Animated.timing(refreshButtonAnim, {
+        toValue: 1,
+        duration: 1000,
+        useNativeDriver: true,
+      })
+    ).start();
+    
     try {
       const [concertsData, toursData, movesData] = await Promise.all([
         loadConcerts(),
@@ -472,12 +486,21 @@ export default function CalendarScreen({ navigation, route }) {
       showAlert('Ошибка', 'Не удалось обновить данные');
     } finally {
       setRefreshing(false);
+      refreshButtonAnim.stopAnimation();
+      refreshButtonAnim.setValue(0);
     }
   };
 
   const onRefresh = async () => {
     console.log('🔄 Инициировано обновление календаря...');
     await loadAllData();
+  };
+
+  // ✅ НОВАЯ ФУНКЦИЯ: ОБНОВЛЕНИЕ ПО КНОПКЕ
+  const handleRefreshButton = async () => {
+    console.log('🔄 Нажата кнопка обновления...');
+    await loadAllData();
+    showAlert('Обновлено', 'Данные календаря успешно обновлены!');
   };
 
   const loadConcerts = async () => {
@@ -965,7 +988,7 @@ export default function CalendarScreen({ navigation, route }) {
       );
     }
 
-    // ✅ ДОБАВЛЯЕМ КНОПКУ СТАТИСТИКИ
+    // ✅ СТАТИСТИКА ПО ГОРОДАМ - ДОСТУПНА ВСЕМ!
     actions.push(
       {
         icon: 'pie-chart', 
@@ -975,7 +998,7 @@ export default function CalendarScreen({ navigation, route }) {
       }
     );
 
-    // ✅ ДОБАВЛЯЕМ КНОПКУ ГОРОДОВ И ОБЛАСТЕЙ (НОВОЕ!)
+    // ✅ ГОРОДА И ОБЛАСТИ - ДОСТУПНА ВСЕМ!
     actions.push(
       {
         icon: 'pin',
@@ -985,23 +1008,13 @@ export default function CalendarScreen({ navigation, route }) {
       }
     );
 
-    if (userRole === 'admin') {
-      actions.push({
-        icon: 'notifications', 
-        label: 'Напоминания', 
-        gradient: ['#6C5CE7', '#A29BFE'],
-        onPress: () => navigation.navigate('Reminders', { userRole })
-      });
-    }
-
-    if (userRole !== 'admin') {
-      actions.push({
-        icon: 'notifications', 
-        label: 'Напоминания', 
-        gradient: ['#6C5CE7', '#A29BFE'],
-        onPress: () => navigation.navigate('Reminders', { userRole })
-      });
-    }
+    // ✅ НАПОМИНАНИЯ - ДОСТУПНЫ ВСЕМ!
+    actions.push({
+      icon: 'notifications', 
+      label: 'Напоминания', 
+      gradient: ['#6C5CE7', '#A29BFE'],
+      onPress: () => navigation.navigate('Reminders', { userRole })
+    });
 
     actions.push(
       { 
@@ -1032,6 +1045,12 @@ export default function CalendarScreen({ navigation, route }) {
   const statPeriodText = activeStatTab === 'monthly' ? getCurrentMonthName() : 
                          activeStatTab === 'quarterly' ? getCurrentQuarterText() : 
                          getLast4MonthsText();
+
+  // ✅ АНИМАЦИЯ ВРАЩЕНИЯ
+  const spin = refreshButtonAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: ['0deg', '360deg']
+  });
 
   return (
     <View style={styles.container}>
@@ -1071,6 +1090,29 @@ export default function CalendarScreen({ navigation, route }) {
                 </View>
 
                 <View style={styles.actionButtons}>
+                  {/* ✅ КНОПКА ОБНОВЛЕНИЯ */}
+                  <TouchableOpacity 
+                    onPress={handleRefreshButton} 
+                    style={styles.refreshButton}
+                    activeOpacity={0.8}
+                    disabled={refreshing}
+                  >
+                    <LinearGradient
+                      colors={['#4A90E2', '#357ABD']}
+                      style={styles.refreshButtonGradient}
+                      start={{ x: 0, y: 0 }}
+                      end={{ x: 1, y: 1 }}
+                    >
+                      {refreshing ? (
+                        <ActivityIndicator size="small" color="white" />
+                      ) : (
+                        <Animated.View style={{ transform: [{ rotate: spin }] }}>
+                          <Ionicons name="refresh" size={responsiveSize(20)} color="white" />
+                        </Animated.View>
+                      )}
+                    </LinearGradient>
+                  </TouchableOpacity>
+
                   <TouchableOpacity 
                     style={styles.roleButton}
                     activeOpacity={0.8}
@@ -1216,7 +1258,7 @@ export default function CalendarScreen({ navigation, route }) {
             />
           }
         >
-          {/* ✅ ПАНЕЛЬ 2: СТАТИСТИКА ПО РЕГИОНАМ */}
+          {/* ✅ ПАНЕЛЬ 2: СТАТИСТИКА ПО РЕГИОНАМ - ВИДНА ВСЕМ! */}
           <View style={styles.statisticsSection}>
             <View style={styles.statisticsSectionHeaderContainer}>
               <View style={styles.statisticsTitleWrapper}>
@@ -2138,6 +2180,23 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 10,
+  },
+
+  // ✅ КНОПКА ОБНОВЛЕНИЯ
+  refreshButton: {
+    borderRadius: 22,
+    overflow: 'hidden',
+    shadowColor: '#4A90E2',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  refreshButtonGradient: {
+    width: 44,
+    height: 44,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   
   roleButton: {
