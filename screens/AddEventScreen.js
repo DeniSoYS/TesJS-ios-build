@@ -165,11 +165,12 @@ export default function AddEventScreen({ route, navigation }) {
   const responsiveSize = (size) => getResponsiveSize(size, dimensions.width);
   const responsiveFontSize = (size) => getResponsiveFontSize(size, dimensions.width);
 
+   const dateFromParams = route?.params?.date;  // ← НОВАЯ СТРОКА
   const concert = route?.params?.concert;
   const isEditing = !!concert;
 
   // ✅ STATE
-  const [date, setDate] = useState(concert?.date || new Date().toISOString().split('T')[0]);
+  const [date, setDate] = useState(concert?.date || dateFromParams || new Date().toISOString().split('T')[0]);
   const [concertType, setConcertType] = useState(concert?.concertType || 'GENERAL');
   const [description, setDescription] = useState(concert?.description || '');
   const [address, setAddress] = useState(concert?.address || '');

@@ -2,18 +2,18 @@ import { Ionicons } from '@expo/vector-icons';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { LinearGradient } from 'expo-linear-gradient';
 import { addDoc, collection } from 'firebase/firestore';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
-    Alert,
-    Dimensions,
-    Platform,
-    ScrollView,
-    StyleSheet,
-    Switch,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    View
+  Dimensions,
+  Modal,
+  Platform,
+  ScrollView,
+  StyleSheet,
+  Switch,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View
 } from 'react-native';
 import { db } from '../firebaseConfig';
 
@@ -33,12 +33,114 @@ const getResponsiveFontSize = (size) => {
   return Math.round(baseSize);
 };
 
+// ✅ НАДЁЖНАЯ ФУНКЦИЯ ПАРСИНГА ДАТЫ
+const parseDate = (dateString) => {
+  if (!dateString) return new Date();
+  const [year, month, day] = dateString.split('-').map(Number);
+  return new Date(year, month - 1, day); // month - 1 потому что месяцы в JS начинаются с 0
+};
+
+// ✅ WEB DATE PICKER COMPONENT
+const WebDatePicker = ({ value, onChange, label }) => {
+  const formatForInput = (date) => {
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  };
+
+  const handleChange = (e) => {
+    const newDate = parseDate(e.target.value);
+    if (!isNaN(newDate.getTime())) {
+      onChange(newDate);
+    }
+  };
+
+  return (
+    <input
+      type="date"
+      value={formatForInput(value)}
+      onChange={handleChange}
+      style={{
+        backgroundColor: 'rgba(42, 42, 42, 0.8)',
+        border: '1px solid rgba(52, 199, 89, 0.3)',
+        borderRadius: 12,
+        padding: '14px 16px',
+        fontSize: 14,
+        color: '#E0E0E0',
+        width: '100%',
+        boxSizing: 'border-box',
+        cursor: 'pointer',
+      }}
+    />
+  );
+};
+
+// ✅ CUSTOM ALERT COMPONENT
+const CustomAlert = ({ visible, title, message, buttons, onClose }) => {
+  if (!visible) return null;
+
+  return (
+    <Modal
+      visible={visible}
+      transparent={true}
+      animationType="fade"
+      onRequestClose={onClose}
+    >
+      <View style={styles.customAlertOverlay}>
+        <View style={styles.customAlertContainer}>
+          <LinearGradient
+            colors={['rgba(26, 26, 26, 0.98)', 'rgba(35, 35, 35, 0.95)']}
+            style={styles.customAlertGradient}
+          >
+            <Text style={styles.customAlertTitle}>{title}</Text>
+            <Text style={styles.customAlertMessage}>{message}</Text>
+            
+            <View style={styles.customAlertButtons}>
+              {buttons.map((button, index) => (
+                <TouchableOpacity
+                  key={index}
+                  style={[
+                    styles.customAlertButton,
+                    button.style === 'destructive' && styles.customAlertButtonDestructive,
+                    button.style === 'cancel' && styles.customAlertButtonCancel
+                  ]}
+                  onPress={() => {
+                    button.onPress && button.onPress();
+                    onClose();
+                  }}
+                >
+                  <LinearGradient
+                    colors={
+                      button.style === 'destructive' 
+                        ? ['#FF6B6B', '#EE5A52']
+                        : button.style === 'cancel'
+                        ? ['#555', '#444']
+                        : ['#34C759', '#28A745']
+                    }
+                    style={styles.customAlertButtonGradient}
+                  >
+                    <Text style={styles.customAlertButtonText}>{button.text}</Text>
+                  </LinearGradient>
+                </TouchableOpacity>
+              ))}
+            </View>
+          </LinearGradient>
+        </View>
+      </View>
+    </Modal>
+  );
+};
+
 export default function AddMoveScreen({ navigation, route }) {
   const { date, userRole } = route.params || {};
   
+  // ✅ ИСПОЛЬЗУЕМ НАДЁЖНЫЙ ПАРСИНГ ДАТЫ
+  const initialDate = date ? parseDate(date) : new Date();
+  
   const [fromCity, setFromCity] = useState('');
   const [toCity, setToCity] = useState('');
-  const [moveDate, setMoveDate] = useState(new Date());
+  const [moveDate, setMoveDate] = useState(initialDate);
   const [hotel, setHotel] = useState('');
   const [passportRequired, setPassportRequired] = useState(false);
   const [whatToTake, setWhatToTake] = useState('');
@@ -50,6 +152,33 @@ export default function AddMoveScreen({ navigation, route }) {
     noFood: false
   });
   const [showDatePicker, setShowDatePicker] = useState(false);
+
+  // ✅ CUSTOM ALERT STATE
+  const [alertConfig, setAlertConfig] = useState({
+    visible: false,
+    title: '',
+    message: '',
+    buttons: []
+  });
+
+  const showAlert = (title, message, buttons = [{ text: 'OK' }]) => {
+    setAlertConfig({
+      visible: true,
+      title,
+      message,
+      buttons
+    });
+  };
+
+  const closeAlert = () => {
+    setAlertConfig({ ...alertConfig, visible: false });
+  };
+
+  // ✅ DEBUG: Логируем полученную дату
+  useEffect(() => {
+    console.log('📅 AddMoveScreen: Получена дата из параметров:', date);
+    console.log('📅 AddMoveScreen: Парсинг даты:', initialDate.toISOString());
+  }, []);
 
   const formatDateForDisplay = (date) => {
     return date.toLocaleDateString('ru-RU', {
@@ -67,10 +196,17 @@ export default function AddMoveScreen({ navigation, route }) {
   };
 
   const onDateChange = (event, selectedDate) => {
-    setShowDatePicker(false);
+    if (Platform.OS !== 'web') {
+      setShowDatePicker(false);
+    }
     if (selectedDate) {
       setMoveDate(selectedDate);
     }
+  };
+
+  // ✅ WEB HANDLER
+  const handleWebDateChange = (newDate) => {
+    setMoveDate(newDate);
   };
 
   const handleMealChange = (mealType, value) => {
@@ -92,7 +228,7 @@ export default function AddMoveScreen({ navigation, route }) {
 
   const handleSubmit = async () => {
     if (!fromCity.trim() || !toCity.trim()) {
-      Alert.alert('Ошибка', 'Пожалуйста, заполните города отправления и назначения');
+      showAlert('Ошибка', 'Пожалуйста, заполните города отправления и назначения');
       return;
     }
 
@@ -110,16 +246,18 @@ export default function AddMoveScreen({ navigation, route }) {
         updatedAt: new Date(),
       };
 
+      console.log('📅 Сохраняем переезд:', moveData);
+
       await addDoc(collection(db, 'moves'), moveData);
 
-      Alert.alert(
+      showAlert(
         'Успех',
         'Переезд успешно добавлен',
         [{ text: 'OK', onPress: () => navigation.goBack() }]
       );
     } catch (error) {
       console.error('Ошибка при сохранении переезда:', error);
-      Alert.alert('Ошибка', 'Не удалось сохранить переезд');
+      showAlert('Ошибка', 'Не удалось сохранить переезд');
     }
   };
 
@@ -174,6 +312,18 @@ export default function AddMoveScreen({ navigation, route }) {
         </LinearGradient>
 
         <ScrollView style={styles.formContainer} showsVerticalScrollIndicator={false}>
+          {/* ✅ ОТЛАДОЧНАЯ ИНФОРМАЦИЯ */}
+          {__DEV__ && (
+            <View style={styles.debugInfo}>
+              <Text style={styles.debugText}>
+                📅 Выбранная дата: {date || 'не передана'}
+              </Text>
+              <Text style={styles.debugText}>
+                📅 Дата переезда: {formatDateForFirebase(moveDate)}
+              </Text>
+            </View>
+          )}
+
           {/* Город отправления */}
           <Text style={styles.label}>Откуда *</Text>
           <TextInput
@@ -198,20 +348,28 @@ export default function AddMoveScreen({ navigation, route }) {
 
           {/* Дата переезда */}
           <Text style={styles.label}>Дата переезда *</Text>
-          <TouchableOpacity 
-            style={styles.dateInput}
-            onPress={() => setShowDatePicker(true)}
-          >
-            <LinearGradient
-              colors={['rgba(52, 199, 89, 0.2)', 'rgba(40, 167, 69, 0.2)']}
-              style={styles.dateInputGradient}
+          {Platform.OS === 'web' ? (
+            <WebDatePicker 
+              value={moveDate} 
+              onChange={handleWebDateChange}
+              label="Дата переезда"
+            />
+          ) : (
+            <TouchableOpacity 
+              style={styles.dateInput}
+              onPress={() => setShowDatePicker(true)}
             >
-              <Ionicons name="calendar" size={getResponsiveSize(20)} color="#34C759" />
-              <Text style={styles.dateText}>
-                {formatDateForDisplay(moveDate)}
-              </Text>
-            </LinearGradient>
-          </TouchableOpacity>
+              <LinearGradient
+                colors={['rgba(52, 199, 89, 0.2)', 'rgba(40, 167, 69, 0.2)']}
+                style={styles.dateInputGradient}
+              >
+                <Ionicons name="calendar" size={getResponsiveSize(20)} color="#34C759" />
+                <Text style={styles.dateText}>
+                  {formatDateForDisplay(moveDate)}
+                </Text>
+              </LinearGradient>
+            </TouchableOpacity>
+          )}
 
           {/* Отель */}
           <Text style={styles.label}>Отель (если есть)</Text>
@@ -343,8 +501,8 @@ export default function AddMoveScreen({ navigation, route }) {
           </TouchableOpacity>
         </ScrollView>
 
-        {/* Date Picker */}
-        {showDatePicker && (
+        {/* Date Picker - ТОЛЬКО ДЛЯ NATIVE */}
+        {Platform.OS !== 'web' && showDatePicker && (
           <DateTimePicker
             value={moveDate}
             mode="date"
@@ -352,6 +510,15 @@ export default function AddMoveScreen({ navigation, route }) {
             onChange={onDateChange}
           />
         )}
+
+        {/* ✅ CUSTOM ALERT */}
+        <CustomAlert
+          visible={alertConfig.visible}
+          title={alertConfig.title}
+          message={alertConfig.message}
+          buttons={alertConfig.buttons}
+          onClose={closeAlert}
+        />
       </LinearGradient>
     </View>
   );
@@ -482,6 +649,21 @@ const styles = StyleSheet.create({
   formContainer: {
     flex: 1,
     padding: getResponsiveSize(20),
+  },
+
+  // ✅ DEBUG INFO
+  debugInfo: {
+    backgroundColor: 'rgba(52, 199, 89, 0.2)',
+    borderRadius: 8,
+    padding: 10,
+    marginBottom: 15,
+    borderWidth: 1,
+    borderColor: 'rgba(52, 199, 89, 0.3)',
+  },
+  debugText: {
+    color: '#34C759',
+    fontSize: 12,
+    marginBottom: 2,
   },
   
   label: {
@@ -625,5 +807,69 @@ const styles = StyleSheet.create({
     fontSize: getResponsiveFontSize(16),
     fontWeight: 'bold',
     marginLeft: getResponsiveSize(8),
+  },
+
+  // ✅ CUSTOM ALERT STYLES
+  customAlertOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.85)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  customAlertContainer: {
+    width: '100%',
+    maxWidth: 350,
+  },
+  customAlertGradient: {
+    borderRadius: 25,
+    padding: 25,
+    shadowColor: '#34C759',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.3,
+    shadowRadius: 12,
+    elevation: 8,
+    borderWidth: 1,
+    borderColor: 'rgba(52, 199, 89, 0.3)',
+  },
+  customAlertTitle: {
+    fontSize: 20,
+    fontWeight: '800',
+    color: '#E0E0E0',
+    marginBottom: 12,
+    textAlign: 'center',
+  },
+  customAlertMessage: {
+    fontSize: 14,
+    color: '#999',
+    marginBottom: 20,
+    textAlign: 'center',
+    lineHeight: 20,
+  },
+  customAlertButtons: {
+    flexDirection: 'row',
+    gap: 10,
+  },
+  customAlertButton: {
+    flex: 1,
+    borderRadius: 12,
+    overflow: 'hidden',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.3,
+    shadowRadius: 5,
+    elevation: 3,
+  },
+  customAlertButtonDestructive: {},
+  customAlertButtonCancel: {},
+  customAlertButtonGradient: {
+    paddingVertical: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  customAlertButtonText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: 'white',
   },
 });

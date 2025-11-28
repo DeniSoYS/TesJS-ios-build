@@ -2,17 +2,17 @@ import { Ionicons } from '@expo/vector-icons';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { LinearGradient } from 'expo-linear-gradient';
 import { addDoc, collection } from 'firebase/firestore';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
-    Alert,
-    Dimensions,
-    Platform,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    View
+  Dimensions,
+  Modal,
+  Platform,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View
 } from 'react-native';
 import { db } from '../firebaseConfig';
 
@@ -32,15 +32,145 @@ const getResponsiveFontSize = (size) => {
   return Math.round(baseSize);
 };
 
+// ✅ НАДЁЖНАЯ ФУНКЦИЯ ПАРСИНГА ДАТЫ
+const parseDate = (dateString) => {
+  if (!dateString) return new Date();
+  const [year, month, day] = dateString.split('-').map(Number);
+  return new Date(year, month - 1, day); // month - 1 потому что месяцы в JS начинаются с 0
+};
+
+// ✅ WEB DATE PICKER COMPONENT
+const WebDatePicker = ({ value, onChange, label, minDate }) => {
+  const formatForInput = (date) => {
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  };
+
+  const handleChange = (e) => {
+    const newDate = parseDate(e.target.value);
+    if (!isNaN(newDate.getTime())) {
+      onChange(newDate);
+    }
+  };
+
+  return (
+    <input
+      type="date"
+      value={formatForInput(value)}
+      onChange={handleChange}
+      min={minDate ? formatForInput(minDate) : undefined}
+      style={{
+        backgroundColor: 'rgba(42, 42, 42, 0.8)',
+        border: '1px solid rgba(74, 144, 226, 0.3)',
+        borderRadius: 12,
+        padding: '14px 16px',
+        fontSize: 14,
+        color: '#E0E0E0',
+        width: '100%',
+        boxSizing: 'border-box',
+        cursor: 'pointer',
+      }}
+    />
+  );
+};
+
+// ✅ CUSTOM ALERT COMPONENT
+const CustomAlert = ({ visible, title, message, buttons, onClose }) => {
+  if (!visible) return null;
+
+  return (
+    <Modal
+      visible={visible}
+      transparent={true}
+      animationType="fade"
+      onRequestClose={onClose}
+    >
+      <View style={styles.customAlertOverlay}>
+        <View style={styles.customAlertContainer}>
+          <LinearGradient
+            colors={['rgba(26, 26, 26, 0.98)', 'rgba(35, 35, 35, 0.95)']}
+            style={styles.customAlertGradient}
+          >
+            <Text style={styles.customAlertTitle}>{title}</Text>
+            <Text style={styles.customAlertMessage}>{message}</Text>
+            
+            <View style={styles.customAlertButtons}>
+              {buttons.map((button, index) => (
+                <TouchableOpacity
+                  key={index}
+                  style={[
+                    styles.customAlertButton,
+                    button.style === 'destructive' && styles.customAlertButtonDestructive,
+                    button.style === 'cancel' && styles.customAlertButtonCancel
+                  ]}
+                  onPress={() => {
+                    button.onPress && button.onPress();
+                    onClose();
+                  }}
+                >
+                  <LinearGradient
+                    colors={
+                      button.style === 'destructive' 
+                        ? ['#FF6B6B', '#EE5A52']
+                        : button.style === 'cancel'
+                        ? ['#555', '#444']
+                        : ['#4A90E2', '#357ABD']
+                    }
+                    style={styles.customAlertButtonGradient}
+                  >
+                    <Text style={styles.customAlertButtonText}>{button.text}</Text>
+                  </LinearGradient>
+                </TouchableOpacity>
+              ))}
+            </View>
+          </LinearGradient>
+        </View>
+      </View>
+    </Modal>
+  );
+};
+
 export default function AddTourScreen({ navigation, route }) {
   const { date, userRole } = route.params || {};
   
+  // ✅ ИСПОЛЬЗУЕМ НАДЁЖНЫЙ ПАРСИНГ ДАТЫ
+  const initialDate = date ? parseDate(date) : new Date();
+  
   const [title, setTitle] = useState('');
-  const [startDate, setStartDate] = useState(new Date());
-  const [endDate, setEndDate] = useState(new Date());
+  const [startDate, setStartDate] = useState(initialDate);
+  const [endDate, setEndDate] = useState(initialDate);
   const [description, setDescription] = useState('');
   const [showStartDatePicker, setShowStartDatePicker] = useState(false);
   const [showEndDatePicker, setShowEndDatePicker] = useState(false);
+
+  // ✅ CUSTOM ALERT STATE
+  const [alertConfig, setAlertConfig] = useState({
+    visible: false,
+    title: '',
+    message: '',
+    buttons: []
+  });
+
+  const showAlert = (title, message, buttons = [{ text: 'OK' }]) => {
+    setAlertConfig({
+      visible: true,
+      title,
+      message,
+      buttons
+    });
+  };
+
+  const closeAlert = () => {
+    setAlertConfig({ ...alertConfig, visible: false });
+  };
+
+  // ✅ DEBUG: Логируем полученную дату
+  useEffect(() => {
+    console.log('📅 AddTourScreen: Получена дата из параметров:', date);
+    console.log('📅 AddTourScreen: Парсинг даты:', initialDate.toISOString());
+  }, []);
 
   const formatDateForDisplay = (date) => {
     return date.toLocaleDateString('ru-RU', {
@@ -58,7 +188,9 @@ export default function AddTourScreen({ navigation, route }) {
   };
 
   const onStartDateChange = (event, selectedDate) => {
-    setShowStartDatePicker(false);
+    if (Platform.OS !== 'web') {
+      setShowStartDatePicker(false);
+    }
     if (selectedDate) {
       setStartDate(selectedDate);
       if (selectedDate > endDate) {
@@ -68,22 +200,40 @@ export default function AddTourScreen({ navigation, route }) {
   };
 
   const onEndDateChange = (event, selectedDate) => {
-    setShowEndDatePicker(false);
+    if (Platform.OS !== 'web') {
+      setShowEndDatePicker(false);
+    }
     if (selectedDate && selectedDate >= startDate) {
       setEndDate(selectedDate);
     } else if (selectedDate) {
-      Alert.alert('Ошибка', 'Дата окончания не может быть раньше даты начала');
+      showAlert('Ошибка', 'Дата окончания не может быть раньше даты начала');
+    }
+  };
+
+  // ✅ WEB HANDLERS
+  const handleWebStartDateChange = (newDate) => {
+    setStartDate(newDate);
+    if (newDate > endDate) {
+      setEndDate(newDate);
+    }
+  };
+
+  const handleWebEndDateChange = (newDate) => {
+    if (newDate >= startDate) {
+      setEndDate(newDate);
+    } else {
+      showAlert('Ошибка', 'Дата окончания не может быть раньше даты начала');
     }
   };
 
   const handleSubmit = async () => {
     if (!title.trim() || !description.trim()) {
-      Alert.alert('Ошибка', 'Пожалуйста, заполните все обязательные поля');
+      showAlert('Ошибка', 'Пожалуйста, заполните все обязательные поля');
       return;
     }
 
     if (startDate > endDate) {
-      Alert.alert('Ошибка', 'Дата окончания не может быть раньше даты начала');
+      showAlert('Ошибка', 'Дата окончания не может быть раньше даты начала');
       return;
     }
 
@@ -97,16 +247,18 @@ export default function AddTourScreen({ navigation, route }) {
         updatedAt: new Date(),
       };
 
+      console.log('📅 Сохраняем гастроли:', tourData);
+
       await addDoc(collection(db, 'tours'), tourData);
 
-      Alert.alert(
+      showAlert(
         'Успех',
         'Гастроли успешно добавлены',
         [{ text: 'OK', onPress: () => navigation.goBack() }]
       );
     } catch (error) {
       console.error('Ошибка при сохранении гастролей:', error);
-      Alert.alert('Ошибка', 'Не удалось сохранить гастроли');
+      showAlert('Ошибка', 'Не удалось сохранить гастроли');
     }
   };
 
@@ -161,6 +313,21 @@ export default function AddTourScreen({ navigation, route }) {
         </LinearGradient>
 
         <ScrollView style={styles.formContainer} showsVerticalScrollIndicator={false}>
+          {/* ✅ ОТЛАДОЧНАЯ ИНФОРМАЦИЯ */}
+          {__DEV__ && (
+            <View style={styles.debugInfo}>
+              <Text style={styles.debugText}>
+                📅 Выбранная дата: {date || 'не передана'}
+              </Text>
+              <Text style={styles.debugText}>
+                📅 Начало: {formatDateForFirebase(startDate)}
+              </Text>
+              <Text style={styles.debugText}>
+                📅 Конец: {formatDateForFirebase(endDate)}
+              </Text>
+            </View>
+          )}
+
           {/* Заголовок */}
           <Text style={styles.label}>Название гастролей *</Text>
           <TextInput
@@ -174,37 +341,54 @@ export default function AddTourScreen({ navigation, route }) {
 
           {/* Дата начала */}
           <Text style={styles.label}>Дата начала *</Text>
-          <TouchableOpacity 
-            style={styles.dateInput}
-            onPress={() => setShowStartDatePicker(true)}
-          >
-            <LinearGradient
-              colors={['rgba(74, 144, 226, 0.2)', 'rgba(53, 122, 189, 0.2)']}
-              style={styles.dateInputGradient}
+          {Platform.OS === 'web' ? (
+            <WebDatePicker 
+              value={startDate} 
+              onChange={handleWebStartDateChange}
+              label="Дата начала"
+            />
+          ) : (
+            <TouchableOpacity 
+              style={styles.dateInput}
+              onPress={() => setShowStartDatePicker(true)}
             >
-              <Ionicons name="calendar" size={getResponsiveSize(20)} color="#4A90E2" />
-              <Text style={styles.dateText}>
-                {formatDateForDisplay(startDate)}
-              </Text>
-            </LinearGradient>
-          </TouchableOpacity>
+              <LinearGradient
+                colors={['rgba(74, 144, 226, 0.2)', 'rgba(53, 122, 189, 0.2)']}
+                style={styles.dateInputGradient}
+              >
+                <Ionicons name="calendar" size={getResponsiveSize(20)} color="#4A90E2" />
+                <Text style={styles.dateText}>
+                  {formatDateForDisplay(startDate)}
+                </Text>
+              </LinearGradient>
+            </TouchableOpacity>
+          )}
 
           {/* Дата окончания */}
           <Text style={styles.label}>Дата окончания *</Text>
-          <TouchableOpacity 
-            style={styles.dateInput}
-            onPress={() => setShowEndDatePicker(true)}
-          >
-            <LinearGradient
-              colors={['rgba(74, 144, 226, 0.2)', 'rgba(53, 122, 189, 0.2)']}
-              style={styles.dateInputGradient}
+          {Platform.OS === 'web' ? (
+            <WebDatePicker 
+              value={endDate} 
+              onChange={handleWebEndDateChange}
+              label="Дата окончания"
+              minDate={startDate}
+            />
+          ) : (
+            <TouchableOpacity 
+              style={styles.dateInput}
+              onPress={() => setShowEndDatePicker(true)}
             >
-              <Ionicons name="calendar" size={getResponsiveSize(20)} color="#4A90E2" />
-              <Text style={styles.dateText}>
-                {formatDateForDisplay(endDate)}
-              </Text>
-            </LinearGradient>
-          </TouchableOpacity>
+              <LinearGradient
+                colors={['rgba(74, 144, 226, 0.2)', 'rgba(53, 122, 189, 0.2)']}
+                style={styles.dateInputGradient}
+              >
+                <Ionicons name="calendar" size={getResponsiveSize(20)} color="#4A90E2" />
+                <Text style={styles.dateText}>
+                  {formatDateForDisplay(endDate)}
+                </Text>
+              </LinearGradient>
+            </TouchableOpacity>
+          )}
 
           {/* Описание */}
           <Text style={styles.label}>Описание гастролей *</Text>
@@ -259,8 +443,8 @@ export default function AddTourScreen({ navigation, route }) {
           </TouchableOpacity>
         </ScrollView>
 
-        {/* Date Pickers */}
-        {showStartDatePicker && (
+        {/* Date Pickers - ТОЛЬКО ДЛЯ NATIVE */}
+        {Platform.OS !== 'web' && showStartDatePicker && (
           <DateTimePicker
             value={startDate}
             mode="date"
@@ -269,7 +453,7 @@ export default function AddTourScreen({ navigation, route }) {
           />
         )}
 
-        {showEndDatePicker && (
+        {Platform.OS !== 'web' && showEndDatePicker && (
           <DateTimePicker
             value={endDate}
             mode="date"
@@ -278,6 +462,15 @@ export default function AddTourScreen({ navigation, route }) {
             onChange={onEndDateChange}
           />
         )}
+
+        {/* ✅ CUSTOM ALERT */}
+        <CustomAlert
+          visible={alertConfig.visible}
+          title={alertConfig.title}
+          message={alertConfig.message}
+          buttons={alertConfig.buttons}
+          onClose={closeAlert}
+        />
       </LinearGradient>
     </View>
   );
@@ -409,6 +602,21 @@ const styles = StyleSheet.create({
     flex: 1,
     padding: getResponsiveSize(20),
   },
+
+  // ✅ DEBUG INFO
+  debugInfo: {
+    backgroundColor: 'rgba(74, 144, 226, 0.2)',
+    borderRadius: 8,
+    padding: 10,
+    marginBottom: 15,
+    borderWidth: 1,
+    borderColor: 'rgba(74, 144, 226, 0.3)',
+  },
+  debugText: {
+    color: '#4A90E2',
+    fontSize: 12,
+    marginBottom: 2,
+  },
   
   label: {
     fontSize: getResponsiveFontSize(14),
@@ -526,5 +734,69 @@ const styles = StyleSheet.create({
     fontSize: getResponsiveFontSize(16),
     fontWeight: 'bold',
     marginLeft: getResponsiveSize(8),
+  },
+
+  // ✅ CUSTOM ALERT STYLES
+  customAlertOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.85)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  customAlertContainer: {
+    width: '100%',
+    maxWidth: 350,
+  },
+  customAlertGradient: {
+    borderRadius: 25,
+    padding: 25,
+    shadowColor: '#4A90E2',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.3,
+    shadowRadius: 12,
+    elevation: 8,
+    borderWidth: 1,
+    borderColor: 'rgba(74, 144, 226, 0.3)',
+  },
+  customAlertTitle: {
+    fontSize: 20,
+    fontWeight: '800',
+    color: '#E0E0E0',
+    marginBottom: 12,
+    textAlign: 'center',
+  },
+  customAlertMessage: {
+    fontSize: 14,
+    color: '#999',
+    marginBottom: 20,
+    textAlign: 'center',
+    lineHeight: 20,
+  },
+  customAlertButtons: {
+    flexDirection: 'row',
+    gap: 10,
+  },
+  customAlertButton: {
+    flex: 1,
+    borderRadius: 12,
+    overflow: 'hidden',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.3,
+    shadowRadius: 5,
+    elevation: 3,
+  },
+  customAlertButtonDestructive: {},
+  customAlertButtonCancel: {},
+  customAlertButtonGradient: {
+    paddingVertical: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  customAlertButtonText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: 'white',
   },
 });
