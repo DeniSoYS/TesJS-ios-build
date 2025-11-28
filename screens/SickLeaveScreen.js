@@ -4,9 +4,9 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { addDoc, collection, doc, getDocs, query, updateDoc, where } from 'firebase/firestore';
 import { useEffect, useState } from 'react';
 import {
-  Alert,
   Dimensions,
   KeyboardAvoidingView,
+  Modal,
   Platform,
   ScrollView,
   StyleSheet,
@@ -32,6 +32,105 @@ const getResponsiveFontSize = (size) => {
   return Math.round(baseSize);
 };
 
+// ✅ CUSTOM ALERT КОМПОНЕНТ (для web совместимости)
+const CustomAlert = ({ visible, title, message, buttons, onClose }) => {
+  if (!visible) return null;
+
+  return (
+    <Modal
+      visible={visible}
+      transparent={true}
+      animationType="fade"
+      onRequestClose={onClose}
+    >
+      <View style={styles.customAlertOverlay}>
+        <View style={styles.customAlertContainer}>
+          <LinearGradient
+            colors={['rgba(26, 26, 26, 0.98)', 'rgba(35, 35, 35, 0.95)']}
+            style={styles.customAlertGradient}
+          >
+            <Text style={styles.customAlertTitle}>{title}</Text>
+            <Text style={styles.customAlertMessage}>{message}</Text>
+            
+            <View style={styles.customAlertButtons}>
+              {buttons.map((button, index) => (
+                <TouchableOpacity
+                  key={index}
+                  style={[
+                    styles.customAlertButton,
+                    button.style === 'destructive' && styles.customAlertButtonDestructive,
+                    button.style === 'cancel' && styles.customAlertButtonCancel
+                  ]}
+                  onPress={() => {
+                    onClose();
+                    button.onPress && button.onPress();
+                  }}
+                >
+                  <LinearGradient
+                    colors={
+                      button.style === 'destructive' 
+                        ? ['#FF6B6B', '#EE5A52']
+                        : button.style === 'cancel'
+                        ? ['#555', '#444']
+                        : ['#FFD700', '#FFA500']
+                    }
+                    style={styles.customAlertButtonGradient}
+                  >
+                    <Text style={styles.customAlertButtonText}>{button.text}</Text>
+                  </LinearGradient>
+                </TouchableOpacity>
+              ))}
+            </View>
+          </LinearGradient>
+        </View>
+      </View>
+    </Modal>
+  );
+};
+
+// ✅ WEB DATE PICKER КОМПОНЕНТ
+const WebDatePicker = ({ value, onChange, label }) => {
+  const formatDateForInput = (date) => {
+    if (!date) return '';
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  };
+
+  const handleChange = (e) => {
+    const dateString = e.target.value;
+    if (dateString) {
+      const [year, month, day] = dateString.split('-').map(Number);
+      const newDate = new Date(year, month - 1, day);
+      onChange(newDate);
+    }
+  };
+
+  return (
+    <View style={styles.webDatePickerContainer}>
+      <Text style={styles.webDatePickerLabel}>{label}</Text>
+      <input
+        type="date"
+        value={formatDateForInput(value)}
+        onChange={handleChange}
+        style={{
+          backgroundColor: 'rgba(42, 42, 42, 0.8)',
+          border: '1px solid rgba(255, 215, 0, 0.3)',
+          borderRadius: 12,
+          padding: '14px 15px',
+          fontSize: 14,
+          color: '#E0E0E0',
+          width: '100%',
+          boxSizing: 'border-box',
+          fontFamily: 'inherit',
+          cursor: 'pointer',
+        }}
+      />
+    </View>
+  );
+};
+
 export default function SickLeave({ navigation, route }) {
   const { userRole, userEmail: paramEmail } = route.params || {};
   const [userEmail, setUserEmail] = useState(paramEmail || auth?.currentUser?.email || '');
@@ -46,6 +145,27 @@ export default function SickLeave({ navigation, route }) {
   const [existingEmployee, setExistingEmployee] = useState(null);
   const [loading, setLoading] = useState(false);
   const [initialLoad, setInitialLoad] = useState(true);
+
+  // ✅ CUSTOM ALERT STATE
+  const [alertConfig, setAlertConfig] = useState({
+    visible: false,
+    title: '',
+    message: '',
+    buttons: []
+  });
+
+  const showAlert = (title, message, buttons = [{ text: 'OK' }]) => {
+    setAlertConfig({
+      visible: true,
+      title,
+      message,
+      buttons
+    });
+  };
+
+  const closeAlert = () => {
+    setAlertConfig({ ...alertConfig, visible: false });
+  };
 
   // ОБНОВЛЕННЫЙ МАССИВ СТАТУСОВ С НОВЫМИ ЦВЕТАМИ ПОД ТЕМНУЮ ТЕМУ
   const statusOptions = [
@@ -112,9 +232,9 @@ export default function SickLeave({ navigation, route }) {
     } catch (error) {
       console.error('Ошибка при загрузке данных сотрудника:', error);
       if (error.code === 'invalid-argument') {
-        Alert.alert('Ошибка', 'Неверный формат email адреса');
+        showAlert('Ошибка', 'Неверный формат email адреса');
       } else {
-        Alert.alert('Ошибка', 'Не удалось загрузить данные сотрудника');
+        showAlert('Ошибка', 'Не удалось загрузить данные сотрудника');
       }
     } finally {
       setLoading(false);
@@ -124,7 +244,11 @@ export default function SickLeave({ navigation, route }) {
 
   const handleDateSelect = (date, type) => {
     if (date) {
-      const formattedDate = date.toISOString().split('T')[0];
+      const year = date.getFullYear();
+      const month = String(date.getMonth() + 1).padStart(2, '0');
+      const day = String(date.getDate()).padStart(2, '0');
+      const formattedDate = `${year}-${month}-${day}`;
+      
       if (type === 'start') {
         setStartDate(formattedDate);
       } else {
@@ -135,29 +259,29 @@ export default function SickLeave({ navigation, route }) {
 
   const validateForm = () => {
     if (!fullName.trim()) {
-      Alert.alert('Ошибка', 'Пожалуйста, укажите ваше ФИО');
+      showAlert('Ошибка', 'Пожалуйста, укажите ваше ФИО');
       return false;
     }
 
     if (!position.trim()) {
-      Alert.alert('Ошибка', 'Пожалуйста, укажите вашу должность');
+      showAlert('Ошибка', 'Пожалуйста, укажите вашу должность');
       return false;
     }
 
     if (status !== 'working') {
       if (!startDate) {
-        Alert.alert('Ошибка', 'Пожалуйста, укажите дату начала отсутствия');
+        showAlert('Ошибка', 'Пожалуйста, укажите дату начала отсутствия');
         return false;
       }
       if (!endDate) {
-        Alert.alert('Ошибка', 'Пожалуйста, укажите дату окончания отсутствия');
+        showAlert('Ошибка', 'Пожалуйста, укажите дату окончания отсутствия');
         return false;
       }
       
       const start = new Date(startDate);
       const end = new Date(endDate);
       if (end < start) {
-        Alert.alert('Ошибка', 'Дата окончания не может быть раньше даты начала');
+        showAlert('Ошибка', 'Дата окончания не может быть раньше даты начала');
         return false;
       }
     }
@@ -171,7 +295,7 @@ export default function SickLeave({ navigation, route }) {
     }
 
     if (!userEmail || userEmail.trim() === '') {
-      Alert.alert('Ошибка', 'Email не доступен. Пожалуйста, войдите в систему заново.');
+      showAlert('Ошибка', 'Email не доступен. Пожалуйста, войдите в систему заново.');
       return;
     }
 
@@ -198,7 +322,7 @@ export default function SickLeave({ navigation, route }) {
         message = 'Статус успешно сохранен';
       }
 
-      Alert.alert(
+      showAlert(
         'Успех',
         message,
         [{ text: 'OK', onPress: () => navigation.goBack() }]
@@ -215,7 +339,7 @@ export default function SickLeave({ navigation, route }) {
         errorMessage = 'Неверные данные для сохранения';
       }
       
-      Alert.alert('Ошибка', errorMessage);
+      showAlert('Ошибка', errorMessage);
     } finally {
       setLoading(false);
     }
@@ -237,6 +361,13 @@ export default function SickLeave({ navigation, route }) {
     } catch (error) {
       return dateString;
     }
+  };
+
+  // ✅ Функция парсинга даты из строки
+  const parseDate = (dateString) => {
+    if (!dateString) return new Date();
+    const [year, month, day] = dateString.split('-').map(Number);
+    return new Date(year, month - 1, day);
   };
 
   const getStatusColor = (statusValue) => {
@@ -426,45 +557,82 @@ export default function SickLeave({ navigation, route }) {
                   <Text style={styles.sectionTitle}>Период отсутствия</Text>
                 </View>
                 
-                <View style={styles.dateRow}>
-                  <View style={styles.dateColumn}>
-                    <Text style={styles.label}>От даты *</Text>
-                    <TouchableOpacity 
-                      style={styles.dateInput}
-                      onPress={() => setShowStartDatePicker(true)}
-                      disabled={loading}
-                    >
-                      <LinearGradient
-                        colors={['rgba(255, 215, 0, 0.2)', 'rgba(255, 165, 0, 0.2)']}
-                        style={styles.dateInputGradient}
-                      >
-                        <Ionicons name="calendar-outline" size={getResponsiveSize(20)} color="#FFD700" />
-                        <Text style={startDate ? styles.dateText : styles.datePlaceholder}>
-                          {startDate ? formatDate(startDate) : 'Выберите дату'}
-                        </Text>
-                      </LinearGradient>
-                    </TouchableOpacity>
+                {/* ✅ УСЛОВНЫЙ РЕНДЕРИНГ: WEB ИЛИ NATIVE */}
+                {Platform.OS === 'web' ? (
+                  // ✅ WEB VERSION
+                  <View style={styles.dateRow}>
+                    <View style={styles.dateColumn}>
+                      <WebDatePicker
+                        value={startDate ? parseDate(startDate) : new Date()}
+                        onChange={(date) => handleDateSelect(date, 'start')}
+                        label="От даты *"
+                      />
+                    </View>
+                    <View style={styles.dateColumn}>
+                      <WebDatePicker
+                        value={endDate ? parseDate(endDate) : new Date()}
+                        onChange={(date) => handleDateSelect(date, 'end')}
+                        label="До даты *"
+                      />
+                    </View>
                   </View>
+                ) : (
+                  // ✅ NATIVE VERSION
+                  <View style={styles.dateRow}>
+                    <View style={styles.dateColumn}>
+                      <Text style={styles.label}>От даты *</Text>
+                      <TouchableOpacity 
+                        style={styles.dateInput}
+                        onPress={() => setShowStartDatePicker(true)}
+                        disabled={loading}
+                      >
+                        <LinearGradient
+                          colors={['rgba(255, 215, 0, 0.2)', 'rgba(255, 165, 0, 0.2)']}
+                          style={styles.dateInputGradient}
+                        >
+                          <Ionicons name="calendar-outline" size={getResponsiveSize(20)} color="#FFD700" />
+                          <Text style={startDate ? styles.dateText : styles.datePlaceholder}>
+                            {startDate ? formatDate(startDate) : 'Выберите дату'}
+                          </Text>
+                        </LinearGradient>
+                      </TouchableOpacity>
+                    </View>
 
-                  <View style={styles.dateColumn}>
-                    <Text style={styles.label}>До даты *</Text>
-                    <TouchableOpacity 
-                      style={styles.dateInput}
-                      onPress={() => setShowEndDatePicker(true)}
-                      disabled={loading}
-                    >
-                      <LinearGradient
-                        colors={['rgba(255, 215, 0, 0.2)', 'rgba(255, 165, 0, 0.2)']}
-                        style={styles.dateInputGradient}
+                    <View style={styles.dateColumn}>
+                      <Text style={styles.label}>До даты *</Text>
+                      <TouchableOpacity 
+                        style={styles.dateInput}
+                        onPress={() => setShowEndDatePicker(true)}
+                        disabled={loading}
                       >
-                        <Ionicons name="calendar-outline" size={getResponsiveSize(20)} color="#FFD700" />
-                        <Text style={endDate ? styles.dateText : styles.datePlaceholder}>
-                          {endDate ? formatDate(endDate) : 'Выберите дату'}
-                        </Text>
-                      </LinearGradient>
-                    </TouchableOpacity>
+                        <LinearGradient
+                          colors={['rgba(255, 215, 0, 0.2)', 'rgba(255, 165, 0, 0.2)']}
+                          style={styles.dateInputGradient}
+                        >
+                          <Ionicons name="calendar-outline" size={getResponsiveSize(20)} color="#FFD700" />
+                          <Text style={endDate ? styles.dateText : styles.datePlaceholder}>
+                            {endDate ? formatDate(endDate) : 'Выберите дату'}
+                          </Text>
+                        </LinearGradient>
+                      </TouchableOpacity>
+                    </View>
                   </View>
-                </View>
+                )}
+
+                {/* ✅ ПОКАЗЫВАЕМ ВЫБРАННЫЕ ДАТЫ НА WEB */}
+                {Platform.OS === 'web' && (startDate || endDate) && (
+                  <View style={styles.selectedDatesInfo}>
+                    <Ionicons name="calendar" size={16} color="#FFD700" />
+                    <Text style={styles.selectedDatesText}>
+                      {startDate && endDate 
+                        ? `${formatDate(startDate)} — ${formatDate(endDate)}`
+                        : startDate 
+                          ? `С ${formatDate(startDate)}`
+                          : `До ${formatDate(endDate)}`
+                      }
+                    </Text>
+                  </View>
+                )}
 
                 <View style={styles.inputGroup}>
                   <Text style={styles.label}>Причина отсутствия</Text>
@@ -557,10 +725,10 @@ export default function SickLeave({ navigation, route }) {
           </View>
         </ScrollView>
 
-        {/* DATE PICKERS */}
-        {showStartDatePicker && (
+        {/* ✅ DATE PICKERS - ТОЛЬКО ДЛЯ NATIVE */}
+        {Platform.OS !== 'web' && showStartDatePicker && (
           <DateTimePicker
-            value={startDate ? new Date(startDate) : new Date()}
+            value={startDate ? parseDate(startDate) : new Date()}
             mode="date"
             display="default"
             onChange={(event, date) => {
@@ -570,9 +738,9 @@ export default function SickLeave({ navigation, route }) {
           />
         )}
 
-        {showEndDatePicker && (
+        {Platform.OS !== 'web' && showEndDatePicker && (
           <DateTimePicker
-            value={endDate ? new Date(endDate) : new Date()}
+            value={endDate ? parseDate(endDate) : new Date()}
             mode="date"
             display="default"
             onChange={(event, date) => {
@@ -582,6 +750,15 @@ export default function SickLeave({ navigation, route }) {
           />
         )}
       </KeyboardAvoidingView>
+
+      {/* ✅ CUSTOM ALERT */}
+      <CustomAlert
+        visible={alertConfig.visible}
+        title={alertConfig.title}
+        message={alertConfig.message}
+        buttons={alertConfig.buttons}
+        onClose={closeAlert}
+      />
     </LinearGradient>
   );
 }
@@ -780,6 +957,7 @@ const styles = StyleSheet.create({
   dateRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
+    marginBottom: getResponsiveSize(16),
   },
   dateColumn: {
     width: '48%',
@@ -811,6 +989,34 @@ const styles = StyleSheet.create({
     color: '#888',
     marginLeft: getResponsiveSize(10),
   },
+
+  // ✅ WEB DATE PICKER STYLES
+  webDatePickerContainer: {
+    marginBottom: getResponsiveSize(8),
+  },
+  webDatePickerLabel: {
+    fontSize: getResponsiveFontSize(14),
+    fontWeight: '600',
+    color: '#FFD700',
+    marginBottom: getResponsiveSize(8),
+  },
+  selectedDatesInfo: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(255, 215, 0, 0.15)',
+    padding: getResponsiveSize(12),
+    borderRadius: getResponsiveSize(10),
+    marginBottom: getResponsiveSize(16),
+    borderWidth: 1,
+    borderColor: 'rgba(255, 215, 0, 0.3)',
+  },
+  selectedDatesText: {
+    fontSize: getResponsiveFontSize(14),
+    color: '#FFD700',
+    marginLeft: getResponsiveSize(8),
+    fontWeight: '600',
+  },
+
   currentStatusSection: {
     marginBottom: getResponsiveSize(16),
   },
@@ -985,5 +1191,69 @@ const styles = StyleSheet.create({
     color: '#1a1a1a',
     fontSize: getResponsiveFontSize(14),
     fontWeight: '600',
+  },
+
+  // ✅ CUSTOM ALERT STYLES
+  customAlertOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.85)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  customAlertContainer: {
+    width: '100%',
+    maxWidth: 350,
+  },
+  customAlertGradient: {
+    borderRadius: 25,
+    padding: 25,
+    shadowColor: '#FFD700',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.3,
+    shadowRadius: 12,
+    elevation: 8,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 215, 0, 0.3)',
+  },
+  customAlertTitle: {
+    fontSize: 20,
+    fontWeight: '800',
+    color: '#E0E0E0',
+    marginBottom: 12,
+    textAlign: 'center',
+  },
+  customAlertMessage: {
+    fontSize: 14,
+    color: '#999',
+    marginBottom: 20,
+    textAlign: 'center',
+    lineHeight: 20,
+  },
+  customAlertButtons: {
+    flexDirection: 'row',
+    gap: 10,
+  },
+  customAlertButton: {
+    flex: 1,
+    borderRadius: 12,
+    overflow: 'hidden',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.3,
+    shadowRadius: 5,
+    elevation: 3,
+  },
+  customAlertButtonDestructive: {},
+  customAlertButtonCancel: {},
+  customAlertButtonGradient: {
+    paddingVertical: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  customAlertButtonText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: 'white',
   },
 });

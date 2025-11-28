@@ -1,5 +1,6 @@
 // ✅ utils/statisticsUtils.js
 // Утилиты для расчета статистики концертов
+// ИСПРАВЛЕНО: Теперь статистика зависит от выбранного месяца в календаре
 
 // ✅ ВСЕ 85 РЕГИОНОВ РОССИИ С ЦВЕТАМИ
 const REGIONS_DATA = {
@@ -122,6 +123,7 @@ export const isVoronejRegion = (region) => {
 
 // Функция для получения месяца и года из даты
 const getMonthYear = (dateString) => {
+  if (!dateString) return { year: 0, month: 0 };
   const date = new Date(dateString + 'T00:00:00');
   return {
     year: date.getFullYear(),
@@ -129,56 +131,57 @@ const getMonthYear = (dateString) => {
   };
 };
 
-// Функция для проверки, принадлежит ли дата текущему месяцу
-const isCurrentMonth = (dateString) => {
-  const now = new Date();
-  const {year, month} = getMonthYear(dateString);
-  return year === now.getFullYear() && month === now.getMonth() + 1;
+// ✅ ИСПРАВЛЕНО: Проверка принадлежности к ВЫБРАННОМУ месяцу
+const isSelectedMonth = (dateString, selectedYear, selectedMonth) => {
+  if (!dateString) return false;
+  const { year, month } = getMonthYear(dateString);
+  return year === selectedYear && month === selectedMonth;
 };
 
-// Функция для проверки, принадлежит ли дата текущему кварталу (3 месяца)
-const isCurrentQuarter = (dateString) => {
-  const now = new Date();
-  const currentMonth = now.getMonth() + 1;
-  const currentYear = now.getFullYear();
-  const {year, month} = getMonthYear(dateString);
+// ✅ ИСПРАВЛЕНО: Проверка принадлежности к кварталу ВЫБРАННОГО месяца
+const isSelectedQuarter = (dateString, selectedYear, selectedMonth) => {
+  if (!dateString) return false;
+  const { year, month } = getMonthYear(dateString);
   
-  if (year !== currentYear) return false;
+  if (year !== selectedYear) return false;
   
-  const quarterStart = Math.floor((currentMonth - 1) / 3) * 3 + 1;
+  const quarterStart = Math.floor((selectedMonth - 1) / 3) * 3 + 1;
   const quarterEnd = quarterStart + 2;
   
   return month >= quarterStart && month <= quarterEnd;
 };
 
-// Функция для проверки, принадлежит ли дата последним 4 месяцам
-const isLast4Months = (dateString) => {
-  const now = new Date();
-  const {year, month} = getMonthYear(dateString);
+// ✅ ИСПРАВЛЕНО: Проверка принадлежности к 4 месяцам ОТ ВЫБРАННОГО месяца
+const isLast4MonthsFromSelected = (dateString, selectedYear, selectedMonth) => {
+  if (!dateString) return false;
+  const { year, month } = getMonthYear(dateString);
   
-  const currentMonth = now.getMonth() + 1;
-  const currentYear = now.getFullYear();
+  // Вычисляем начальный месяц (3 месяца назад от выбранного)
+  let startMonth = selectedMonth - 3;
+  let startYear = selectedYear;
   
-  // Создаем дату 4 месяца назад
-  let checkMonth = currentMonth - 3;
-  let checkYear = currentYear;
-  
-  if (checkMonth <= 0) {
-    checkMonth += 12;
-    checkYear -= 1;
+  if (startMonth <= 0) {
+    startMonth += 12;
+    startYear -= 1;
   }
   
-  // Проверяем, находится ли дата между checkYear:checkMonth и currentYear:currentMonth
-  if (year < checkYear) return false;
-  if (year > currentYear) return false;
+  // Проверяем, находится ли дата в диапазоне
+  const dateValue = year * 12 + month;
+  const startValue = startYear * 12 + startMonth;
+  const endValue = selectedYear * 12 + selectedMonth;
   
-  if (year === checkYear && month < checkMonth) return false;
-  if (year === currentYear && month > currentMonth) return false;
-  
-  return true;
+  return dateValue >= startValue && dateValue <= endValue;
 };
 
-export const calculateStatistics = (concerts) => {
+// ✅ ГЛАВНАЯ ФУНКЦИЯ: Теперь принимает year и month
+export const calculateStatistics = (concerts, selectedYear = null, selectedMonth = null) => {
+  // Если год/месяц не переданы — используем текущую дату
+  if (!selectedYear || !selectedMonth) {
+    const now = new Date();
+    selectedYear = now.getFullYear();
+    selectedMonth = now.getMonth() + 1;
+  }
+
   if (!concerts || concerts.length === 0) {
     return {
       monthly: { voronezh: 0, other: 0, total: 0 },
@@ -187,18 +190,18 @@ export const calculateStatistics = (concerts) => {
     };
   }
 
-  // Статистика по месяцам
-  const monthlyConcerts = concerts.filter(c => isCurrentMonth(c.date));
+  // ✅ Статистика по ВЫБРАННОМУ месяцу
+  const monthlyConcerts = concerts.filter(c => c.date && isSelectedMonth(c.date, selectedYear, selectedMonth));
   const monthlyVoronezh = monthlyConcerts.filter(c => isVoronejRegion(c.region)).length;
   const monthlyOther = monthlyConcerts.filter(c => !isVoronejRegion(c.region)).length;
 
-  // Статистика по кварталам
-  const quarterlyConcerts = concerts.filter(c => isCurrentQuarter(c.date));
+  // ✅ Статистика по кварталу ВЫБРАННОГО месяца
+  const quarterlyConcerts = concerts.filter(c => c.date && isSelectedQuarter(c.date, selectedYear, selectedMonth));
   const quarterlyVoronezh = quarterlyConcerts.filter(c => isVoronejRegion(c.region)).length;
   const quarterlyOther = quarterlyConcerts.filter(c => !isVoronejRegion(c.region)).length;
 
-  // Статистика по последним 4 месяцам
-  const last4Concerts = concerts.filter(c => isLast4Months(c.date));
+  // ✅ Статистика по 4 месяцам ОТ ВЫБРАННОГО
+  const last4Concerts = concerts.filter(c => c.date && isLast4MonthsFromSelected(c.date, selectedYear, selectedMonth));
   const last4Voronezh = last4Concerts.filter(c => isVoronejRegion(c.region)).length;
   const last4Other = last4Concerts.filter(c => !isVoronejRegion(c.region)).length;
 
@@ -229,35 +232,50 @@ export const getMonthName = (monthNumber) => {
   return months[monthNumber - 1] || '';
 };
 
-export const getCurrentMonthName = () => {
-  const now = new Date();
-  return getMonthName(now.getMonth() + 1);
+// ✅ ИСПРАВЛЕНО: Принимает выбранный месяц
+export const getCurrentMonthName = (selectedYear = null, selectedMonth = null) => {
+  if (!selectedYear || !selectedMonth) {
+    const now = new Date();
+    selectedMonth = now.getMonth() + 1;
+  }
+  return getMonthName(selectedMonth);
 };
 
-export const getCurrentQuarterText = () => {
-  const now = new Date();
-  const month = now.getMonth() + 1;
-  const quarter = Math.floor((month - 1) / 3) + 1;
-  return `${quarter} квартал`;
-};
-
-export const getLast4MonthsText = () => {
-  const now = new Date();
-  const month = now.getMonth() + 1;
-  const year = now.getFullYear();
+// ✅ ИСПРАВЛЕНО: Принимает выбранный месяц
+export const getCurrentQuarterText = (selectedYear = null, selectedMonth = null) => {
+  if (!selectedYear || !selectedMonth) {
+    const now = new Date();
+    selectedMonth = now.getMonth() + 1;
+    selectedYear = now.getFullYear();
+  }
   
-  let startMonth = month - 3;
-  let startYear = year;
+  const quarter = Math.floor((selectedMonth - 1) / 3) + 1;
+  return `${quarter} квартал ${selectedYear}`;
+};
+
+// ✅ ИСПРАВЛЕНО: Принимает выбранный месяц
+export const getLast4MonthsText = (selectedYear = null, selectedMonth = null) => {
+  if (!selectedYear || !selectedMonth) {
+    const now = new Date();
+    selectedMonth = now.getMonth() + 1;
+    selectedYear = now.getFullYear();
+  }
+  
+  let startMonth = selectedMonth - 3;
+  let startYear = selectedYear;
   
   if (startMonth <= 0) {
     startMonth += 12;
     startYear -= 1;
   }
   
-  const endMonthName = getMonthName(month);
+  const endMonthName = getMonthName(selectedMonth);
   const startMonthName = getMonthName(startMonth);
   
-  return `${startMonthName} ${startYear} - ${endMonthName} ${year}`;
+  if (startYear !== selectedYear) {
+    return `${startMonthName} ${startYear} - ${endMonthName} ${selectedYear}`;
+  }
+  return `${startMonthName} - ${endMonthName} ${selectedYear}`;
 };
 
 // ✅ СПИСОК ВСЕХ РЕГИОНОВ ДЛЯ ВЫПАДАЮЩЕГО СПИСКА

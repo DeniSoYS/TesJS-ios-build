@@ -19,7 +19,7 @@ import {
 } from 'react-native';
 import { Calendar, LocaleConfig } from 'react-native-calendars';
 import { auth, db } from '../firebaseConfig';
-import { calculateStatistics, getColorByRegion, getCurrentMonthName, getCurrentQuarterText, getLast4MonthsText } from '../utils/statisticsUtils'; // ✅ НОВЫЙ ИМПОРТ
+import { calculateStatistics, getColorByRegion, getCurrentMonthName, getCurrentQuarterText } from '../utils/statisticsUtils'; // ❌ УДАЛЕН getLast4MonthsText
 
 // ✅ ФУНКЦИЯ КОНВЕРТАЦИИ ТИПОВ
 const toRussianType = (englishType) => {
@@ -233,21 +233,24 @@ export default function CalendarScreen({ navigation, route }) {
     moves: 0
   });
 
-  // ✅ НОВОЕ: СТАТИСТИКА ПО РЕГИОНАМ И ВРЕМЕННЫМ ПЕРИОДАМ
+  // ✅ ИЗМЕНЕНО: СТАТИСТИКА ПО РЕГИОНАМ БЕЗ 4 МЕСЯЦЕВ
   const [statistics, setStatistics] = useState({
     monthly: { voronezh: 0, other: 0, total: 0 },
     quarterly: { voronezh: 0, other: 0, total: 0 },
-    last4Months: { voronezh: 0, other: 0, total: 0 },
+    // ❌ УДАЛЕН last4Months
   });
-  const [activeStatTab, setActiveStatTab] = useState('monthly'); // 'monthly', 'quarterly', 'last4Months'
+  const [activeStatTab, setActiveStatTab] = useState('monthly'); // 'monthly', 'quarterly'
 
-  // ✅ УПРАВЛЕНИЕ ВИДИМОСТЬЮ ПАНЕЛЕЙ - ПРАВИЛЬНО!
+  // ✅ УПРАВЛЕНИЕ ВИДИМОСТЬЮ ПАНЕЛЕЙ - ДОБАВЛЕНА ШТОРКА
   const [showHeaderStats, setShowHeaderStats] = useState(true);
   const [showRegionStats, setShowRegionStats] = useState(true);
   
   // Анимированные значения для высоты панелей
   const headerStatsHeightAnim = useRef(new Animated.Value(1)).current;
   const regionStatsHeightAnim = useRef(new Animated.Value(1)).current;
+
+  // ✅ ДОБАВЛЕНО: АНИМАЦИЯ ШТОРКИ ДЛЯ РЕГИОНАЛЬНОЙ СТАТИСТИКИ
+  const regionStatsSlideAnim = useRef(new Animated.Value(0)).current;
 
   // ✅ АНИМАЦИЯ КНОПКИ ОБНОВЛЕНИЯ
   const refreshButtonAnim = useRef(new Animated.Value(0)).current;
@@ -273,7 +276,7 @@ export default function CalendarScreen({ navigation, route }) {
     setAlertConfig({ ...alertConfig, visible: false });
   };
 
-  // ✅ ФУНКЦИИ ПЕРЕКЛЮЧЕНИЯ ВИДИМОСТИ ПАНЕЛЕЙ - ПРАВИЛЬНО!
+  // ✅ ФУНКЦИИ ПЕРЕКЛЮЧЕНИЯ ВИДИМОСТИ ПАНЕЛЕЙ
   const toggleHeaderStats = () => {
     const newState = !showHeaderStats;
     setShowHeaderStats(newState);
@@ -285,15 +288,40 @@ export default function CalendarScreen({ navigation, route }) {
     }).start();
   };
 
+  // ✅ ИЗМЕНЕНО: ФУНКЦИЯ ПЕРЕКЛЮЧЕНИЯ РЕГИОНАЛЬНОЙ СТАТИСТИКИ КАК ШТОРКИ
   const toggleRegionStats = () => {
     const newState = !showRegionStats;
     setShowRegionStats(newState);
     
-    Animated.timing(regionStatsHeightAnim, {
-      toValue: newState ? 1 : 0,
-      duration: 300,
-      useNativeDriver: false,
-    }).start();
+    if (newState) {
+      // Открытие шторки
+      Animated.parallel([
+        Animated.timing(regionStatsHeightAnim, {
+          toValue: 1,
+          duration: 300,
+          useNativeDriver: false,
+        }),
+        Animated.timing(regionStatsSlideAnim, {
+          toValue: 0,
+          duration: 300,
+          useNativeDriver: true,
+        })
+      ]).start();
+    } else {
+      // Закрытие шторки
+      Animated.parallel([
+        Animated.timing(regionStatsHeightAnim, {
+          toValue: 0,
+          duration: 300,
+          useNativeDriver: false,
+        }),
+        Animated.timing(regionStatsSlideAnim, {
+          toValue: 1,
+          duration: 300,
+          useNativeDriver: true,
+        })
+      ]).start();
+    }
   };
   
   const pulseAnim = useRef(new Animated.Value(1)).current;
@@ -373,9 +401,8 @@ export default function CalendarScreen({ navigation, route }) {
 
   useEffect(() => {
     updateMarkedDates(concerts, tours, moves);
-    // ✅ НОВОЕ: ОБНОВЛЯЕМ СТАТИСТИКУ ПРИ ИЗМЕНЕНИИ КОНЦЕРТОВ
-    updateStatistics(concerts);
-  }, [concerts, tours, moves]);
+    updateStatistics(concerts, currentMonth.year, currentMonth.month);
+  }, [concerts, tours, moves, currentMonth]);
 
   // ✅ BROWSER HISTORY API ДЛЯ BACK BUTTON
   useEffect(() => {
@@ -455,16 +482,22 @@ export default function CalendarScreen({ navigation, route }) {
     });
   };
 
-  // ✅ НОВОЕ: ФУНКЦИЯ ОБНОВЛЕНИЯ СТАТИСТИКИ
-  const updateStatistics = (concertsData) => {
-    const stats = calculateStatistics(concertsData);
-    setStatistics(stats);
+  // ✅ ИСПРАВЛЕНО: ФУНКЦИЯ ОБНОВЛЕНИЯ СТАТИСТИКИ БЕЗ 4 МЕСЯЦЕВ
+  const updateStatistics = (concertsData, year = null, month = null) => {
+    const selectedYear = year || currentMonth.year;
+    const selectedMonth = month || currentMonth.month;
+    
+    const stats = calculateStatistics(concertsData, selectedYear, selectedMonth);
+    // ❌ УДАЛЕН last4Months из статистики
+    setStatistics({
+      monthly: stats.monthly,
+      quarterly: stats.quarterly
+    });
   };
 
   const loadAllData = async () => {
     setRefreshing(true);
     
-    // ✅ АНИМАЦИЯ ВРАЩЕНИЯ КНОПКИ
     Animated.loop(
       Animated.timing(refreshButtonAnim, {
         toValue: 1,
@@ -496,7 +529,6 @@ export default function CalendarScreen({ navigation, route }) {
     await loadAllData();
   };
 
-  // ✅ НОВАЯ ФУНКЦИЯ: ОБНОВЛЕНИЕ ПО КНОПКЕ
   const handleRefreshButton = async () => {
     console.log('🔄 Нажата кнопка обновления...');
     await loadAllData();
@@ -593,6 +625,7 @@ export default function CalendarScreen({ navigation, route }) {
     
     setCurrentMonth(newMonth);
     calculateMonthStats(concerts, tours, moves, newMonth.year, newMonth.month);
+    updateStatistics(concerts, newMonth.year, newMonth.month);
   };
 
   const getTourDates = (tour) => {
@@ -628,7 +661,6 @@ export default function CalendarScreen({ navigation, route }) {
     };
 
     concertsData.forEach(concert => {
-      // ✅ НОВОЕ: ИСПОЛЬЗУЕМ ЦВЕТ ПО РЕГИОНАМ
       const concertColor = getColorByRegion(concert.region);
       
       if (concert.date === today) {
@@ -988,7 +1020,6 @@ export default function CalendarScreen({ navigation, route }) {
       );
     }
 
-    // ✅ СТАТИСТИКА ПО ГОРОДАМ - ДОСТУПНА ВСЕМ!
     actions.push(
       {
         icon: 'pie-chart', 
@@ -998,7 +1029,6 @@ export default function CalendarScreen({ navigation, route }) {
       }
     );
 
-    // ✅ ГОРОДА И ОБЛАСТИ - ДОСТУПНА ВСЕМ!
     actions.push(
       {
         icon: 'pin',
@@ -1008,7 +1038,6 @@ export default function CalendarScreen({ navigation, route }) {
       }
     );
 
-    // ✅ НАПОМИНАНИЯ - ДОСТУПНЫ ВСЕМ!
     actions.push({
       icon: 'notifications', 
       label: 'Напоминания', 
@@ -1036,20 +1065,24 @@ export default function CalendarScreen({ navigation, route }) {
 
   const quickActions = getQuickActions();
 
-  // ✅ ВЫЧИСЛЯЕМ RESPONSIVE SIZES С АКТУАЛЬНЫМИ РАЗМЕРАМИ
   const responsiveSize = (size) => getResponsiveSize(size, dimensions.width);
   const responsiveFontSize = (size) => getResponsiveFontSize(size, dimensions.width);
 
-  // ✅ ПОЛУЧАЕМ ТЕКУЩУЮ СТАТИСТИКУ В ЗАВИСИМОСТИ ОТ ВКЛАДКИ
+  // ✅ ИЗМЕНЕНО: ПОЛУЧАЕМ ТЕКСТ ПЕРИОДА БЕЗ 4 МЕСЯЦЕВ
   const currentStats = statistics[activeStatTab] || { voronezh: 0, other: 0, total: 0 };
-  const statPeriodText = activeStatTab === 'monthly' ? getCurrentMonthName() : 
-                         activeStatTab === 'quarterly' ? getCurrentQuarterText() : 
-                         getLast4MonthsText();
+  const statPeriodText = activeStatTab === 'monthly' ? getCurrentMonthName(currentMonth.year, currentMonth.month) : 
+                         getCurrentQuarterText(currentMonth.year, currentMonth.month);
 
   // ✅ АНИМАЦИЯ ВРАЩЕНИЯ
   const spin = refreshButtonAnim.interpolate({
     inputRange: [0, 1],
     outputRange: ['0deg', '360deg']
+  });
+
+  // ✅ АНИМАЦИЯ СДВИГА ДЛЯ ШТОРКИ
+  const slideInterpolate = regionStatsSlideAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: [0, -300]
   });
 
   return (
@@ -1090,7 +1123,6 @@ export default function CalendarScreen({ navigation, route }) {
                 </View>
 
                 <View style={styles.actionButtons}>
-                  {/* ✅ КНОПКА ОБНОВЛЕНИЯ */}
                   <TouchableOpacity 
                     onPress={handleRefreshButton} 
                     style={styles.refreshButton}
@@ -1191,7 +1223,6 @@ export default function CalendarScreen({ navigation, route }) {
                   </TouchableOpacity>
                 </View>
                 
-                {/* СОДЕРЖИМОЕ ПАНЕЛИ - АНИМИРУЕТСЯ */}
                 <Animated.View 
                   style={{
                     maxHeight: headerStatsHeightAnim.interpolate({
@@ -1258,8 +1289,32 @@ export default function CalendarScreen({ navigation, route }) {
             />
           }
         >
-          {/* ✅ ПАНЕЛЬ 2: СТАТИСТИКА ПО РЕГИОНАМ - ВИДНА ВСЕМ! */}
-          <View style={styles.statisticsSection}>
+          {/* ✅ ПАНЕЛЬ 2: СТАТИСТИКА ПО РЕГИОНАМ - С ШТОРКОЙ */}
+          <Animated.View 
+            style={[
+              styles.statisticsSection,
+              {
+                transform: [{ translateY: slideInterpolate }],
+                maxHeight: regionStatsHeightAnim.interpolate({
+                  inputRange: [0, 1],
+                  outputRange: [0, 800],
+                }),
+                opacity: regionStatsHeightAnim,
+                marginTop: regionStatsHeightAnim.interpolate({
+                  inputRange: [0, 1],
+                  outputRange: [0, 15],
+                }),
+                marginBottom: regionStatsHeightAnim.interpolate({
+                  inputRange: [0, 1],
+                  outputRange: [0, 15],
+                }),
+                padding: regionStatsHeightAnim.interpolate({
+                  inputRange: [0, 1],
+                  outputRange: [0, 20],
+                }),
+              }
+            ]}
+          >
             <View style={styles.statisticsSectionHeaderContainer}>
               <View style={styles.statisticsTitleWrapper}>
                 <LinearGradient
@@ -1286,87 +1341,63 @@ export default function CalendarScreen({ navigation, route }) {
               </TouchableOpacity>
             </View>
 
-            {/* СОДЕРЖИМОЕ ПАНЕЛИ - АНИМИРУЕТСЯ */}
-            <Animated.View 
-              style={{
-                maxHeight: regionStatsHeightAnim.interpolate({
-                  inputRange: [0, 1],
-                  outputRange: [0, 800],
-                }),
-                opacity: regionStatsHeightAnim,
-                overflow: 'hidden',
-              }}
-            >
-              {/* ТАБЫ СТАТИСТИКИ */}
-              <View style={styles.statisticsTabsContainer}>
-                <TouchableOpacity
-                  style={[styles.statisticsTab, activeStatTab === 'monthly' && styles.statisticsTabActive]}
-                  onPress={() => setActiveStatTab('monthly')}
+            {/* ТАБЫ СТАТИСТИКИ - ТЕПЕРЬ ТОЛЬКО 2 ТАБА */}
+            <View style={styles.statisticsTabsContainer}>
+              <TouchableOpacity
+                style={[styles.statisticsTab, activeStatTab === 'monthly' && styles.statisticsTabActive]}
+                onPress={() => setActiveStatTab('monthly')}
+              >
+                <LinearGradient
+                  colors={activeStatTab === 'monthly' ? ['#FFD700', '#FFA500'] : ['rgba(100, 100, 100, 0.2)', 'rgba(100, 100, 100, 0.1)']}
+                  style={styles.statisticsTabGradient}
                 >
-                  <LinearGradient
-                    colors={activeStatTab === 'monthly' ? ['#FFD700', '#FFA500'] : ['rgba(100, 100, 100, 0.2)', 'rgba(100, 100, 100, 0.1)']}
-                    style={styles.statisticsTabGradient}
-                  >
-                    <Text style={[styles.statisticsTabText, { fontSize: responsiveFontSize(12) }, activeStatTab === 'monthly' && styles.statisticsTabTextActive]}>
-                      Месяц
-                    </Text>
-                  </LinearGradient>
-                </TouchableOpacity>
+                  <Text style={[styles.statisticsTabText, { fontSize: responsiveFontSize(12) }, activeStatTab === 'monthly' && styles.statisticsTabTextActive]}>
+                    Месяц
+                  </Text>
+                </LinearGradient>
+              </TouchableOpacity>
 
-                <TouchableOpacity
-                  style={[styles.statisticsTab, activeStatTab === 'quarterly' && styles.statisticsTabActive]}
-                  onPress={() => setActiveStatTab('quarterly')}
+              <TouchableOpacity
+                style={[styles.statisticsTab, activeStatTab === 'quarterly' && styles.statisticsTabActive]}
+                onPress={() => setActiveStatTab('quarterly')}
+              >
+                <LinearGradient
+                  colors={activeStatTab === 'quarterly' ? ['#4A90E2', '#357ABD'] : ['rgba(100, 100, 100, 0.2)', 'rgba(100, 100, 100, 0.1)']}
+                  style={styles.statisticsTabGradient}
                 >
-                  <LinearGradient
-                    colors={activeStatTab === 'quarterly' ? ['#4A90E2', '#357ABD'] : ['rgba(100, 100, 100, 0.2)', 'rgba(100, 100, 100, 0.1)']}
-                    style={styles.statisticsTabGradient}
-                  >
-                    <Text style={[styles.statisticsTabText, { fontSize: responsiveFontSize(12) }, activeStatTab === 'quarterly' && styles.statisticsTabTextActive]}>
-                      Квартал
-                    </Text>
-                  </LinearGradient>
-                </TouchableOpacity>
+                  <Text style={[styles.statisticsTabText, { fontSize: responsiveFontSize(12) }, activeStatTab === 'quarterly' && styles.statisticsTabTextActive]}>
+                    Квартал
+                  </Text>
+                </LinearGradient>
+              </TouchableOpacity>
 
-                <TouchableOpacity
-                  style={[styles.statisticsTab, activeStatTab === 'last4Months' && styles.statisticsTabActive]}
-                  onPress={() => setActiveStatTab('last4Months')}
-                >
-                  <LinearGradient
-                    colors={activeStatTab === 'last4Months' ? ['#34C759', '#28A745'] : ['rgba(100, 100, 100, 0.2)', 'rgba(100, 100, 100, 0.1)']}
-                    style={styles.statisticsTabGradient}
-                  >
-                    <Text style={[styles.statisticsTabText, { fontSize: responsiveFontSize(12) }, activeStatTab === 'last4Months' && styles.statisticsTabTextActive]}>
-                      4 месяца
-                    </Text>
-                  </LinearGradient>
-                </TouchableOpacity>
-              </View>
+              {/* ❌ УДАЛЕН ТАБ 4 МЕСЯЦА */}
+            </View>
 
-              {/* ТЕКУЩАЯ СТАТИСТИКА И ПРОГРЕСС-БАР */}
-              <View style={styles.statisticsContent}>
-                <Text style={[styles.statisticsContentTitle, { fontSize: responsiveFontSize(14) }]}>
-                  {statPeriodText}
+            {/* ТЕКУЩАЯ СТАТИСТИКА И ПРОГРЕСС-БАР */}
+            <View style={styles.statisticsContent}>
+              <Text style={[styles.statisticsContentTitle, { fontSize: responsiveFontSize(14) }]}>
+                {statPeriodText}
+              </Text>
+              
+              <ProgressBar 
+                voronezh={currentStats.voronezh}
+                other={currentStats.other}
+                total={currentStats.total}
+                responsiveSize={responsiveSize}
+                responsiveFontSize={responsiveFontSize}
+              />
+
+              <View style={styles.statisticsTotal}>
+                <Text style={[styles.statisticsTotalLabel, { fontSize: responsiveFontSize(12) }]}>
+                  Всего концертов:
                 </Text>
-                
-                <ProgressBar 
-                  voronezh={currentStats.voronezh}
-                  other={currentStats.other}
-                  total={currentStats.total}
-                  responsiveSize={responsiveSize}
-                  responsiveFontSize={responsiveFontSize}
-                />
-
-                <View style={styles.statisticsTotal}>
-                  <Text style={[styles.statisticsTotalLabel, { fontSize: responsiveFontSize(12) }]}>
-                    Всего концертов:
-                  </Text>
-                  <Text style={[styles.statisticsTotalValue, { fontSize: responsiveFontSize(20) }]}>
-                    {currentStats.total}
-                  </Text>
-                </View>
+                <Text style={[styles.statisticsTotalValue, { fontSize: responsiveFontSize(20) }]}>
+                  {currentStats.total}
+                </Text>
               </View>
-            </Animated.View>
-          </View>
+            </View>
+          </Animated.View>
 
           <View style={styles.calendarWrapper}>
             <LinearGradient
@@ -1536,7 +1567,7 @@ export default function CalendarScreen({ navigation, route }) {
           </View>
         </ScrollView>
 
-        {/* ✅ МОДАЛЬНОЕ ОКНО СОБЫТИЙ (БЕЗ BLURVIEW) */}
+        {/* ✅ МОДАЛЬНОЕ ОКНО СОБЫТИЙ */}
         <Modal
           animationType="fade"
           transparent={true}
@@ -1689,7 +1720,7 @@ export default function CalendarScreen({ navigation, route }) {
                       <Text style={[styles.sectionTitle, { fontSize: responsiveFontSize(18) }]}>🎵 Концерты</Text>
                       {selectedDateConcerts.map((concert) => {
                         const concertTypeRussian = toRussianType(concert.concertType);
-                        const concertColor = getColorByRegion(concert.region); // ✅ ИСПОЛЬЗУЕМ ЦВЕТ ПО РЕГИОНАМ
+                        const concertColor = getColorByRegion(concert.region);
                         
                         return (
                           <TouchableOpacity
@@ -1718,7 +1749,6 @@ export default function CalendarScreen({ navigation, route }) {
                               <Text style={[styles.concertDescription, { fontSize: responsiveFontSize(14) }]}>{concert.description}</Text>
                               <Text style={[styles.concertAddress, { fontSize: responsiveFontSize(13) }]}>{concert.address}</Text>
                               
-                              {/* ✅ ПОКАЗЫВАЕМ РЕГИОН */}
                               {concert.region && (
                                 <View style={styles.regionBadge}>
                                   <Ionicons name="location" size={responsiveSize(12)} color={concertColor} />
@@ -1793,7 +1823,7 @@ export default function CalendarScreen({ navigation, route }) {
           </View>
         </Modal>
 
-        {/* ✅ МОДАЛЬНОЕ ОКНО ВЫБОРА ТИПА СОБЫТИЯ (БЕЗ BLURVIEW) */}
+        {/* ✅ МОДАЛЬНОЕ ОКНО ВЫБОРА ТИПА СОБЫТИЯ */}
         <Modal
           animationType="fade"
           transparent={true}
@@ -1888,7 +1918,7 @@ export default function CalendarScreen({ navigation, route }) {
           </View>
         </Modal>
 
-        {/* ✅ МОДАЛЬНОЕ ОКНО ВЫХОДА (БЕЗ BLURVIEW) */}
+        {/* ✅ МОДАЛЬНОЕ ОКНО ВЫХОДА */}
         <Modal
           animationType="fade"
           transparent={true}
@@ -1983,16 +2013,14 @@ const styles = StyleSheet.create({
     flex: 1,
   },
 
-  // ✅ НОВОЕ: СТАТИСТИКА ПО РЕГИОНАМ
+  // ✅ ИЗМЕНЕНО: СТАТИСТИКА ПО РЕГИОНАМ С АНИМАЦИЕЙ ШТОРКИ
   statisticsSection: {
     marginHorizontal: 15,
-    marginTop: 15,
-    marginBottom: 15,
     backgroundColor: 'rgba(26, 26, 26, 0.8)',
     borderRadius: 20,
-    padding: 20,
     borderWidth: 1,
     borderColor: 'rgba(74, 144, 226, 0.2)',
+    overflow: 'hidden',
   },
   statisticsTitleWrapper: {
     flexDirection: 'row',
@@ -2182,7 +2210,6 @@ const styles = StyleSheet.create({
     gap: 10,
   },
 
-  // ✅ КНОПКА ОБНОВЛЕНИЯ
   refreshButton: {
     borderRadius: 22,
     overflow: 'hidden',
@@ -2576,7 +2603,7 @@ const styles = StyleSheet.create({
     lineHeight: 14,
   },
 
-  // ✅ МОДАЛЬНЫЕ ОКНА (БЕЗ BLURVIEW)
+  // ✅ МОДАЛЬНЫЕ ОКНА
   modalOverlay: {
     flex: 1,
     backgroundColor: 'rgba(0, 0, 0, 0.85)',
