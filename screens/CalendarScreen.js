@@ -19,7 +19,7 @@ import {
 } from 'react-native';
 import { Calendar, LocaleConfig } from 'react-native-calendars';
 import { auth, db } from '../firebaseConfig';
-import { calculateStatistics, getColorByRegion, getCurrentMonthName, getCurrentQuarterText } from '../utils/statisticsUtils'; // ❌ УДАЛЕН getLast4MonthsText
+import { calculateStatistics, getColorByRegion, getCurrentMonthName, getCurrentQuarterText } from '../utils/statisticsUtils';
 
 // ✅ ФУНКЦИЯ КОНВЕРТАЦИИ ТИПОВ
 const toRussianType = (englishType) => {
@@ -72,22 +72,6 @@ const getResponsiveSize = (size, windowWidth) => {
 const getResponsiveFontSize = (size, windowWidth) => {
   const baseSize = getResponsiveSize(size, windowWidth);
   return Math.round(baseSize);
-};
-
-// ✅ КОМПОНЕНТ MODAL OVERLAY (ЗАМЕНА BLURVIEW)
-const ModalOverlay = ({ children, visible, onClose }) => {
-  if (!visible) return null;
-  
-  return (
-    <View style={styles.modalOverlay}>
-      <TouchableOpacity 
-        style={styles.modalBackdrop}
-        activeOpacity={1}
-        onPress={onClose}
-      />
-      {children}
-    </View>
-  );
 };
 
 // ✅ КОМПОНЕНТ CUSTOM ALERT
@@ -233,18 +217,20 @@ export default function CalendarScreen({ navigation, route }) {
     moves: 0
   });
 
-  // ✅ ИЗМЕНЕНО: СТАТИСТИКА ПО РЕГИОНАМ БЕЗ 4 МЕСЯЦЕВ
+  // ✅ СТАТИСТИКА ПО РЕГИОНАМ (БЕЗ 4 МЕСЯЦЕВ!)
   const [statistics, setStatistics] = useState({
     monthly: { voronezh: 0, other: 0, total: 0 },
     quarterly: { voronezh: 0, other: 0, total: 0 },
   });
   const [activeStatTab, setActiveStatTab] = useState('monthly'); // 'monthly', 'quarterly'
 
-  // ✅ УПРАВЛЕНИЕ ВИДИМОСТЬЮ ПАНЕЛЕЙ - КАК У СТАТИСТИКИ ЗА МЕСЯЦ
+  // ✅ НОВОЕ: УПРАВЛЕНИЕ ВИДИМОСТЬЮ ПАНЕЛЕЙ + ШТОРКА
+  const [showFullHeader, setShowFullHeader] = useState(true); // ШТОРКА для всего хедера
   const [showHeaderStats, setShowHeaderStats] = useState(true);
   const [showRegionStats, setShowRegionStats] = useState(true);
   
   // Анимированные значения для высоты панелей
+  const fullHeaderHeightAnim = useRef(new Animated.Value(1)).current; // ШТОРКА
   const headerStatsHeightAnim = useRef(new Animated.Value(1)).current;
   const regionStatsHeightAnim = useRef(new Animated.Value(1)).current;
 
@@ -272,7 +258,19 @@ export default function CalendarScreen({ navigation, route }) {
     setAlertConfig({ ...alertConfig, visible: false });
   };
 
-  // ✅ ФУНКЦИИ ПЕРЕКЛЮЧЕНИЯ ВИДИМОСТИ ПАНЕЛЕЙ - КАК У СТАТИСТИКИ ЗА МЕСЯЦ
+  // ✅ НОВОЕ: ФУНКЦИЯ ПЕРЕКЛЮЧЕНИЯ ШТОРКИ (ВЕСЬ ХЕДЕР)
+  const toggleFullHeader = () => {
+    const newState = !showFullHeader;
+    setShowFullHeader(newState);
+    
+    Animated.timing(fullHeaderHeightAnim, {
+      toValue: newState ? 1 : 0,
+      duration: 300,
+      useNativeDriver: false,
+    }).start();
+  };
+
+  // ✅ ФУНКЦИИ ПЕРЕКЛЮЧЕНИЯ ВИДИМОСТИ ПАНЕЛЕЙ
   const toggleHeaderStats = () => {
     const newState = !showHeaderStats;
     setShowHeaderStats(newState);
@@ -284,7 +282,6 @@ export default function CalendarScreen({ navigation, route }) {
     }).start();
   };
 
-  // ✅ ИЗМЕНЕНО: ФУНКЦИЯ ПЕРЕКЛЮЧЕНИЯ РЕГИОНАЛЬНОЙ СТАТИСТИКИ КАК У СТАТИСТИКИ ЗА МЕСЯЦ
   const toggleRegionStats = () => {
     const newState = !showRegionStats;
     setShowRegionStats(newState);
@@ -304,7 +301,6 @@ export default function CalendarScreen({ navigation, route }) {
     let pulseAnimation;
     
     if (Platform.OS === 'web') {
-      // Для web - остановка анимации при неактивной вкладке
       const handleVisibilityChange = () => {
         if (document.hidden) {
           pulseAnimation && pulseAnimation.stop();
@@ -339,7 +335,6 @@ export default function CalendarScreen({ navigation, route }) {
         pulseAnimation && pulseAnimation.stop();
       };
     } else {
-      // Для нативных платформ
       pulseAnimation = Animated.loop(
         Animated.sequence([
           Animated.timing(pulseAnim, {
@@ -379,7 +374,6 @@ export default function CalendarScreen({ navigation, route }) {
   // ✅ BROWSER HISTORY API ДЛЯ BACK BUTTON
   useEffect(() => {
     if (Platform.OS === 'web') {
-      // Добавляем состояние в history при открытии модалки
       if (modalVisible || eventTypeModalVisible || logoutModalVisible) {
         window.history.pushState({ modal: true }, '');
       }
@@ -454,16 +448,12 @@ export default function CalendarScreen({ navigation, route }) {
     });
   };
 
-  // ✅ ИСПРАВЛЕНО: ФУНКЦИЯ ОБНОВЛЕНИЯ СТАТИСТИКИ БЕЗ 4 МЕСЯЦЕВ
   const updateStatistics = (concertsData, year = null, month = null) => {
     const selectedYear = year || currentMonth.year;
     const selectedMonth = month || currentMonth.month;
     
     const stats = calculateStatistics(concertsData, selectedYear, selectedMonth);
-    setStatistics({
-      monthly: stats.monthly,
-      quarterly: stats.quarterly
-    });
+    setStatistics(stats);
   };
 
   const loadAllData = async () => {
@@ -1039,12 +1029,12 @@ export default function CalendarScreen({ navigation, route }) {
   const responsiveSize = (size) => getResponsiveSize(size, dimensions.width);
   const responsiveFontSize = (size) => getResponsiveFontSize(size, dimensions.width);
 
-  // ✅ ИЗМЕНЕНО: ПОЛУЧАЕМ ТЕКСТ ПЕРИОДА БЕЗ 4 МЕСЯЦЕВ
+  // ✅ БЕЗ 4 МЕСЯЦЕВ!
   const currentStats = statistics[activeStatTab] || { voronezh: 0, other: 0, total: 0 };
-  const statPeriodText = activeStatTab === 'monthly' ? getCurrentMonthName(currentMonth.year, currentMonth.month) : 
-                         getCurrentQuarterText(currentMonth.year, currentMonth.month);
+  const statPeriodText = activeStatTab === 'monthly' 
+    ? getCurrentMonthName(currentMonth.year, currentMonth.month) 
+    : getCurrentQuarterText(currentMonth.year, currentMonth.month);
 
-  // ✅ АНИМАЦИЯ ВРАЩЕНИЯ
   const spin = refreshButtonAnim.interpolate({
     inputRange: [0, 1],
     outputRange: ['0deg', '360deg']
@@ -1064,179 +1054,214 @@ export default function CalendarScreen({ navigation, route }) {
         start={{ x: 0, y: 0 }}
         end={{ x: 1, y: 1 }}
       >
-        {/* ХЕДЕР */}
-        <Animated.View style={{ opacity: fadeAnim }}>
-          <LinearGradient
-            colors={['rgba(26, 26, 26, 0.98)', 'rgba(35, 35, 35, 0.95)']}
-            style={[styles.header, { paddingTop: Platform.OS === 'ios' ? responsiveSize(50) : responsiveSize(30) }]}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 1 }}
-          >
-            <View style={styles.headerBackground}>
-              <View style={[styles.decorCircle, styles.decorCircle1]} />
-              <View style={[styles.decorCircle, styles.decorCircle2]} />
-              <View style={[styles.decorCircle, styles.decorCircle3]} />
-            </View>
+        {/* ✅ НОВОЕ: МИНИ-ХЕДЕР (ВСЕГДА ВИДЕН) */}
+        <View style={[styles.miniHeader, { paddingTop: Platform.OS === 'ios' ? responsiveSize(50) : responsiveSize(30) }]}>
+          <View style={styles.miniHeaderLeft}>
+            <Text style={[styles.greetingText, { fontSize: responsiveFontSize(13) }]}>Добро пожаловать,</Text>
+            <Text style={[styles.userName, { fontSize: responsiveFontSize(18) }]} numberOfLines={1}>
+              {userEmail.split('@')[0]}
+            </Text>
+          </View>
 
-            <View style={styles.headerContent}>
-              <View style={styles.topRow}>
-                <View style={styles.greetingSection}>
-                  <Text style={[styles.greetingText, { fontSize: responsiveFontSize(13) }]}>Добро пожаловать,</Text>
-                  <Text style={[styles.userName, { fontSize: responsiveFontSize(18) }]} numberOfLines={1}>
-                    {userEmail.split('@')[0]}
-                  </Text>
-                </View>
+          <View style={styles.miniHeaderActions}>
+            {/* Кнопка сворачивания/разворачивания */}
+            <TouchableOpacity 
+              onPress={toggleFullHeader} 
+              style={styles.toggleHeaderButton}
+              activeOpacity={0.8}
+            >
+              <LinearGradient
+                colors={showFullHeader ? ['#FFD700', '#FFA500'] : ['#4A90E2', '#357ABD']}
+                style={styles.toggleHeaderButtonGradient}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+              >
+                <Ionicons 
+                  name={showFullHeader ? "chevron-up" : "chevron-down"} 
+                  size={responsiveSize(20)} 
+                  color={showFullHeader ? "#1a1a1a" : "white"} 
+                />
+              </LinearGradient>
+            </TouchableOpacity>
 
-                <View style={styles.actionButtons}>
-                  <TouchableOpacity 
-                    onPress={handleRefreshButton} 
-                    style={styles.refreshButton}
-                    activeOpacity={0.8}
-                    disabled={refreshing}
-                  >
+            {/* Кнопка обновления */}
+            <TouchableOpacity 
+              onPress={handleRefreshButton} 
+              style={styles.refreshButton}
+              activeOpacity={0.8}
+              disabled={refreshing}
+            >
+              <LinearGradient
+                colors={['#4A90E2', '#357ABD']}
+                style={styles.refreshButtonGradient}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+              >
+                {refreshing ? (
+                  <ActivityIndicator size="small" color="white" />
+                ) : (
+                  <Animated.View style={{ transform: [{ rotate: spin }] }}>
+                    <Ionicons name="refresh" size={responsiveSize(20)} color="white" />
+                  </Animated.View>
+                )}
+              </LinearGradient>
+            </TouchableOpacity>
+
+            {/* Кнопка роли */}
+            <TouchableOpacity 
+              style={styles.roleButton}
+              activeOpacity={0.8}
+              onPress={() => showAlert('Роль', `Вы вошли как ${userRole === 'admin' ? 'Администратор' : 'Артист'}`)}
+            >
+              <LinearGradient
+                colors={userRole === 'admin' ? 
+                  ['#FFD700', '#FFA500'] : 
+                  ['#DAA520', '#B8860B']}
+                style={styles.roleButtonGradient}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+              >
+                <Ionicons 
+                  name={userRole === 'admin' ? 'shield-checkmark' : 'musical-note'} 
+                  size={responsiveSize(16)} 
+                  color="#1a1a1a" 
+                />
+                <Text style={[styles.roleButtonText, { fontSize: responsiveFontSize(12) }]}>
+                  {userRole === 'admin' ? 'Админ' : 'Артист'}
+                </Text>
+              </LinearGradient>
+            </TouchableOpacity>
+
+            {/* Кнопка выхода */}
+            <TouchableOpacity 
+              onPress={handleLogout} 
+              style={styles.logoutButton}
+              activeOpacity={0.8}
+            >
+              <LinearGradient
+                colors={['#FF6B6B', '#EE5A52']}
+                style={styles.logoutButtonGradient}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+              >
+                <Ionicons name="log-out-outline" size={responsiveSize(20)} color="white" />
+              </LinearGradient>
+            </TouchableOpacity>
+          </View>
+        </View>
+
+        {/* ✅ АНИМИРОВАННЫЙ ПОЛНЫЙ ХЕДЕР (ШТОРКА) */}
+        <Animated.View 
+          style={{
+            maxHeight: fullHeaderHeightAnim.interpolate({
+              inputRange: [0, 1],
+              outputRange: [0, 800],
+            }),
+            opacity: fullHeaderHeightAnim,
+            overflow: 'hidden',
+          }}
+        >
+          <Animated.View style={{ opacity: fadeAnim }}>
+            <LinearGradient
+              colors={['rgba(26, 26, 26, 0.98)', 'rgba(35, 35, 35, 0.95)']}
+              style={styles.header}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+            >
+              <View style={styles.headerBackground}>
+                <View style={[styles.decorCircle, styles.decorCircle1]} />
+                <View style={[styles.decorCircle, styles.decorCircle2]} />
+                <View style={[styles.decorCircle, styles.decorCircle3]} />
+              </View>
+
+              <View style={styles.headerContent}>
+                <View style={styles.titleSection}>
+                  <View style={styles.titleIconContainer}>
                     <LinearGradient
-                      colors={['#4A90E2', '#357ABD']}
-                      style={styles.refreshButtonGradient}
+                      colors={['#FFD700', '#FFA500']}
+                      style={styles.titleIconGradient}
                       start={{ x: 0, y: 0 }}
                       end={{ x: 1, y: 1 }}
                     >
-                      {refreshing ? (
-                        <ActivityIndicator size="small" color="white" />
-                      ) : (
-                        <Animated.View style={{ transform: [{ rotate: spin }] }}>
-                          <Ionicons name="refresh" size={responsiveSize(20)} color="white" />
-                        </Animated.View>
-                      )}
+                      <Ionicons name="calendar" size={responsiveSize(28)} color="#1a1a1a" />
                     </LinearGradient>
-                  </TouchableOpacity>
+                  </View>
+                  <View style={styles.titleTextContainer}>
+                    <Text style={[styles.mainTitle, { fontSize: responsiveFontSize(20) }]}>Концертный календарь</Text>
+                    <Text style={[styles.subtitle, { fontSize: responsiveFontSize(13) }]}>Управление мероприятиями</Text>
+                  </View>
+                </View>
 
-                  <TouchableOpacity 
-                    style={styles.roleButton}
-                    activeOpacity={0.8}
-                    onPress={() => showAlert('Роль', `Вы вошли как ${userRole === 'admin' ? 'Администратор' : 'Артист'}`)}
-                  >
-                    <LinearGradient
-                      colors={userRole === 'admin' ? 
-                        ['#FFD700', '#FFA500'] : 
-                        ['#DAA520', '#B8860B']}
-                      style={styles.roleButtonGradient}
-                      start={{ x: 0, y: 0 }}
-                      end={{ x: 1, y: 1 }}
+                {/* ПАНЕЛЬ 1: СТАТИСТИКА МЕСЯЦА */}
+                <View style={styles.statsContainer}>
+                  <View style={styles.monthStatsHeaderContainer}>
+                    <View style={styles.monthStatsHeaderLeft}>
+                      <Text style={[styles.monthStatsTitle, { fontSize: responsiveFontSize(14) }]}>
+                        Статистика за {getCurrentMonthNameDisplay()} {currentMonth.year}
+                      </Text>
+                    </View>
+                    <TouchableOpacity 
+                      onPress={toggleHeaderStats}
+                      style={styles.collapseButton}
                     >
                       <Ionicons 
-                        name={userRole === 'admin' ? 'shield-checkmark' : 'musical-note'} 
-                        size={responsiveSize(16)} 
-                        color="#1a1a1a" 
+                        name={showHeaderStats ? "chevron-up" : "chevron-down"} 
+                        size={responsiveSize(20)} 
+                        color="#FFD700" 
                       />
-                      <Text style={[styles.roleButtonText, { fontSize: responsiveFontSize(12) }]}>
-                        {userRole === 'admin' ? 'Админ' : 'Артист'}
-                      </Text>
-                    </LinearGradient>
-                  </TouchableOpacity>
-
-                  <TouchableOpacity 
-                    onPress={handleLogout} 
-                    style={styles.logoutButton}
-                    activeOpacity={0.8}
-                  >
-                    <LinearGradient
-                      colors={['#FF6B6B', '#EE5A52']}
-                      style={styles.logoutButtonGradient}
-                      start={{ x: 0, y: 0 }}
-                      end={{ x: 1, y: 1 }}
-                    >
-                      <Ionicons name="log-out-outline" size={responsiveSize(20)} color="white" />
-                    </LinearGradient>
-                  </TouchableOpacity>
-                </View>
-              </View>
-
-              <View style={styles.titleSection}>
-                <View style={styles.titleIconContainer}>
-                  <LinearGradient
-                    colors={['#FFD700', '#FFA500']}
-                    style={styles.titleIconGradient}
-                    start={{ x: 0, y: 0 }}
-                    end={{ x: 1, y: 1 }}
-                  >
-                    <Ionicons name="calendar" size={responsiveSize(28)} color="#1a1a1a" />
-                  </LinearGradient>
-                </View>
-                <View style={styles.titleTextContainer}>
-                  <Text style={[styles.mainTitle, { fontSize: responsiveFontSize(20) }]}>Концертный календарь</Text>
-                  <Text style={[styles.subtitle, { fontSize: responsiveFontSize(13) }]}>Управление мероприятиями</Text>
-                </View>
-              </View>
-
-              {/* ✅ ПАНЕЛЬ 1: СТАТИСТИКА МЕСЯЦА */}
-              <View style={styles.statsContainer}>
-                <View style={styles.monthStatsHeaderContainer}>
-                  <View style={styles.monthStatsHeaderLeft}>
-                    <Text style={[styles.monthStatsTitle, { fontSize: responsiveFontSize(14) }]}>
-                      Статистика за {getCurrentMonthNameDisplay()} {currentMonth.year}
-                    </Text>
+                    </TouchableOpacity>
                   </View>
-                  <TouchableOpacity 
-                    onPress={toggleHeaderStats}
-                    style={styles.collapseButton}
+                  
+                  <Animated.View 
+                    style={{
+                      maxHeight: headerStatsHeightAnim.interpolate({
+                        inputRange: [0, 1],
+                        outputRange: [0, 180],
+                      }),
+                      opacity: headerStatsHeightAnim,
+                      overflow: 'hidden',
+                    }}
                   >
-                    <Ionicons 
-                      name={showHeaderStats ? "chevron-up" : "chevron-down"} 
-                      size={responsiveSize(20)} 
-                      color="#FFD700" 
-                    />
-                  </TouchableOpacity>
+                    <View style={styles.statsRow}>
+                      <View style={styles.statCard}>
+                        <View style={styles.statIconWrapper}>
+                          <Ionicons name="musical-notes" size={responsiveSize(20)} color="#FFD700" />
+                        </View>
+                        <View style={styles.statTextContainer}>
+                          <Text style={[styles.statValue, { fontSize: responsiveFontSize(20) }]}>{currentMonthStats.concerts}</Text>
+                          <Text style={[styles.statLabel, { fontSize: responsiveFontSize(10) }]}>Концертов</Text>
+                        </View>
+                      </View>
+
+                      <View style={styles.statDivider} />
+
+                      <View style={styles.statCard}>
+                        <View style={styles.statIconWrapper}>
+                          <Ionicons name="airplane" size={responsiveSize(20)} color="#FFA500" />
+                        </View>
+                        <View style={styles.statTextContainer}>
+                          <Text style={[styles.statValue, { fontSize: responsiveFontSize(20) }]}>{currentMonthStats.tours}</Text>
+                          <Text style={[styles.statLabel, { fontSize: responsiveFontSize(10) }]}>Гастролей</Text>
+                        </View>
+                      </View>
+
+                      <View style={styles.statDivider} />
+
+                      <View style={styles.statCard}>
+                        <View style={styles.statIconWrapper}>
+                          <Ionicons name="bus" size={responsiveSize(20)} color="#34C759" />
+                        </View>
+                        <View style={styles.statTextContainer}>
+                          <Text style={[styles.statValue, { fontSize: responsiveFontSize(20) }]}>{currentMonthStats.moves}</Text>
+                          <Text style={[styles.statLabel, { fontSize: responsiveFontSize(10) }]}>Переездов</Text>
+                        </View>
+                      </View>
+                    </View>
+                  </Animated.View>
                 </View>
-                
-                <Animated.View 
-                  style={{
-                    maxHeight: headerStatsHeightAnim.interpolate({
-                      inputRange: [0, 1],
-                      outputRange: [0, 180],
-                    }),
-                    opacity: headerStatsHeightAnim,
-                    overflow: 'hidden',
-                  }}
-                >
-                  <View style={styles.statsRow}>
-                    <View style={styles.statCard}>
-                      <View style={styles.statIconWrapper}>
-                        <Ionicons name="musical-notes" size={responsiveSize(20)} color="#FFD700" />
-                      </View>
-                      <View style={styles.statTextContainer}>
-                        <Text style={[styles.statValue, { fontSize: responsiveFontSize(20) }]}>{currentMonthStats.concerts}</Text>
-                        <Text style={[styles.statLabel, { fontSize: responsiveFontSize(10) }]}>Концертов</Text>
-                      </View>
-                    </View>
-
-                    <View style={styles.statDivider} />
-
-                    <View style={styles.statCard}>
-                      <View style={styles.statIconWrapper}>
-                        <Ionicons name="airplane" size={responsiveSize(20)} color="#FFA500" />
-                      </View>
-                      <View style={styles.statTextContainer}>
-                        <Text style={[styles.statValue, { fontSize: responsiveFontSize(20) }]}>{currentMonthStats.tours}</Text>
-                        <Text style={[styles.statLabel, { fontSize: responsiveFontSize(10) }]}>Гастролей</Text>
-                      </View>
-                    </View>
-
-                    <View style={styles.statDivider} />
-
-                    <View style={styles.statCard}>
-                      <View style={styles.statIconWrapper}>
-                        <Ionicons name="bus" size={responsiveSize(20)} color="#34C759" />
-                      </View>
-                      <View style={styles.statTextContainer}>
-                        <Text style={[styles.statValue, { fontSize: responsiveFontSize(20) }]}>{currentMonthStats.moves}</Text>
-                        <Text style={[styles.statLabel, { fontSize: responsiveFontSize(10) }]}>Переездов</Text>
-                      </View>
-                    </View>
-                  </View>
-                </Animated.View>
               </View>
-            </View>
-          </LinearGradient>
+            </LinearGradient>
+          </Animated.View>
         </Animated.View>
 
         {/* SCROLLVIEW С PULL-TO-REFRESH */}
@@ -1254,7 +1279,7 @@ export default function CalendarScreen({ navigation, route }) {
             />
           }
         >
-          {/* ✅ ПАНЕЛЬ 2: СТАТИСТИКА ПО РЕГИОНАМ - ТЕПЕРЬ КАК АККОРДЕОН */}
+          {/* ✅ ПАНЕЛЬ 2: СТАТИСТИКА ПО РЕГИОНАМ (БЕЗ 4 МЕСЯЦЕВ!) */}
           <View style={styles.statisticsSection}>
             <View style={styles.statisticsSectionHeaderContainer}>
               <View style={styles.statisticsTitleWrapper}>
@@ -1282,7 +1307,6 @@ export default function CalendarScreen({ navigation, route }) {
               </TouchableOpacity>
             </View>
 
-            {/* СОДЕРЖИМОЕ ПАНЕЛИ - АНИМИРУЕТСЯ КАК У СТАТИСТИКИ ЗА МЕСЯЦ */}
             <Animated.View 
               style={{
                 maxHeight: regionStatsHeightAnim.interpolate({
@@ -1293,7 +1317,7 @@ export default function CalendarScreen({ navigation, route }) {
                 overflow: 'hidden',
               }}
             >
-              {/* ТАБЫ СТАТИСТИКИ - ТЕПЕРЬ ТОЛЬКО 2 ТАБА */}
+              {/* ✅ ТАБЫ СТАТИСТИКИ - ТОЛЬКО МЕСЯЦ И КВАРТАЛ! */}
               <View style={styles.statisticsTabsContainer}>
                 <TouchableOpacity
                   style={[styles.statisticsTab, activeStatTab === 'monthly' && styles.statisticsTabActive]}
@@ -1303,7 +1327,7 @@ export default function CalendarScreen({ navigation, route }) {
                     colors={activeStatTab === 'monthly' ? ['#FFD700', '#FFA500'] : ['rgba(100, 100, 100, 0.2)', 'rgba(100, 100, 100, 0.1)']}
                     style={styles.statisticsTabGradient}
                   >
-                    <Text style={[styles.statisticsTabText, { fontSize: responsiveFontSize(12) }, activeStatTab === 'monthly' && styles.statisticsTabTextActive]}>
+                    <Text style={[styles.statisticsTabText, { fontSize: responsiveFontSize(14) }, activeStatTab === 'monthly' && styles.statisticsTabTextActive]}>
                       Месяц
                     </Text>
                   </LinearGradient>
@@ -1317,7 +1341,7 @@ export default function CalendarScreen({ navigation, route }) {
                     colors={activeStatTab === 'quarterly' ? ['#4A90E2', '#357ABD'] : ['rgba(100, 100, 100, 0.2)', 'rgba(100, 100, 100, 0.1)']}
                     style={styles.statisticsTabGradient}
                   >
-                    <Text style={[styles.statisticsTabText, { fontSize: responsiveFontSize(12) }, activeStatTab === 'quarterly' && styles.statisticsTabTextActive]}>
+                    <Text style={[styles.statisticsTabText, { fontSize: responsiveFontSize(14) }, activeStatTab === 'quarterly' && styles.statisticsTabTextActive]}>
                       Квартал
                     </Text>
                   </LinearGradient>
@@ -1518,7 +1542,7 @@ export default function CalendarScreen({ navigation, route }) {
           </View>
         </ScrollView>
 
-        {/* ✅ МОДАЛЬНОЕ ОКНО СОБЫТИЙ */}
+        {/* МОДАЛЬНОЕ ОКНО СОБЫТИЙ */}
         <Modal
           animationType="fade"
           transparent={true}
@@ -1774,7 +1798,7 @@ export default function CalendarScreen({ navigation, route }) {
           </View>
         </Modal>
 
-        {/* ✅ МОДАЛЬНОЕ ОКНО ВЫБОРА ТИПА СОБЫТИЯ */}
+        {/* МОДАЛЬНОЕ ОКНО ВЫБОРА ТИПА СОБЫТИЯ */}
         <Modal
           animationType="fade"
           transparent={true}
@@ -1869,7 +1893,7 @@ export default function CalendarScreen({ navigation, route }) {
           </View>
         </Modal>
 
-        {/* ✅ МОДАЛЬНОЕ ОКНО ВЫХОДА */}
+        {/* МОДАЛЬНОЕ ОКНО ВЫХОДА */}
         <Modal
           animationType="fade"
           transparent={true}
@@ -1938,7 +1962,7 @@ export default function CalendarScreen({ navigation, route }) {
           </View>
         </Modal>
 
-        {/* ✅ CUSTOM ALERT COMPONENT */}
+        {/* CUSTOM ALERT */}
         <CustomAlert
           visible={alertConfig.visible}
           title={alertConfig.title}
@@ -1951,7 +1975,6 @@ export default function CalendarScreen({ navigation, route }) {
   );
 }
 
-// ✅ СТИЛИ (БАЗОВЫЕ РАЗМЕРЫ, БЕЗ ДИНАМИЧЕСКИХ)
 const styles = StyleSheet.create({
   container: {
     flex: 1,
@@ -1964,7 +1987,44 @@ const styles = StyleSheet.create({
     flex: 1,
   },
 
-  // ✅ ИЗМЕНЕНО: СТАТИСТИКА ПО РЕГИОНАМ ТЕПЕРЬ КАК АККОРДЕОН
+  // ✅ НОВОЕ: МИНИ-ХЕДЕР (ВСЕГДА ВИДЕН)
+  miniHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+    paddingBottom: 12,
+    backgroundColor: 'rgba(26, 26, 26, 0.98)',
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(255, 215, 0, 0.2)',
+  },
+  miniHeaderLeft: {
+    flex: 1,
+  },
+  miniHeaderActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+
+  // ✅ КНОПКА ШТОРКИ
+  toggleHeaderButton: {
+    borderRadius: 20,
+    overflow: 'hidden',
+    shadowColor: '#FFD700',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  toggleHeaderButtonGradient: {
+    width: 44,
+    height: 44,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+
+  // СТАТИСТИКА ПО РЕГИОНАМ
   statisticsSection: {
     marginHorizontal: 15,
     marginTop: 15,
@@ -1993,7 +2053,7 @@ const styles = StyleSheet.create({
   },
   statisticsTabsContainer: {
     flexDirection: 'row',
-    gap: 8,
+    gap: 12,
     marginBottom: 16,
   },
   statisticsTab: {
@@ -2002,8 +2062,8 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
   },
   statisticsTabGradient: {
-    paddingVertical: 10,
-    paddingHorizontal: 12,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
     alignItems: 'center',
     borderRadius: 12,
   },
@@ -2080,9 +2140,10 @@ const styles = StyleSheet.create({
     color: '#4A90E2',
   },
   
-  // ХЕДЕР
+  // ХЕДЕР (СВОРАЧИВАЕМЫЙ)
   header: {
     paddingHorizontal: 20,
+    paddingTop: 15,
     paddingBottom: 24,
     borderBottomLeftRadius: 30,
     borderBottomRightRadius: 30,
@@ -2136,16 +2197,6 @@ const styles = StyleSheet.create({
     zIndex: 2,
   },
   
-  topRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 20,
-  },
-  
-  greetingSection: {
-    flex: 1,
-  },
   greetingText: {
     color: '#999',
     fontWeight: '500',
@@ -2157,14 +2208,8 @@ const styles = StyleSheet.create({
     letterSpacing: 0.3,
   },
   
-  actionButtons: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-  },
-
   refreshButton: {
-    borderRadius: 22,
+    borderRadius: 20,
     overflow: 'hidden',
     shadowColor: '#4A90E2',
     shadowOffset: { width: 0, height: 2 },
@@ -2201,7 +2246,7 @@ const styles = StyleSheet.create({
   },
   
   logoutButton: {
-    borderRadius: 22,
+    borderRadius: 20,
     overflow: 'hidden',
     shadowColor: '#FF6B6B',
     shadowOffset: { width: 0, height: 2 },
@@ -2556,7 +2601,7 @@ const styles = StyleSheet.create({
     lineHeight: 14,
   },
 
-  // ✅ МОДАЛЬНЫЕ ОКНА
+  // МОДАЛЬНЫЕ ОКНА
   modalOverlay: {
     flex: 1,
     backgroundColor: 'rgba(0, 0, 0, 0.85)',
@@ -2947,7 +2992,7 @@ const styles = StyleSheet.create({
     color: 'white',
   },
 
-  // ✅ CUSTOM ALERT STYLES
+  // CUSTOM ALERT STYLES
   customAlertOverlay: {
     flex: 1,
     backgroundColor: 'rgba(0, 0, 0, 0.85)',
@@ -2998,12 +3043,8 @@ const styles = StyleSheet.create({
     shadowRadius: 5,
     elevation: 3,
   },
-  customAlertButtonDestructive: {
-    // Дополнительные стили для кнопки удаления
-  },
-  customAlertButtonCancel: {
-    // Дополнительные стили для кнопки отмены
-  },
+  customAlertButtonDestructive: {},
+  customAlertButtonCancel: {},
   customAlertButtonGradient: {
     paddingVertical: 12,
     alignItems: 'center',
